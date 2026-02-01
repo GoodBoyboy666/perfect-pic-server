@@ -78,7 +78,7 @@ func InitConfig() {
 	v.SetDefault("upload.path", "uploads/imgs")
 	v.SetDefault("upload.url_prefix", "/imgs/")
 	v.SetDefault("upload.avatar_path", "uploads/avatars")
-	v.SetDefault("avatar_url_prefix", " /avatars/")
+	v.SetDefault("upload.avatar_url_prefix", "/avatars/")
 	v.SetDefault("server.port", "8080")
 	v.SetDefault("server.mode", "debug")
 	v.SetDefault("database.type", "sqlite")

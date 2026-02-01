@@ -3,6 +3,8 @@ package db
 import (
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/model"
 	"time"
@@ -42,6 +44,12 @@ func InitDB() {
 	case "sqlite":
 		fallthrough
 	default:
+		// 自动创建数据库目录
+		dbDir := filepath.Dir(cfg.Database.Filename)
+		if err := os.MkdirAll(dbDir, 0755); err != nil {
+			log.Fatalf("❌ 无法创建数据库目录 '%s': %v", dbDir, err)
+		}
+
 		// 启用 WAL 模式和繁忙等待，提升 SQLite 并发性能
 		dsn := cfg.Database.Filename + "?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000"
 		dialector = sqlite.Open(dsn)
