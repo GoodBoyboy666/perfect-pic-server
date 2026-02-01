@@ -84,8 +84,14 @@ func UpdateSelfUsername(c *gin.Context) {
 		isAdmin = val
 	}
 
+	uid, ok := userId.(uint)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "用户ID类型错误"})
+		return
+	}
+
 	// 签发新 Token
-	token, _ := utils.GenerateToken(userId.(uint), req.Username, isAdmin, time.Hour*time.Duration(cfg.JWT.ExpirationHours))
+	token, _ := utils.GenerateToken(uid, req.Username, isAdmin, time.Hour*time.Duration(cfg.JWT.ExpirationHours))
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "用户名更新成功",

@@ -25,7 +25,11 @@ func UploadImage(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "未获取到用户信息"})
 		return
 	}
-	uid := userID.(uint)
+	uid, ok := userID.(uint)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的用户ID类型"})
+		return
+	}
 
 	imageRecord, url, err := service.ProcessImageUpload(file, uid)
 	if err != nil {

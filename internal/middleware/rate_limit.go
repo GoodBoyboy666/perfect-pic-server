@@ -36,9 +36,10 @@ func NewIPRateLimiter(r rate.Limit, b int) *IPRateLimiter {
 
 func (i *IPRateLimiter) getLimiter(ip string) *rate.Limiter {
 	if v, ok := i.ips.Load(ip); ok {
-		c := v.(*client)
-		c.lastSeen = time.Now()
-		return c.limiter
+		if c, ok := v.(*client); ok {
+			c.lastSeen = time.Now()
+			return c.limiter
+		}
 	}
 
 	i.mu.Lock()
@@ -46,9 +47,10 @@ func (i *IPRateLimiter) getLimiter(ip string) *rate.Limiter {
 
 	// Double check
 	if v, ok := i.ips.Load(ip); ok {
-		c := v.(*client)
-		c.lastSeen = time.Now()
-		return c.limiter
+		if c, ok := v.(*client); ok {
+			c.lastSeen = time.Now()
+			return c.limiter
+		}
 	}
 
 	limiter := rate.NewLimiter(i.r, i.b)
@@ -61,7 +63,11 @@ func (i *IPRateLimiter) cleanupLoop() {
 	for {
 		time.Sleep(1 * time.Minute)
 		i.ips.Range(func(key, value interface{}) bool {
-			client := value.(*client)
+			client, ok := value.(*client)
+			if !ok {
+				i.ips.Delete(key)
+				return true
+			}
 			if time.Since(client.lastSeen) > 3*time.Minute {
 				i.ips.Delete(key)
 			}

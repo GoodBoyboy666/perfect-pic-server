@@ -74,14 +74,22 @@ func UserStatusCheck() gin.HandlerFunc {
 			return
 		}
 
-		uid := userID.(uint)
+		uid, ok := userID.(uint)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的用户ID类型"})
+			c.Abort()
+			return
+		}
+
 		var currentStatus int
 
 		// 尝试从缓存获取
 		if val, ok := statusCache.Load(uid); ok {
-			cached := val.(cachedStatus)
-			if time.Now().Before(cached.ExpiresAt) {
-				currentStatus = cached.Status
+			cached, typeOk := val.(cachedStatus)
+			if typeOk {
+				if time.Now().Before(cached.ExpiresAt) {
+					currentStatus = cached.Status
+				}
 			}
 		}
 
@@ -120,7 +128,8 @@ func UserStatusCheck() gin.HandlerFunc {
 func AdminCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		value, exist := c.Get("admin")
-		if exist != true || value.(bool) != true {
+		isAdmin, ok := value.(bool)
+		if !exist || !ok || !isAdmin {
 			c.JSON(http.StatusForbidden, gin.H{"error": "需要管理员权限才能访问"})
 			c.Abort()
 			return

@@ -58,7 +58,11 @@ func Get() Config {
 	if val == nil {
 		return Config{}
 	}
-	return *val.(*Config)
+	c, ok := val.(*Config)
+	if !ok {
+		return Config{}
+	}
+	return *c
 }
 
 func InitConfig() {

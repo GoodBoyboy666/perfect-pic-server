@@ -56,33 +56,20 @@ func ValidateImageContent(reader io.ReadSeeker, ext string) (bool, string) {
 
 	contentType := http.DetectContentType(buffer)
 
-	valid := false
-	switch contentType {
-	case "image/jpeg":
-		if ext == ".jpg" || ext == ".jpeg" {
-			valid = true
-		}
-	case "image/png":
-		if ext == ".png" {
-			valid = true
-		}
-	case "image/gif":
-		if ext == ".gif" {
-			valid = true
-		}
-	case "image/webp":
-		if ext == ".webp" {
-			valid = true
-		}
-	case "image/bmp", "image/x-ms-bmp":
-		if ext == ".bmp" {
-			valid = true
+	allowedTypes := map[string]map[string]bool{
+		"image/jpeg":     {".jpg": true, ".jpeg": true},
+		"image/png":      {".png": true},
+		"image/gif":      {".gif": true},
+		"image/webp":     {".webp": true},
+		"image/bmp":      {".bmp": true},
+		"image/x-ms-bmp": {".bmp": true},
+	}
+
+	if exts, ok := allowedTypes[contentType]; ok {
+		if exts[ext] {
+			return true, ""
 		}
 	}
 
-	if !valid {
-		return false, "文件真实类型(" + contentType + ")与扩展名(" + ext + ")不匹配或不支持"
-	}
-
-	return true, ""
+	return false, "文件真实类型(" + contentType + ")与扩展名(" + ext + ")不匹配或不支持"
 }

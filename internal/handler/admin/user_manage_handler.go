@@ -173,53 +173,16 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	if req.Username != nil && *req.Username != "" {
-		if ok, msg := utils.ValidateUsername(*req.Username); !ok {
-			c.JSON(http.StatusBadRequest, gin.H{"error": msg})
-			return
-		}
-	}
-
-	if req.Password != nil && *req.Password != "" {
-		if ok, msg := utils.ValidatePassword(*req.Password); !ok {
-			c.JSON(http.StatusBadRequest, gin.H{"error": msg})
-			return
-		}
+	updates, errMsg := prepareUserUpdates(req)
+	if errMsg != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
+		return
 	}
 
 	var user model.User
 	if err := db.DB.First(&user, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		return
-	}
-
-	updates := make(map[string]interface{})
-	if req.Username != nil && *req.Username != "" {
-		updates["username"] = *req.Username
-	}
-	if req.Password != nil && *req.Password != "" {
-		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
-		updates["password"] = string(hashedPassword)
-	}
-
-	if req.StorageQuota != nil {
-		if *req.StorageQuota == -1 {
-			updates["storage_quota"] = nil
-		} else if *req.StorageQuota >= 0 {
-			updates["storage_quota"] = *req.StorageQuota
-		} else {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "存储配额不能为负数（-1除外）"})
-			return
-		}
-	}
-
-	if req.Status != nil {
-		if *req.Status == 1 || *req.Status == 2 {
-			updates["status"] = *req.Status
-		} else {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户状态"})
-			return
-		}
 	}
 
 	if len(updates) > 0 {
@@ -232,6 +195,45 @@ func UpdateUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
+}
+
+func prepareUserUpdates(req UpdateUserRequest) (map[string]interface{}, string) {
+	updates := make(map[string]interface{})
+
+	if req.Username != nil && *req.Username != "" {
+		if ok, msg := utils.ValidateUsername(*req.Username); !ok {
+			return nil, msg
+		}
+		updates["username"] = *req.Username
+	}
+
+	if req.Password != nil && *req.Password != "" {
+		if ok, msg := utils.ValidatePassword(*req.Password); !ok {
+			return nil, msg
+		}
+		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
+		updates["password"] = string(hashedPassword)
+	}
+
+	if req.StorageQuota != nil {
+		if *req.StorageQuota == -1 {
+			updates["storage_quota"] = nil
+		} else if *req.StorageQuota >= 0 {
+			updates["storage_quota"] = *req.StorageQuota
+		} else {
+			return nil, "存储配额不能为负数（-1除外）"
+		}
+	}
+
+	if req.Status != nil {
+		if *req.Status == 1 || *req.Status == 2 {
+			updates["status"] = *req.Status
+		} else {
+			return nil, "无效的用户状态"
+		}
+	}
+
+	return updates, ""
 }
 
 // UpdateUserAvatar 更新用户头像
