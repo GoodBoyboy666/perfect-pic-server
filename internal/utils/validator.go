@@ -1,0 +1,88 @@
+package utils
+
+import (
+	"io"
+	"net/http"
+	"regexp"
+)
+
+// ValidateUsername checks if the username meets the requirements.
+func ValidateUsername(username string) (bool, string) {
+	// 允许英文大小写、数字和下划线
+	if matched, _ := regexp.MatchString(`^[a-zA-Z0-9_]+$`, username); !matched {
+		return false, "用户名只能包含英文大小写、数字和下划线"
+	}
+
+	// 不能是纯数字
+	if matched, _ := regexp.MatchString(`^[0-9]+$`, username); matched {
+		return false, "用户名不能为纯数字"
+	}
+
+	return true, ""
+}
+
+// ValidatePassword checks if the password meets the requirements.
+// Returns true if valid, otherwise false and an error message.
+func ValidatePassword(password string) (bool, string) {
+	if len(password) < 8 {
+		return false, "密码最少8位"
+	}
+
+	if matched, _ := regexp.MatchString(`^[a-zA-Z0-9[:punct:]]+$`, password); !matched {
+		return false, "密码只能包含英文大小写、数字和符号"
+	}
+
+	hasLetter, _ := regexp.MatchString(`[a-zA-Z]`, password)
+	hasNum, _ := regexp.MatchString(`[0-9]`, password)
+	if !hasLetter || !hasNum {
+		return false, "密码必须包含至少一个字母和一个数字"
+	}
+
+	return true, ""
+}
+
+// ValidateImageContent checks if the file content matches the extension.
+func ValidateImageContent(reader io.ReadSeeker, ext string) (bool, string) {
+	buffer := make([]byte, 512)
+	_, err := reader.Read(buffer)
+	if err != nil && err != io.EOF {
+		return false, "读取文件内容失败"
+	}
+
+	// 重置读取位置
+	if _, err := reader.Seek(0, 0); err != nil {
+		return false, "重置文件读取位置失败"
+	}
+
+	contentType := http.DetectContentType(buffer)
+
+	valid := false
+	switch contentType {
+	case "image/jpeg":
+		if ext == ".jpg" || ext == ".jpeg" {
+			valid = true
+		}
+	case "image/png":
+		if ext == ".png" {
+			valid = true
+		}
+	case "image/gif":
+		if ext == ".gif" {
+			valid = true
+		}
+	case "image/webp":
+		if ext == ".webp" {
+			valid = true
+		}
+	case "image/bmp", "image/x-ms-bmp":
+		if ext == ".bmp" {
+			valid = true
+		}
+	}
+
+	if !valid {
+		return false, "文件真实类型(" + contentType + ")与扩展名(" + ext + ")不匹配或不支持"
+	}
+
+	return true, ""
+}

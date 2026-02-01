@@ -1,0 +1,109 @@
+name: 构建并发布
+
+on:
+  push:
+    tags:
+      - 'v*' # 匹配所有以 v 开头的 tag，包括 v1.0.0, v1.0.0-beta, v1.0.0-rc.1 等
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: 构建与发布
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出后端代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          check-latest: true
+
+      - name: 获取版本号
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: 判断是否为预发布版本
+        id: check_prerelease
+        run: |
+          if [[ ${{ steps.get_version.outputs.VERSION }} == *"-beta"* ]] || [[ ${{ steps.get_version.outputs.VERSION }} == *"-rc"* ]]; then
+            echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT
+          else
+            echo "IS_PRERELEASE=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 创建构建目录
+        run: mkdir -p build_artifacts
+
+      # --- 构建非嵌入 (Non-Embed) 版本 ---
+      - name: 构建纯后端版 (Linux)
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o build_artifacts/perfect-pic-server-${{ steps.get_version.outputs.VERSION }}-linux-amd64 main.go
+
+      - name: 构建纯后端版 (Windows)
+        run: |
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o build_artifacts/perfect-pic-server-${{ steps.get_version.outputs.VERSION }}-windows-amd64.exe main.go
+
+      # --- 准备前端资源 ---
+      - name: 检出前端仓库
+        uses: actions/checkout@v4
+        with:
+          repository: GoodBoyboy666/PerfectPic-Web
+          path: web-source
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+          cache-dependency-path: web-source/pnpm-lock.yaml
+
+      - name: 编译前端项目
+        run: |
+          cd web-source
+          pnpm install
+          pnpm build
+
+      - name: 嵌入前端资源
+        run: |
+          # 确保目标目录存在且为空
+          rm -rf frontend/*
+          # 将编译产物复制到后端的 frontend 目录
+          # 假设 pnpm build 输出到 'dist'。如果是 'build' 请自行修改。
+          cp -r web-source/dist/* frontend/
+
+          # 提取并记录前端版本号
+          FRONTEND_VERSION=$(node -p "require('./web-source/package.json').version")
+          echo "$FRONTEND_VERSION" > frontend/version
+          echo "已记录前端版本: $FRONTEND_VERSION"
+
+          # 创建占位文件以防目录为空 (虽然不太可能)
+          touch frontend/.keep
+
+      # --- 构建嵌入 (Embed) 版本 ---
+      - name: 构建全栈版 (Linux)
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o build_artifacts/perfect-pic-server-${{ steps.get_version.outputs.VERSION }}-embed-linux-amd64 main.go
+
+      - name: 构建全栈版 (Windows)
+        run: |
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o build_artifacts/perfect-pic-server-${{ steps.get_version.outputs.VERSION }}-embed-windows-amd64.exe main.go
+
+      # --- 上传发布 ---
+      - name: 创建 Release 并上传附件
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: build_artifacts/*
+          draft: true
+          prerelease: ${{ steps.check_prerelease.outputs.IS_PRERELEASE }}
+          generate_release_notes: true
