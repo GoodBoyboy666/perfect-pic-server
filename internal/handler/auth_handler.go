@@ -206,6 +206,54 @@ func EmailVerify(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "邮箱验证成功，现在可以登录了"})
 }
 
+func EmailChangeVerify(c *gin.Context) {
+	tokenString := c.Query("token")
+	if tokenString == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的验证链接"})
+		return
+	}
+
+	claims, err := utils.ParseEmailChangeToken(tokenString)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "验证链接已失效或不正确"})
+		return
+	}
+
+	if claims.Type != "email_change" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的验证 Token 类型"})
+		return
+	}
+
+	var user model.User
+	if err := db.DB.First(&user, claims.ID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		return
+	}
+
+	// 验证旧邮箱是否一致
+	if user.Email != claims.OldEmail {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "您的当前邮箱已变更，该验证链接已失效"})
+		return
+	}
+
+	// 再次检查新邮箱是否被占用
+	var count int64
+	db.DB.Model(&model.User{}).Where("email = ? AND id != ?", claims.NewEmail, claims.ID).Count(&count)
+	if count > 0 {
+		c.JSON(http.StatusConflict, gin.H{"error": "新邮箱已被其他用户占用，无法修改"})
+		return
+	}
+
+	user.Email = claims.NewEmail
+	user.EmailVerified = true // 修改成功即视为新邮箱已验证
+	if err := db.DB.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "邮箱修改失败，请稍后重试"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "邮箱修改成功"})
+}
+
 func GetRegisterState(c *gin.Context) {
 	allowRegister := service.GetBool(consts.ConfigAllowRegister)
 	c.JSON(http.StatusOK, gin.H{

@@ -31,6 +31,7 @@ func InitRouter(r *gin.Engine) {
 		api.POST("/register", authLimiter, handler.Register)
 
 		api.GET("/auth/email-verify", handler.EmailVerify)
+		api.GET("/auth/email-change-verify", handler.EmailChangeVerify)
 
 		api.GET("/register", handler.GetRegisterState)
 		api.GET("/captcha", handler.GetCaptcha)
@@ -46,6 +47,7 @@ func InitRouter(r *gin.Engine) {
 			userGroup.GET("/profile", handler.GetSelfInfo)
 			userGroup.PATCH("/username", handler.UpdateSelfUsername)
 			userGroup.PATCH("/password", handler.UpdateSelfPassword)
+			userGroup.POST("/email", handler.RequestUpdateEmail)
 
 			// 上传限流：读取配置
 			uploadLimiter := middleware.RateLimitMiddleware(consts.ConfigRateLimitUploadRPS, consts.ConfigRateLimitUploadBurst)
