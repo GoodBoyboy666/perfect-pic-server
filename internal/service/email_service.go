@@ -103,6 +103,59 @@ func SendTestEmail(toEmail string) error {
 	return smtp.SendMail(addr, auth, cfg.SMTP.From, []string{toEmail}, msg)
 }
 
+// SendEmailChangeVerification 发送修改邮箱验证邮件
+func SendEmailChangeVerification(toEmail, username, oldEmail, newEmail, verifyUrl string) error {
+	// 检查是否开启 SMTP
+	if !GetBool(consts.ConfigEnableSMTP) {
+		return nil
+	}
+
+	cfg := config.Get()
+	if cfg.SMTP.Host == "" {
+		return nil
+	}
+
+	auth := smtp.PlainAuth("", cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.Host)
+
+	siteName := GetString(consts.ConfigSiteName)
+	if siteName == "" {
+		siteName = "Perfect Pic"
+	}
+
+	// 构建邮件内容
+	subject := fmt.Sprintf("Subject: %s - 请确认修改邮箱\n", siteName)
+	contentType := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
+
+	// 读取模板文件
+	templatePath := "config/email-change-mail.html"
+	contentBytes, err := os.ReadFile(templatePath)
+	var body string
+	if err != nil {
+		body = fmt.Sprintf(`
+			<h1>修改邮箱确认 - %s</h1>
+			<p>您请求将邮箱从 %s 修改为 %s。</p>
+			<p>请点击链接确认: <a href="%s">%s</a></p>
+		`, siteName, oldEmail, newEmail, verifyUrl, verifyUrl)
+	} else {
+		body = string(contentBytes)
+		body = strings.ReplaceAll(body, "{{site_name}}", siteName)
+		body = strings.ReplaceAll(body, "{{username}}", username)
+		body = strings.ReplaceAll(body, "{{old_email}}", oldEmail)
+		body = strings.ReplaceAll(body, "{{new_email}}", newEmail)
+		body = strings.ReplaceAll(body, "{{verify_url}}", verifyUrl)
+	}
+
+	msg := []byte(subject + contentType + body)
+
+	addr := fmt.Sprintf("%s:%d", cfg.SMTP.Host, cfg.SMTP.Port)
+
+	if cfg.SMTP.SSL {
+		return sendMailWithSSL(addr, auth, cfg.SMTP.From, []string{toEmail}, msg)
+	}
+
+	return smtp.SendMail(addr, auth, cfg.SMTP.From, []string{toEmail}, msg)
+}
+
 func sendMailWithSSL(addr string, auth smtp.Auth, from string, to []string, msg []byte) error {
 	cfg := config.Get()
 
