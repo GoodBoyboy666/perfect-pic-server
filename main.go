@@ -13,7 +13,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"perfect-pic-server/internal/config"
-	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/middleware"
 	"perfect-pic-server/internal/router"
@@ -29,6 +28,7 @@ import (
 var frontendFS embed.FS
 
 var (
+	AppName     = "Perfect Pic Server"
 	AppVersion  = "dev"
 	UIGitCommit = "unknown"
 )
@@ -151,7 +151,7 @@ func printWelcomeMessage(distFS fs.FS) {
 
 	fmt.Println()
 	fmt.Println(" ┌───────────────────────────────────────────────────────┐")
-	fmt.Printf(" │   🚀  %s\n", consts.ApplicationName)
+	fmt.Printf(" │   🚀  %s\n", AppName)
 	fmt.Println(" ├───────────────────────────────────────────────────────┤")
 	fmt.Printf(" │   📦  后端版本 : %s\n", AppVersion)
 	fmt.Printf(" │   💻  前端构建 : %s\n", UIGitCommit)
