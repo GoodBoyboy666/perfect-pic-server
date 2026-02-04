@@ -134,18 +134,18 @@ jobs:
       - name: 构建 (Linux)
         run: |
           # 1. 纯后端版
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "${{ steps.ldflags.outputs.FLAGS }}" -o build_artifacts/perfect-pic-server-${{ steps.meta.outputs.VERSION }}-linux-amd64 main.go
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "${{ steps.ldflags.outputs.FLAGS }}" -o build_artifacts/perfect-pic-server-${{ steps.meta.outputs.VERSION }}-linux-amd64 .
           
           # 2. 全栈版 (Embed)
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags embed -ldflags "${{ steps.ldflags.outputs.FLAGS }}" -o build_artifacts/perfect-pic-server-${{ steps.meta.outputs.VERSION }}-embed-linux-amd64 main.go
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags embed -ldflags "${{ steps.ldflags.outputs.FLAGS }}" -o build_artifacts/perfect-pic-server-${{ steps.meta.outputs.VERSION }}-embed-linux-amd64 .
 
       - name: 构建 (Windows)
         run: |
           # 1. 纯后端版
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "${{ steps.ldflags.outputs.FLAGS }}" -o build_artifacts/perfect-pic-server-${{ steps.meta.outputs.VERSION }}-windows-amd64.exe main.go
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "${{ steps.ldflags.outputs.FLAGS }}" -o build_artifacts/perfect-pic-server-${{ steps.meta.outputs.VERSION }}-windows-amd64.exe .
           
           # 2. 全栈版 (Embed)
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -tags embed -ldflags "${{ steps.ldflags.outputs.FLAGS }}" -o build_artifacts/perfect-pic-server-${{ steps.meta.outputs.VERSION }}-embed-windows-amd64.exe main.go
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -tags embed -ldflags "${{ steps.ldflags.outputs.FLAGS }}" -o build_artifacts/perfect-pic-server-${{ steps.meta.outputs.VERSION }}-embed-windows-amd64.exe .
 
       # --- 上传发布 ---
       - name: 创建 Release 并上传附件
