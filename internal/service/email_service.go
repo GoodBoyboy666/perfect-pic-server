@@ -46,13 +46,13 @@ func SendVerificationEmail(toEmail, username, verifyUrl string) error {
 		body = fmt.Sprintf(`
 			<h1>欢迎加入 %s</h1>
 			<p>请点击链接验证邮箱: <a href="%s">%s</a></p>
-		`, siteName, verifyUrl, verifyUrl)
+		`, siteName, html.EscapeString(verifyUrl), html.EscapeString(verifyUrl))
 	} else {
 		body = string(contentBytes)
 		body = strings.ReplaceAll(body, "{{site_name}}", siteName)
 		// 防止XSS: 对用户名进行HTML转义
 		body = strings.ReplaceAll(body, "{{username}}", html.EscapeString(username))
-		body = strings.ReplaceAll(body, "{{verify_url}}", verifyUrl)
+		body = strings.ReplaceAll(body, "{{verify_url}}", html.EscapeString(verifyUrl))
 	}
 
 	fromHeader, fromAddr, err := parseAddressForHeader(cfg.SMTP.From)
@@ -161,15 +161,15 @@ func SendEmailChangeVerification(toEmail, username, oldEmail, newEmail, verifyUr
 			<h1>修改邮箱确认 - %s</h1>
 			<p>您请求将邮箱从 %s 修改为 %s。</p>
 			<p>请点击链接确认: <a href="%s">%s</a></p>
-		`, siteName, oldEmail, newEmail, verifyUrl, verifyUrl)
+		`, siteName, html.EscapeString(oldEmail), html.EscapeString(newEmail), html.EscapeString(verifyUrl), html.EscapeString(verifyUrl))
 	} else {
 		body = string(contentBytes)
 		body = strings.ReplaceAll(body, "{{site_name}}", siteName)
 		// 防止XSS: 对用户名进行HTML转义
 		body = strings.ReplaceAll(body, "{{username}}", html.EscapeString(username))
-		body = strings.ReplaceAll(body, "{{old_email}}", oldEmail)
-		body = strings.ReplaceAll(body, "{{new_email}}", newEmail)
-		body = strings.ReplaceAll(body, "{{verify_url}}", verifyUrl)
+		body = strings.ReplaceAll(body, "{{old_email}}", html.EscapeString(oldEmail))
+		body = strings.ReplaceAll(body, "{{new_email}}", html.EscapeString(newEmail))
+		body = strings.ReplaceAll(body, "{{verify_url}}", html.EscapeString(verifyUrl))
 	}
 
 	fromHeader, fromAddr, err := parseAddressForHeader(cfg.SMTP.From)
@@ -226,13 +226,13 @@ func SendPasswordResetEmail(toEmail, username, resetUrl string) error {
 			<h1>重置密码 - %s</h1>
 			<p>请点击链接重置密码: <a href="%s">%s</a></p>
 			<p>有效期15分钟。</p>
-		`, siteName, resetUrl, resetUrl)
+		`, siteName, html.EscapeString(resetUrl), html.EscapeString(resetUrl))
 	} else {
 		body = string(contentBytes)
 		body = strings.ReplaceAll(body, "{{site_name}}", siteName)
 		// 防止XSS: 对用户名进行HTML转义
 		body = strings.ReplaceAll(body, "{{username}}", html.EscapeString(username))
-		body = strings.ReplaceAll(body, "{{reset_url}}", resetUrl)
+		body = strings.ReplaceAll(body, "{{reset_url}}", html.EscapeString(resetUrl))
 	}
 
 	fromHeader, fromAddr, err := parseAddressForHeader(cfg.SMTP.From)
