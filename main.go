@@ -249,7 +249,7 @@ func applyTrustedProxies(r *gin.Engine) {
 		if err := r.SetTrustedProxies(nil); err != nil {
 			log.Printf("⚠️ 设置可信代理失败: %v", err)
 		}
-		log.Println("⚠️ 未配置可信代理，ClientIP 将使用 RemoteAddr")
+		log.Println("ℹ️ 未配置可信代理，已禁用代理信任，将使用 RemoteAddr")
 		return
 	}
 
@@ -258,12 +258,12 @@ func applyTrustedProxies(r *gin.Engine) {
 		if err := r.SetTrustedProxies(nil); err != nil {
 			log.Printf("⚠️ 设置可信代理失败: %v", err)
 		}
-		log.Println("⚠️ 可信代理配置为空，已禁用代理信任")
+		log.Println("ℹ️ 未配置可信代理，已禁用代理信任，将使用 RemoteAddr")
 		return
 	}
 
 	if err := r.SetTrustedProxies(proxies); err != nil {
-		log.Printf("⚠️ 可信代理配置无效: %v，已禁用代理信任", err)
+		log.Printf("ℹ️ 可信代理配置无效: %v，已禁用代理信任，将使用 RemoteAddr", err)
 		_ = r.SetTrustedProxies(nil)
 		return
 	}
