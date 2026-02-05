@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"perfect-pic-server/internal/config"
+	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/service"
@@ -28,15 +30,13 @@ func GetSelfInfo(c *gin.Context) {
 		return
 	}
 
-	// 计算实际配额
-	quota := service.GetUserStorageQuota(&user)
-
 	c.JSON(http.StatusOK, gin.H{
 		"id":            user.ID,
 		"username":      user.Username,
+		"email":         user.Email,
 		"avatar":        user.Avatar,
 		"admin":         user.Admin,
-		"storage_quota": quota,
+		"storage_quota": user.StorageQuota,
 		"storage_used":  user.StorageUsed,
 	})
 }
@@ -91,7 +91,7 @@ func UpdateSelfUsername(c *gin.Context) {
 	}
 
 	// 签发新 Token
-	token, _ := utils.GenerateToken(uid, req.Username, isAdmin, time.Hour*time.Duration(cfg.JWT.ExpirationHours))
+	token, _ := utils.GenerateLoginToken(uid, req.Username, isAdmin, time.Hour*time.Duration(cfg.JWT.ExpirationHours))
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "用户名更新成功",
@@ -145,10 +145,87 @@ func UpdateSelfPassword(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "密码更新成功"})
+	c.JSON(http.StatusOK, gin.H{"message": "密码修改成功"})
 }
 
-// UpdateSelfAvatar 修改自己的头像
+func RequestUpdateEmail(c *gin.Context) {
+	id, _ := c.Get("id")
+	if id == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "用户不存在"})
+		return
+	}
+
+	uid, ok := id.(uint)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "用户ID类型错误"})
+		return
+	}
+
+	var req struct {
+		Password string `json:"password" binding:"required"`
+		NewEmail string `json:"new_email" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	if ok, msg := utils.ValidateEmail(req.NewEmail); !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
+		return
+	}
+
+	var user model.User
+	if err := db.DB.First(&user, uid).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		return
+	}
+
+	// 验证密码
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "密码错误"})
+		return
+	}
+
+	if user.Email == req.NewEmail {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "新邮箱不能与当前邮箱相同"})
+		return
+	}
+
+	// 检查新邮箱是否被占用
+	var count int64
+	db.DB.Model(&model.User{}).Where("email = ?", req.NewEmail).Count(&count)
+	if count > 0 {
+		c.JSON(http.StatusConflict, gin.H{"error": "该邮箱已被使用"})
+		return
+	}
+
+	// 生成修改邮箱验证 Token (有效期30分钟)
+	token, err := utils.GenerateEmailChangeToken(user.ID, user.Email, req.NewEmail, 30*time.Minute)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成验证链接失败"})
+		return
+	}
+
+	// 生成链接
+	baseURL := service.GetString(consts.ConfigBaseURL)
+	if baseURL == "" {
+		baseURL = "http://localhost"
+	}
+	if len(baseURL) > 0 && baseURL[len(baseURL)-1] == '/' {
+		baseURL = baseURL[:len(baseURL)-1]
+	}
+	// 前端验证页面: /auth/email-change-verify?token=xxx
+	verifyUrl := fmt.Sprintf("%s/auth/email-change-verify?token=%s", baseURL, token)
+
+	// 发送邮件到新邮箱
+	go func() {
+		_ = service.SendEmailChangeVerification(req.NewEmail, user.Username, user.Email, req.NewEmail, verifyUrl)
+	}()
+
+	c.JSON(http.StatusOK, gin.H{"message": "验证邮件已发送至新邮箱，请查收并确认"})
+}
+
 func UpdateSelfAvatar(c *gin.Context) {
 	userId, exists := c.Get("id")
 	if !exists {

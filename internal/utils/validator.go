@@ -4,13 +4,27 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strings"
 )
 
 // ValidateUsername checks if the username meets the requirements.
 func ValidateUsername(username string) (bool, string) {
+	if len(username) < 4 || len(username) > 20 {
+		return false, "用户名长度必须在4到20个字符之间"
+	}
+
 	// 允许英文大小写、数字和下划线
+	// 严格控制字符集
 	if matched, _ := regexp.MatchString(`^[a-zA-Z0-9_]+$`, username); !matched {
 		return false, "用户名只能包含英文大小写、数字和下划线"
+	}
+
+	// 检查保留用户名，防止冒充官方
+	reserved := []string{"admin", "root", "system", "audit", "security", "support"}
+	for _, r := range reserved {
+		if strings.EqualFold(username, r) {
+			return false, "用户名包含保留词汇，不可使用"
+		}
 	}
 
 	// 不能是纯数字
@@ -38,6 +52,17 @@ func ValidatePassword(password string) (bool, string) {
 		return false, "密码必须包含至少一个字母和一个数字"
 	}
 
+	return true, ""
+}
+
+// ValidateEmail checks if the email is valid.
+func ValidateEmail(email string) (bool, string) {
+	// 简单的邮箱正则验证
+	regex := `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`
+	matched, _ := regexp.MatchString(regex, email)
+	if !matched {
+		return false, "邮箱格式不正确"
+	}
 	return true, ""
 }
 

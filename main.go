@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"embed"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -25,8 +24,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-//go:embed all:frontend
-var frontendFS embed.FS
+var (
+	AppName     = "Perfect Pic Server"
+	AppVersion  = "dev"
+	BuildTime   = "unknown"
+	GitCommit   = "unknown"
+	FrontendVer = "unknown"
+)
 
 func main() {
 
@@ -37,6 +41,34 @@ func main() {
 	db.InitDB()
 	service.InitializeSettings()
 
+	uploadPath, avatarPath := ensureDirectories()
+
+	gin.SetMode(config.Get().Server.Mode)
+
+	r := gin.Default()
+	applyTrustedProxies(r)
+	router.InitRouter(r)
+
+	setupStaticFiles(r, uploadPath, avatarPath)
+
+	distFS := GetFrontendAssets()
+	indexData := setupFrontend(r, distFS)
+
+	r.NoRoute(getNoRouteHandler(distFS, indexData))
+
+	// 导出模式
+	if *exportRoutes {
+		exportAPI(r)
+		return // 导出后直接退出程序，不启动 Web 服务
+	}
+
+	// 打印启动欢迎语
+	printWelcomeMessage()
+
+	startServer(r)
+}
+
+func ensureDirectories() (string, string) {
 	uploadPath := config.Get().Upload.Path
 	checkSecurePath(uploadPath)
 	if err := os.MkdirAll(uploadPath, 0755); err != nil {
@@ -48,37 +80,53 @@ func main() {
 	if err := os.MkdirAll(avatarPath, 0755); err != nil {
 		log.Fatal("无法创建头像目录: ", err)
 	}
+	return uploadPath, avatarPath
+}
 
-	gin.SetMode(config.Get().Server.Mode)
-
-	r := gin.Default()
-	router.InitRouter(r)
-
+func setupStaticFiles(r *gin.Engine, uploadPath, avatarPath string) {
 	// 使用带缓存控制的静态文件服务
 	r.Group(config.Get().Upload.URLPrefix, middleware.StaticCacheMiddleware()).
 		StaticFS("", gin.Dir(uploadPath, false))
 
 	r.Group(config.Get().Upload.AvatarURLPrefix, middleware.StaticCacheMiddleware()).
 		StaticFS("", gin.Dir(avatarPath, false))
+}
 
-	distFS, _ := fs.Sub(frontendFS, "frontend")
+func setupFrontend(r *gin.Engine, distFS fs.FS) []byte {
+	var indexData []byte
 
-	assetsFS, _ := fs.Sub(distFS, "assets")
-	r.StaticFS("/assets", http.FS(assetsFS))
+	if distFS != nil {
+		assetsFS, _ := fs.Sub(distFS, "assets")
+		r.StaticFS("/assets", http.FS(assetsFS))
 
-	// 预读取 index.html
-	indexData, err := fs.ReadFile(distFS, "index.html")
-	if err != nil {
-		log.Printf("⚠️ 警告: 无法读取 frontend/index.html: %v", err)
+		// 预读取 index.html
+		var err error
+		indexData, err = fs.ReadFile(distFS, "index.html")
+		if err != nil {
+			log.Printf("⚠️ 警告: 无法读取 frontend/index.html: %v", err)
+		}
 	}
+	return indexData
+}
 
-	r.NoRoute(func(c *gin.Context) {
+func getNoRouteHandler(distFS fs.FS, indexData []byte) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		if strings.HasPrefix(c.Request.URL.Path, "/api") {
 			c.JSON(404, gin.H{"error": "API not found"})
 			return
 		}
 		if strings.HasPrefix(c.Request.URL.Path, config.Get().Upload.URLPrefix) {
 			c.JSON(404, gin.H{"error": "Upload not found"})
+			return
+		}
+
+		if strings.HasPrefix(c.Request.URL.Path, config.Get().Upload.AvatarURLPrefix) {
+			c.JSON(404, gin.H{"error": "Avatar not found"})
+			return
+		}
+
+		if distFS == nil {
+			c.JSON(404, gin.H{"error": "Page not found"})
 			return
 		}
 
@@ -93,7 +141,7 @@ func main() {
 
 		f, err := distFS.Open(path)
 		if err == nil {
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 			stat, _ := f.Stat()
 			if !stat.IsDir() {
 				c.FileFromFS(path, http.FS(distFS))
@@ -103,17 +151,10 @@ func main() {
 
 		// SPA 回退：服务 index.html 内容
 		c.Data(200, "text/html; charset=utf-8", indexData)
-	})
-
-	// 导出模式
-	if *exportRoutes {
-		exportAPI(r)
-		return // 导出后直接退出程序，不启动 Web 服务
 	}
+}
 
-	// 打印启动欢迎语
-	printWelcomeMessage(distFS)
-
+func startServer(r *gin.Engine) {
 	// 停机配置
 	srv := &http.Server{
 		Addr:    ":" + config.Get().Server.Port,
@@ -142,18 +183,16 @@ func main() {
 	log.Println("✅ 服务已退出")
 }
 
-func printWelcomeMessage(distFS fs.FS) {
-	frontendVersion := "未知版本"
-	if vData, err := fs.ReadFile(distFS, "version"); err == nil {
-		frontendVersion = strings.TrimSpace(string(vData))
-	}
+func printWelcomeMessage() {
 
 	fmt.Println()
 	fmt.Println(" ┌───────────────────────────────────────────────────────┐")
-	fmt.Printf(" │   🚀  %s\n", consts.ApplicationName)
+	fmt.Printf(" │   🚀  %s\n", AppName)
 	fmt.Println(" ├───────────────────────────────────────────────────────┤")
-	fmt.Printf(" │   📦  后端版本 : %s\n", consts.ApplicationVersion)
-	fmt.Printf(" │   💻  前端版本 : %s\n", frontendVersion)
+	fmt.Printf(" │   📦  后端版本 : %s\n", AppVersion)
+	fmt.Printf(" │   💻  前端构建 : %s\n", FrontendVer)
+	fmt.Printf(" │   🔧  Git 提交 : %s\n", GitCommit)
+	fmt.Printf(" │   🕒  构建时间 : %s\n", BuildTime)
 	fmt.Printf(" │   🔥  服务端口 : %s\n", config.Get().Server.Port)
 	fmt.Println(" └───────────────────────────────────────────────────────┘")
 	fmt.Println()
@@ -229,4 +268,53 @@ func checkSecurePath(path string) {
 			log.Fatalf("❌ 安全配置错误: 静态资源目录 '%s' (解析为: '%s') 必须位于项目根目录下的安全子目录中 (如 %v)。\n这能防止意外暴露源代码或配置文件 (如 internal, cmd 等)。", path, relSlash, allowedDirs)
 		}
 	}
+}
+
+func applyTrustedProxies(r *gin.Engine) {
+	raw := strings.TrimSpace(service.GetString(consts.ConfigTrustedProxies))
+	if raw == "" {
+		if err := r.SetTrustedProxies(nil); err != nil {
+			log.Printf("⚠️ 设置可信代理失败: %v", err)
+		}
+		log.Println("ℹ️ 未配置可信代理，已禁用代理信任，将使用 RemoteAddr")
+		return
+	}
+
+	proxies := splitTrustedProxyList(raw)
+	if len(proxies) == 0 {
+		if err := r.SetTrustedProxies(nil); err != nil {
+			log.Printf("⚠️ 设置可信代理失败: %v", err)
+		}
+		log.Println("ℹ️ 未配置可信代理，已禁用代理信任，将使用 RemoteAddr")
+		return
+	}
+
+	if err := r.SetTrustedProxies(proxies); err != nil {
+		log.Printf("ℹ️ 可信代理配置无效: %v，已禁用代理信任，将使用 RemoteAddr", err)
+		_ = r.SetTrustedProxies(nil)
+		return
+	}
+
+	log.Printf("✅ 已配置可信代理: %v", proxies)
+}
+
+func splitTrustedProxyList(raw string) []string {
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		switch r {
+		case ',', ';', ' ', '\t', '\n', '\r':
+			return true
+		default:
+			return false
+		}
+	})
+
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		out = append(out, part)
+	}
+	return out
 }
