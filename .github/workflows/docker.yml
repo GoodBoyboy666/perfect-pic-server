@@ -1,0 +1,94 @@
+name: 构建并发布 Docker 镜像
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  REGISTRY: ghcr.io
+  # 默认 github.repository 包含大小写，GHCR 需要全小写，将在步骤中处理
+  IMAGE_NAME: ${{ github.repository }}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    name: 构建并推送到 GHCR
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 检出后端代码
+        uses: actions/checkout@v4
+
+      - name: 处理镜像名称 (转小写)
+        run: |
+          echo "IMAGE_NAME_LOWER=${IMAGE_NAME,,}" >> $GITHUB_ENV
+
+      - name: 准备构建参数
+        id: prep
+        run: |
+          # 提取 Tag 版本号 (例如 v1.0.0)
+          VERSION=${GITHUB_REF#refs/tags/}
+          
+          # 生成构建时间
+          BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
+          
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "BUILD_TIME=${BUILD_TIME}" >> $GITHUB_OUTPUT
+          
+          # 判断是否为预发布版本 (-beta 或 -rc)
+          if [[ $VERSION == *"-beta"* ]] || [[ $VERSION == *"-rc"* ]]; then
+            echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT
+            # 如果是 Beta 版后端，前端默认使用 beta 分支
+            echo "FRONTEND_REF=origin/beta" >> $GITHUB_OUTPUT
+          else
+            echo "IS_PRERELEASE=false" >> $GITHUB_OUTPUT
+            # 如果是正式版后端，前端默认使用同名 Tag
+            echo "FRONTEND_REF=${VERSION}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 登录到 GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 提取 Docker 标签和元数据
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}
+          tags: |
+            # 自动生成语义化版本标签 (type=semver)
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            
+            # 正式版：添加 latest 标签
+            type=raw,value=latest,enable=${{ steps.prep.outputs.IS_PRERELEASE == 'false' }}
+            
+            # 预发布版：添加 beta 标签
+            type=raw,value=beta,enable=${{ steps.prep.outputs.IS_PRERELEASE == 'true' }}
+
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 构建并推送镜像
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # 传递给 Dockerfile 的构建参数
+          build-args: |
+            APP_VERSION=${{ steps.prep.outputs.VERSION }}
+            BUILD_TIME=${{ steps.prep.outputs.BUILD_TIME }}
+            GIT_COMMIT=${{ github.sha }}
+            FRONTEND_REF=${{ steps.prep.outputs.FRONTEND_REF }}
+          # 使用 GitHub Actions 缓存加速构建
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
