@@ -12,6 +12,7 @@ import (
 	"os"
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -40,6 +41,8 @@ type PasswordResetData struct {
 	Username string
 	ResetUrl string
 }
+
+var strictEmailRegex = regexp.MustCompile(`[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z0-9]+`)
 
 // SendVerificationEmail 发送验证邮件
 func SendVerificationEmail(toEmail, username, verifyUrl string) error {
@@ -440,10 +443,10 @@ func formatAddressHeader(input string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-
-	cleanAddr := strings.ReplaceAll(addr.Address, "\r", "")
-	cleanAddr = strings.ReplaceAll(cleanAddr, "\n", "")
-	cleanAddr = strings.TrimSpace(cleanAddr)
+	cleanAddr := strictEmailRegex.FindString(addr.Address)
+	if cleanAddr == "" {
+		return "", "", fmt.Errorf("invalid email format detected")
+	}
 
 	var finalHeader string
 	if addr.Name != "" {
