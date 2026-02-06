@@ -10,24 +10,24 @@
         <div style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden;">
             <div style="background-color: #007bff; height: 6px;"></div>
             <div style="padding: 40px 30px;">
-                <h2 style="color: #333; margin-top: 0; font-weight: 500;">欢迎加入 {{site_name}}!</h2>
-                <p style="font-size: 16px;">亲爱的 <strong>{{username}}</strong>,</p>
+                <h2 style="color: #333; margin-top: 0; font-weight: 500;">欢迎加入 {{.site_name}}!</h2>
+                <p style="font-size: 16px;">亲爱的 <strong>{{.username}}</strong>,</p>
                 <p style="font-size: 16px; color: #555;">感谢您的注册。为了保障您的账户安全，我们需要验证您的电子邮箱地址。</p>
 
                 <div style="text-align: center; margin: 35px 0;">
-                    <a href="{{verify_url}}" style="display: inline-block; padding: 12px 30px; background-color: #007bff; color: #ffffff; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 4px rgba(0,123,255,0.3);">验证邮箱</a>
+                    <a href="{{.verify_url}}" style="display: inline-block; padding: 12px 30px; background-color: #007bff; color: #ffffff; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 4px rgba(0,123,255,0.3);">验证邮箱</a>
                 </div>
 
                 <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
                     <p style="font-size: 14px; color: #777; margin-bottom: 10px;">如果上方按钮无法点击，请复制以下链接到浏览器中打开：</p>
                     <div style="background-color: #f8f9fa; padding: 12px; border-radius: 4px; border: 1px solid #eee;">
-                        <a href="{{verify_url}}" style="color: #007bff; text-decoration: none; word-break: break-all; font-size: 13px; font-family: Consolas, Monaco, monospace; display: block;">{{verify_url}}</a>
+                        <a href="{{.verify_url}}" style="color: #007bff; text-decoration: none; word-break: break-all; font-size: 13px; font-family: Consolas, Monaco, monospace; display: block;">{{.verify_url}}</a>
                     </div>
                 </div>
             </div>
             <div style="background-color: #f8f9fa; padding: 15px 30px; text-align: center; border-top: 1px solid #eee;">
                 <p style="font-size: 12px; color: #999; margin: 0;">此邮件由系统自动发送，请勿回复。</p>
-                <p style="font-size: 12px; color: #999; margin: 5px 0 0;">&copy; {{site_name}}</p>
+                <p style="font-size: 12px; color: #999; margin: 5px 0 0;">&copy; {{.site_name}}</p>
             </div>
         </div>
     </div>
