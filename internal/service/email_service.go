@@ -12,7 +12,6 @@ import (
 	"os"
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
-	"strings"
 	"time"
 )
 
@@ -88,11 +87,11 @@ func SendVerificationEmail(toEmail, username, verifyUrl string) error {
 		return err
 	}
 
-	fromHeader, fromAddr, err := parseAddressForHeader(cfg.SMTP.From)
+	fromHeader, fromAddr, err := formatAddressHeader(cfg.SMTP.From)
 	if err != nil {
 		return err
 	}
-	toHeader, toAddr, err := parseAddressForHeader(toEmail)
+	toHeader, toAddr, err := formatAddressHeader(toEmail)
 	if err != nil {
 		return err
 	}
@@ -149,11 +148,11 @@ func SendTestEmail(toEmail string) error {
 		return err
 	}
 
-	fromHeader, fromAddr, err := parseAddressForHeader(cfg.SMTP.From)
+	fromHeader, fromAddr, err := formatAddressHeader(cfg.SMTP.From)
 	if err != nil {
 		return err
 	}
-	toHeader, toAddr, err := parseAddressForHeader(toEmail)
+	toHeader, toAddr, err := formatAddressHeader(toEmail)
 	if err != nil {
 		return err
 	}
@@ -221,11 +220,11 @@ func SendEmailChangeVerification(toEmail, username, oldEmail, newEmail, verifyUr
 		return err
 	}
 
-	fromHeader, fromAddr, err := parseAddressForHeader(cfg.SMTP.From)
+	fromHeader, fromAddr, err := formatAddressHeader(cfg.SMTP.From)
 	if err != nil {
 		return err
 	}
-	toHeader, toAddr, err := parseAddressForHeader(toEmail)
+	toHeader, toAddr, err := formatAddressHeader(toEmail)
 	if err != nil {
 		return err
 	}
@@ -291,11 +290,11 @@ func SendPasswordResetEmail(toEmail, username, resetUrl string) error {
 		return err
 	}
 
-	fromHeader, fromAddr, err := parseAddressForHeader(cfg.SMTP.From)
+	fromHeader, fromAddr, err := formatAddressHeader(cfg.SMTP.From)
 	if err != nil {
 		return err
 	}
-	toHeader, toAddr, err := parseAddressForHeader(toEmail)
+	toHeader, toAddr, err := formatAddressHeader(toEmail)
 	if err != nil {
 		return err
 	}
@@ -381,24 +380,23 @@ func sendMailWithSSL(addr string, auth smtp.Auth, from string, to []string, msg 
 	return client.Quit()
 }
 
-func parseAddressForHeader(input string) (string, string, error) {
-	cleanInput := sanitizeHeaderContent(input)
-
-	addr, err := mail.ParseAddress(cleanInput)
-	if err != nil {
-		return "", "", err
-	}
-
-	headerValue := addr.String()
-	cleanHeaderValue := sanitizeHeaderContent(headerValue)
-
-	return cleanHeaderValue, addr.Address, nil
-}
+//func parseAddressForHeader(input string) (string, string, error) {
+//	cleanInput := sanitizeHeaderContent(input)
+//
+//	addr, err := mail.ParseAddress(cleanInput)
+//	if err != nil {
+//		return "", "", err
+//	}
+//
+//	headerValue := addr.String()
+//	cleanHeaderValue := sanitizeHeaderContent(headerValue)
+//
+//	return cleanHeaderValue, addr.Address, nil
+//}
 
 func buildEmailMessage(fromHeader, toHeader, subject, body string) ([]byte, error) {
-	cleanSubject := sanitizeHeaderContent(subject)
 	// 对 Subject 进行 MIME 编码，防止中文乱码或被拒收
-	encodedSubject := mime.BEncoding.Encode("UTF-8", cleanSubject)
+	encodedSubject := mime.BEncoding.Encode("UTF-8", subject)
 	// 添加 Date 头
 	dateStr := time.Now().Format(time.RFC1123Z)
 
@@ -414,14 +412,14 @@ func buildEmailMessage(fromHeader, toHeader, subject, body string) ([]byte, erro
 //	return nil
 //}
 
-func sanitizeHeaderContent(input string) string {
-	return strings.Map(func(r rune) rune {
-		if r == '\r' || r == '\n' {
-			return -1 // 丢弃字符
-		}
-		return r
-	}, input)
-}
+//func sanitizeHeaderContent(input string) string {
+//	return strings.Map(func(r rune) rune {
+//		if r == '\r' || r == '\n' {
+//			return -1 // 丢弃字符
+//		}
+//		return r
+//	}, input)
+//}
 
 func renderTemplate(tpl string, data interface{}) (string, error) {
 	t, err := template.New("email").Parse(tpl)
@@ -433,4 +431,31 @@ func renderTemplate(tpl string, data interface{}) (string, error) {
 		return "", err
 	}
 	return buf.String(), nil
+}
+
+func formatAddressHeader(input string) (string, string, error) {
+	// 1. 解析地址 (如果格式不对，这里直接报错，起到 Validation 作用)
+	addr, err := mail.ParseAddress(input)
+	if err != nil {
+		return "", "", err
+	}
+
+	// 2. 处理显示名称 (Name)
+	// 即使 Name 里包含 \r\n，经过 QEncoding 后也会变成 =?UTF-8?Q?...?= 格式
+	encodedName := addr.Name
+	if encodedName != "" {
+		encodedName = mime.QEncoding.Encode("UTF-8", encodedName)
+	}
+
+	// 3. 重新组装 Header 值
+	// 格式: =?UTF-8?Q?Name?= <email@example.com>
+	var headerValue string
+	if encodedName != "" {
+		headerValue = fmt.Sprintf("%s <%s>", encodedName, addr.Address)
+	} else {
+		// 如果没有名字，直接使用纯邮箱地址
+		headerValue = addr.Address
+	}
+
+	return headerValue, addr.Address, nil
 }
