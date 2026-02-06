@@ -1,9 +1,10 @@
 package service
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
-	"html"
+	"html/template"
 	"log"
 	"mime"
 	"net/mail"
@@ -34,29 +35,32 @@ func SendVerificationEmail(toEmail, username, verifyUrl string) error {
 		siteName = "Perfect Pic"
 	}
 
-	safeSiteName := html.EscapeString(siteName)
-	safeVerifyUrl := html.EscapeString(verifyUrl)
-	safeUsername := html.EscapeString(username)
-
 	// 邮件主题
-	subject := fmt.Sprintf("欢迎注册 %s - 请验证您的邮箱", safeSiteName)
+	subject := fmt.Sprintf("欢迎注册 %s - 请验证您的邮箱", siteName)
 
 	// 读取模板文件
 	templatePath := "config/verification-mail.html"
 	contentBytes, err := os.ReadFile(templatePath)
-	var body string
+	var bodyTpl string
 	if err != nil {
 		// 如果模板读取失败，使用默认简单模板
-		body = fmt.Sprintf(`
-			<h1>欢迎加入 %s</h1>
-			<p>请点击链接验证邮箱: <a href="%s">%s</a></p>
-		`, safeSiteName, safeVerifyUrl, safeVerifyUrl)
+		bodyTpl = `
+			<h1>欢迎加入 {{.site_name}}</h1>
+			<p>请点击链接验证邮箱: <a href="{{.verify_url}}">{{.verify_url}}</a></p>
+		`
 	} else {
-		body = string(contentBytes)
-		body = strings.ReplaceAll(body, "{{site_name}}", safeSiteName)
-		// 防止XSS: 对用户名进行HTML转义
-		body = strings.ReplaceAll(body, "{{username}}", safeUsername)
-		body = strings.ReplaceAll(body, "{{verify_url}}", safeVerifyUrl)
+		bodyTpl = string(contentBytes)
+	}
+
+	data := map[string]interface{}{
+		"site_name":  siteName,
+		"username":   username,
+		"verify_url": verifyUrl,
+	}
+
+	body, err := renderTemplate(bodyTpl, data)
+	if err != nil {
+		return err
 	}
 
 	fromHeader, fromAddr, err := parseAddressForHeader(cfg.SMTP.From)
@@ -98,20 +102,27 @@ func SendTestEmail(toEmail string) error {
 		siteName = "Perfect Pic"
 	}
 
-	safeSiteName := html.EscapeString(siteName)
-
-	subject := fmt.Sprintf("%s SMTP 测试邮件", safeSiteName)
-	body := fmt.Sprintf(`
+	subject := fmt.Sprintf("%s SMTP 测试邮件", siteName)
+	bodyTpl := `
 <!DOCTYPE html>
 <html>
 <body>
     <h3>SMTP 配置测试成功</h3>
-    <p>这是一封来自 <strong>%s</strong> 的测试邮件。</p>
+    <p>这是一封来自 <strong>{{.site_name}}</strong> 的测试邮件。</p>
     <p>如果您收到此邮件，说明您的 SMTP 服务配置正确。</p>
-    <p>时间: %s</p>
+    <p>时间: {{.time}}</p>
 </body>
 </html>
-`, safeSiteName, time.Now().Format("2006-01-02 15:04:05"))
+`
+	data := map[string]interface{}{
+		"site_name": siteName,
+		"time":      time.Now().Format("2006-01-02 15:04:05"),
+	}
+
+	body, err := renderTemplate(bodyTpl, data)
+	if err != nil {
+		return err
+	}
 
 	fromHeader, fromAddr, err := parseAddressForHeader(cfg.SMTP.From)
 	if err != nil {
@@ -155,33 +166,34 @@ func SendEmailChangeVerification(toEmail, username, oldEmail, newEmail, verifyUr
 		siteName = "Perfect Pic"
 	}
 
-	safeSiteName := html.EscapeString(siteName)
-	safeOldEmail := html.EscapeString(oldEmail)
-	safeNewEmail := html.EscapeString(newEmail)
-	safeVerifyUrl := html.EscapeString(verifyUrl)
-	safeUsername := html.EscapeString(username)
-
 	// 邮件主题
-	subject := fmt.Sprintf("%s - 请确认修改邮箱", safeSiteName)
+	subject := fmt.Sprintf("%s - 请确认修改邮箱", siteName)
 
 	// 读取模板文件
 	templatePath := "config/email-change-mail.html"
 	contentBytes, err := os.ReadFile(templatePath)
-	var body string
+	var bodyTpl string
 	if err != nil {
-		body = fmt.Sprintf(`
-			<h1>修改邮箱确认 - %s</h1>
-			<p>您请求将邮箱从 %s 修改为 %s。</p>
-			<p>请点击链接确认: <a href="%s">%s</a></p>
-		`, safeSiteName, safeOldEmail, safeNewEmail, safeVerifyUrl, safeVerifyUrl)
+		bodyTpl = `
+			<h1>修改邮箱确认 - {{.site_name}}</h1>
+			<p>您请求将邮箱从 {{.old_email}} 修改为 {{.new_email}}。</p>
+			<p>请点击链接确认: <a href="{{.verify_url}}">{{.verify_url}}</a></p>
+		`
 	} else {
-		body = string(contentBytes)
-		body = strings.ReplaceAll(body, "{{site_name}}", safeSiteName)
-		// 防止XSS: 对用户名进行HTML转义
-		body = strings.ReplaceAll(body, "{{username}}", safeUsername)
-		body = strings.ReplaceAll(body, "{{old_email}}", safeOldEmail)
-		body = strings.ReplaceAll(body, "{{new_email}}", safeNewEmail)
-		body = strings.ReplaceAll(body, "{{verify_url}}", safeVerifyUrl)
+		bodyTpl = string(contentBytes)
+	}
+
+	data := map[string]interface{}{
+		"site_name":  siteName,
+		"username":   username,
+		"old_email":  oldEmail,
+		"new_email":  newEmail,
+		"verify_url": verifyUrl,
+	}
+
+	body, err := renderTemplate(bodyTpl, data)
+	if err != nil {
+		return err
 	}
 
 	fromHeader, fromAddr, err := parseAddressForHeader(cfg.SMTP.From)
@@ -226,29 +238,32 @@ func SendPasswordResetEmail(toEmail, username, resetUrl string) error {
 		siteName = "Perfect Pic"
 	}
 
-	safeSiteName := html.EscapeString(siteName)
-	safeResetUrl := html.EscapeString(resetUrl)
-	safeUsername := html.EscapeString(username)
-
 	// 邮件主题
-	subject := fmt.Sprintf("%s - 重置密码请求", safeSiteName)
+	subject := fmt.Sprintf("%s - 重置密码请求", siteName)
 
 	// 读取模板文件
 	templatePath := "config/reset-password-mail.html"
 	contentBytes, err := os.ReadFile(templatePath)
-	var body string
+	var bodyTpl string
 	if err != nil {
-		body = fmt.Sprintf(`
-			<h1>重置密码 - %s</h1>
-			<p>请点击链接重置密码: <a href="%s">%s</a></p>
+		bodyTpl = `
+			<h1>重置密码 - {{.site_name}}</h1>
+			<p>请点击链接重置密码: <a href="{{.reset_url}}">{{.reset_url}}</a></p>
 			<p>有效期15分钟。</p>
-		`, safeSiteName, safeResetUrl, safeResetUrl)
+		`
 	} else {
-		body = string(contentBytes)
-		body = strings.ReplaceAll(body, "{{site_name}}", safeSiteName)
-		// 防止XSS: 对用户名进行HTML转义
-		body = strings.ReplaceAll(body, "{{username}}", safeUsername)
-		body = strings.ReplaceAll(body, "{{reset_url}}", safeResetUrl)
+		bodyTpl = string(contentBytes)
+	}
+
+	data := map[string]interface{}{
+		"site_name": siteName,
+		"username":  username,
+		"reset_url": resetUrl,
+	}
+
+	body, err := renderTemplate(bodyTpl, data)
+	if err != nil {
+		return err
 	}
 
 	fromHeader, fromAddr, err := parseAddressForHeader(cfg.SMTP.From)
@@ -381,4 +396,16 @@ func sanitizeHeaderContent(input string) string {
 		}
 		return r
 	}, input)
+}
+
+func renderTemplate(tpl string, data map[string]interface{}) (string, error) {
+	t, err := template.New("mail").Parse(tpl)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, data); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
