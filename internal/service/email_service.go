@@ -16,6 +16,31 @@ import (
 	"time"
 )
 
+type VerificationEmailData struct {
+	SiteName  string
+	Username  string
+	VerifyUrl string
+}
+
+type TestEmailData struct {
+	SiteName string
+	Time     string
+}
+
+type EmailChangeData struct {
+	SiteName  string
+	Username  string
+	OldEmail  string
+	NewEmail  string
+	VerifyUrl string
+}
+
+type PasswordResetData struct {
+	SiteName string
+	Username string
+	ResetUrl string
+}
+
 // SendVerificationEmail 发送验证邮件
 func SendVerificationEmail(toEmail, username, verifyUrl string) error {
 	// 检查是否开启 SMTP
@@ -45,17 +70,17 @@ func SendVerificationEmail(toEmail, username, verifyUrl string) error {
 	if err != nil {
 		// 如果模板读取失败，使用默认简单模板
 		bodyTpl = `
-			<h1>欢迎加入 {{.site_name}}</h1>
-			<p>请点击链接验证邮箱: <a href="{{.verify_url}}">{{.verify_url}}</a></p>
+			<h1>欢迎加入 {{.SiteName}}</h1>
+			<p>请点击链接验证邮箱: <a href="{{.VerifyUrl}}">{{.VerifyUrl}}</a></p>
 		`
 	} else {
 		bodyTpl = string(contentBytes)
 	}
 
-	data := map[string]interface{}{
-		"site_name":  siteName,
-		"username":   username,
-		"verify_url": verifyUrl,
+	data := VerificationEmailData{
+		SiteName:  siteName,
+		Username:  username,
+		VerifyUrl: verifyUrl,
 	}
 
 	body, err := renderTemplate(bodyTpl, data)
@@ -108,15 +133,15 @@ func SendTestEmail(toEmail string) error {
 <html>
 <body>
     <h3>SMTP 配置测试成功</h3>
-    <p>这是一封来自 <strong>{{.site_name}}</strong> 的测试邮件。</p>
+    <p>这是一封来自 <strong>{{.SiteName}}</strong> 的测试邮件。</p>
     <p>如果您收到此邮件，说明您的 SMTP 服务配置正确。</p>
-    <p>时间: {{.time}}</p>
+    <p>时间: {{.Time}}</p>
 </body>
 </html>
 `
-	data := map[string]interface{}{
-		"site_name": siteName,
-		"time":      time.Now().Format("2006-01-02 15:04:05"),
+	data := TestEmailData{
+		SiteName: siteName,
+		Time:     time.Now().Format("2006-01-02 15:04:05"),
 	}
 
 	body, err := renderTemplate(bodyTpl, data)
@@ -175,20 +200,20 @@ func SendEmailChangeVerification(toEmail, username, oldEmail, newEmail, verifyUr
 	var bodyTpl string
 	if err != nil {
 		bodyTpl = `
-			<h1>修改邮箱确认 - {{.site_name}}</h1>
-			<p>您请求将邮箱从 {{.old_email}} 修改为 {{.new_email}}。</p>
-			<p>请点击链接确认: <a href="{{.verify_url}}">{{.verify_url}}</a></p>
+			<h1>修改邮箱确认 - {{.SiteName}}</h1>
+			<p>您请求将邮箱从 {{.OldEmail}} 修改为 {{.NewEmail}}。</p>
+			<p>请点击链接确认: <a href="{{.VerifyUrl}}">{{.VerifyUrl}}</a></p>
 		`
 	} else {
 		bodyTpl = string(contentBytes)
 	}
 
-	data := map[string]interface{}{
-		"site_name":  siteName,
-		"username":   username,
-		"old_email":  oldEmail,
-		"new_email":  newEmail,
-		"verify_url": verifyUrl,
+	data := EmailChangeData{
+		SiteName:  siteName,
+		Username:  username,
+		OldEmail:  oldEmail,
+		NewEmail:  newEmail,
+		VerifyUrl: verifyUrl,
 	}
 
 	body, err := renderTemplate(bodyTpl, data)
@@ -247,18 +272,18 @@ func SendPasswordResetEmail(toEmail, username, resetUrl string) error {
 	var bodyTpl string
 	if err != nil {
 		bodyTpl = `
-			<h1>重置密码 - {{.site_name}}</h1>
-			<p>请点击链接重置密码: <a href="{{.reset_url}}">{{.reset_url}}</a></p>
+			<h1>重置密码 - {{.SiteName}}</h1>
+			<p>请点击链接重置密码: <a href="{{.ResetUrl}}">{{.ResetUrl}}</a></p>
 			<p>有效期15分钟。</p>
 		`
 	} else {
 		bodyTpl = string(contentBytes)
 	}
 
-	data := map[string]interface{}{
-		"site_name": siteName,
-		"username":  username,
-		"reset_url": resetUrl,
+	data := PasswordResetData{
+		SiteName: siteName,
+		Username: username,
+		ResetUrl: resetUrl,
 	}
 
 	body, err := renderTemplate(bodyTpl, data)
@@ -398,8 +423,8 @@ func sanitizeHeaderContent(input string) string {
 	}, input)
 }
 
-func renderTemplate(tpl string, data map[string]interface{}) (string, error) {
-	t, err := template.New("mail").Parse(tpl)
+func renderTemplate(tpl string, data interface{}) (string, error) {
+	t, err := template.New("email").Parse(tpl)
 	if err != nil {
 		return "", err
 	}
