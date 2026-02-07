@@ -76,9 +76,15 @@ $env:PERFECT_PIC_JWT_SECRET="your_secure_random_secret_key"
 
 ## ✈️ Docker 部署
 
-如果你更喜欢使用 Docker 部署，项目提供了开箱即用的 Dockerfile。
+如果你更喜欢使用 Docker 部署，项目提供了开箱即用的 Docker 镜像以及 Dockerfile。
 
-### 1. 构建镜像
+### 1. 拉取镜像
+
+```bash
+docker pull ghcr.io/goodboyboy666/perfect-pic-server:latest
+```
+
+### 2. 或者自行构建镜像（可选）
 
 ```bash
 # 获取构建版本信息
@@ -95,9 +101,11 @@ docker build . \
   --build-arg FRONTEND_REF="origin/main"
 ```
 
-### 2. 运行容器
+### 3. 运行容器
 
 运行容器并持久化数据：
+> [!NOTE]
+> 如果您选择自行构建镜像，请将下方的 `ghcr.io/goodboyboy666/perfect-pic-server:latest` 替换为 `perfect-pic-server:latest`。
 
 ```bash
 docker run -d \
@@ -107,19 +115,19 @@ docker run -d \
   -e PERFECT_PIC_JWT_SECRET=xxxxx \
   -v $PWD/config:/app/config \
   -v $PWD/uploads:/app/uploads \
-  perfect-pic-server:latest
+  ghcr.io/goodboyboy666/perfect-pic-server:latest
 ```
 
 * **挂载说明**:
-  * `/app/config`: 存放数据库文件 (如果是 SQLite) 和配置文件。强烈建议首次运行前在该目录下配置好 `config.yaml`。
+  * `/app/config`: 存放数据库文件 (如果是 SQLite) 、配置文件和邮件模板。强烈建议首次运行前在该目录下配置好 `config.yaml`。
   * `/app/uploads`: 持久化存储上传的图片。
 
-### 3. 可以配合docker-compose使用
+### 4. 可以配合docker-compose使用
 
 ```yaml
 services:
   perfect-pic:
-    image: perfect-pic-server:latest
+    image: ghcr.io/goodboyboy666/perfect-pic-server:latest
     container_name: perfect-pic
     ports:
       - "8080:8080"
