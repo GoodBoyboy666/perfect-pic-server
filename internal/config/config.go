@@ -16,6 +16,7 @@ var (
 	// 使用 atomic.Value 存储 *Config，实现无锁读取
 	appConfig atomic.Value
 	configMu  sync.Mutex // 仅用于写操作互斥
+	configDir = "config"
 )
 
 type Config struct {
@@ -76,11 +77,21 @@ func Get() Config {
 	return *c
 }
 
-func InitConfig() {
+func GetConfigDir() string {
+	return configDir
+}
+
+func InitConfig(customConfigDir string) {
 	v := viper.New()
 
+	customConfigDir = strings.TrimSpace(customConfigDir)
+	if customConfigDir == "" {
+		customConfigDir = "config"
+	}
+	configDir = customConfigDir
+
 	// 设置配置文件路径
-	v.AddConfigPath("config")
+	v.AddConfigPath(configDir)
 	v.AddConfigPath(".")
 	v.SetConfigName("config")
 	v.SetConfigType("yaml")
@@ -93,7 +104,7 @@ func InitConfig() {
 	v.SetDefault("server.port", "8080")
 	v.SetDefault("server.mode", "debug")
 	v.SetDefault("database.type", "sqlite")
-	v.SetDefault("database.filename", "config/perfect_pic.db")
+	v.SetDefault("database.filename", "database/perfect_pic.db")
 	v.SetDefault("database.host", "127.0.0.1")
 	v.SetDefault("database.port", "3306")
 	v.SetDefault("database.user", "root")
