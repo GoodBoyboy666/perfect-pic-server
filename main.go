@@ -35,9 +35,10 @@ var (
 func main() {
 
 	exportRoutes := flag.Bool("export", false, "导出路由到 routes.json 并退出")
+	configDir := flag.String("config-dir", "config", "配置文件目录")
 	flag.Parse()
 
-	config.InitConfig()
+	config.InitConfig(*configDir)
 	db.InitDB()
 	service.InitializeSettings()
 

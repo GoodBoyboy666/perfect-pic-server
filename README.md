@@ -60,12 +60,24 @@ export PERFECT_PIC_JWT_SECRET=your_secure_random_secret_key
 ./perfect-pic-server
 ```
 
+可选参数：
+
+```bash
+./perfect-pic-server --config-dir ./config
+```
+
 **Windows (PowerShell):**
 
 ```powershell
 $env:PERFECT_PIC_SERVER_MODE="release"
 $env:PERFECT_PIC_JWT_SECRET="your_secure_random_secret_key"
 .\perfect-pic-server.exe
+```
+
+可选参数：
+
+```powershell
+.\perfect-pic-server.exe --config-dir .\config
 ```
 
 服务启动后，默认运行在 `http://localhost:8080`。
@@ -113,13 +125,15 @@ docker run -d \
   -p 8080:8080 \
   -e PERFECT_PIC_SERVER_MODE=release \
   -e PERFECT_PIC_JWT_SECRET=xxxxx \
-  -v $PWD/config:/app/config \
+  -v $PWD/config:/data/config \
+  -v $PWD/database:/data/database \
   -v $PWD/uploads:/app/uploads \
   ghcr.io/goodboyboy666/perfect-pic-server:latest
 ```
 
 * **挂载说明**:
-  * `/app/config`: 存放数据库文件 (如果是 SQLite) 、配置文件和邮件模板。强烈建议首次运行前在该目录下配置好 `config.yaml`。
+  * `/data/config`: 存放配置文件和邮件模板。强烈建议首次运行前在该目录下配置好 `config.yaml`。
+  * `/data/database`: 存放数据库文件（默认 SQLite 路径为 `/data/database/perfect_pic.db`）。
   * `/app/uploads`: 持久化存储上传的图片。
 
 ### 4. 可以配合docker-compose使用
@@ -132,7 +146,8 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./config:/app/config
+      - ./config:/data/config
+      - ./database:/data/database
       - ./uploads:/app/uploads
     environment:
       - PERFECT_PIC_SERVER_MODE=release
@@ -190,6 +205,8 @@ chmod +x build.sh
 
 项目支持 `config.yaml` 配置文件和环境变量双重配置。
 
+程序默认使用 `config/` 目录，可通过启动参数 `--config-dir` 指定其它目录（例如 `--config-dir /data/config`）。
+
 ### 配置文件 (config.yaml)
 
 首次运行会自动使用默认配置，你可以在根目录或 `config/` 目录下创建 `config.yaml`：
@@ -201,7 +218,7 @@ server:
 
 database:
   type: "sqlite" # sqlite, mysql, postgres
-  filename: "config/perfect_pic.db" # for sqlite  
+  filename: "database/perfect_pic.db" # for sqlite  
   host: "127.0.0.1" # for mysql/postgres
   port: "3306"
   user: "root"

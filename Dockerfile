@@ -79,10 +79,12 @@ RUN apk add --no-cache tzdata ca-certificates
 COPY --from=backend-builder /app/perfect-pic-server .
 
 # 创建常用目录
-RUN mkdir -p config uploads/imgs
+RUN mkdir -p /data/config /data/database /app/uploads/imgs /app/uploads/avatars
+
+ENV PERFECT_PIC_DATABASE_FILENAME=/data/database/perfect_pic.db
 
 # 暴露默认端口
 EXPOSE 8080
 
 # 运行
-ENTRYPOINT ["./perfect-pic-server"]
+ENTRYPOINT ["./perfect-pic-server", "--config-dir", "/data/config"]

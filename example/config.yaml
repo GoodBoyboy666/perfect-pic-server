@@ -4,7 +4,7 @@ server:
 
 database:
   type: "sqlite" # sqlite, mysql, postgres
-  filename: "config/perfect_pic.db" # for sqlite
+  filename: "database/perfect_pic.db" # for sqlite; independent from --config-dir
   host: "127.0.0.1" # for mysql/postgres
   port: "3306"
   user: "root"

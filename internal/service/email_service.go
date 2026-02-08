@@ -10,6 +10,7 @@ import (
 	"net/mail"
 	"net/smtp"
 	"os"
+	"path/filepath"
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
 	"regexp"
@@ -67,7 +68,7 @@ func SendVerificationEmail(toEmail, username, verifyUrl string) error {
 	subject := fmt.Sprintf("欢迎注册 %s - 请验证您的邮箱", siteName)
 
 	// 读取模板文件
-	templatePath := "config/verification-mail.html"
+	templatePath := filepath.Join(config.GetConfigDir(), "verification-mail.html")
 	contentBytes, err := os.ReadFile(templatePath)
 	var bodyTpl string
 	if err != nil {
@@ -198,7 +199,7 @@ func SendEmailChangeVerification(toEmail, username, oldEmail, newEmail, verifyUr
 	subject := fmt.Sprintf("%s - 请确认修改邮箱", siteName)
 
 	// 读取模板文件
-	templatePath := "config/email-change-mail.html"
+	templatePath := filepath.Join(config.GetConfigDir(), "email-change-mail.html")
 	contentBytes, err := os.ReadFile(templatePath)
 	var bodyTpl string
 	if err != nil {
@@ -270,7 +271,7 @@ func SendPasswordResetEmail(toEmail, username, resetUrl string) error {
 	subject := fmt.Sprintf("%s - 重置密码请求", siteName)
 
 	// 读取模板文件
-	templatePath := "config/reset-password-mail.html"
+	templatePath := filepath.Join(config.GetConfigDir(), "reset-password-mail.html")
 	contentBytes, err := os.ReadFile(templatePath)
 	var bodyTpl string
 	if err != nil {
