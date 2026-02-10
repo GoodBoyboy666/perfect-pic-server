@@ -58,7 +58,7 @@ chmod +x perfect-pic-server
 
 # 设置环境变量并启动
 export PERFECT_PIC_SERVER_MODE=release
-export PERFECT_PIC_JWT_SECRET=your_secure_random_secret_key
+export PERFECT_PIC_JWT_SECRET=perfect_pic_secret
 ./perfect-pic-server
 ```
 
@@ -72,7 +72,7 @@ export PERFECT_PIC_JWT_SECRET=your_secure_random_secret_key
 
 ```powershell
 $env:PERFECT_PIC_SERVER_MODE="release"
-$env:PERFECT_PIC_JWT_SECRET="your_secure_random_secret_key"
+$env:PERFECT_PIC_JWT_SECRET="perfect_pic_secret"
 .\perfect-pic-server.exe
 ```
 
@@ -92,13 +92,52 @@ $env:PERFECT_PIC_JWT_SECRET="your_secure_random_secret_key"
 
 如果你更喜欢使用 Docker 部署，项目提供了开箱即用的 Docker 镜像以及 Dockerfile。
 
-### 1. 拉取镜像
+### docker run
+
+先拉取镜像：
 
 ```bash
 docker pull ghcr.io/goodboyboy666/perfect-pic-server:latest
 ```
 
-### 2. 或者自行构建镜像（可选）
+运行容器并持久化数据：
+
+```bash
+docker run -d \
+  --name perfect-pic \
+  -p 8080:8080 \
+  -e PERFECT_PIC_SERVER_MODE=release \
+  -e PERFECT_PIC_JWT_SECRET=perfect_pic_secret \
+  -v $PWD/config:/data/config \
+  -v $PWD/database:/data/database \
+  -v $PWD/uploads:/app/uploads \
+  ghcr.io/goodboyboy666/perfect-pic-server:latest
+```
+
+* **挂载说明**:
+  * `/data/config`: 存放配置文件和邮件模板。强烈建议首次运行前在该目录下配置好 `config.yaml`。
+  * `/data/database`: 存放数据库文件（默认 SQLite 路径为 `/data/database/perfect_pic.db`）。
+  * `/app/uploads`: 持久化存储上传的图片。
+
+### docker compose
+
+项目根目录已提供 `docker-compose.yml`，可直接使用：
+
+```bash
+# 复制环境变量模板（不可直接使用，必须按需修改）
+cp .env.example .env
+
+# 后台启动
+docker compose up -d
+```
+
+如需停止并移除容器：
+
+```bash
+docker compose down
+```
+
+### 自行构建镜像
 
 ```bash
 # 获取构建版本信息
@@ -115,47 +154,8 @@ docker build . \
   --build-arg FRONTEND_REF="origin/main"
 ```
 
-### 3. 运行容器
-
-运行容器并持久化数据：
-> [!NOTE]
-> 如果您选择自行构建镜像，请将下方的 `ghcr.io/goodboyboy666/perfect-pic-server:latest` 替换为 `perfect-pic-server:latest`。
-
-```bash
-docker run -d \
-  --name perfect-pic \
-  -p 8080:8080 \
-  -e PERFECT_PIC_SERVER_MODE=release \
-  -e PERFECT_PIC_JWT_SECRET=xxxxx \
-  -v $PWD/config:/data/config \
-  -v $PWD/database:/data/database \
-  -v $PWD/uploads:/app/uploads \
-  ghcr.io/goodboyboy666/perfect-pic-server:latest
-```
-
-* **挂载说明**:
-  * `/data/config`: 存放配置文件和邮件模板。强烈建议首次运行前在该目录下配置好 `config.yaml`。
-  * `/data/database`: 存放数据库文件（默认 SQLite 路径为 `/data/database/perfect_pic.db`）。
-  * `/app/uploads`: 持久化存储上传的图片。
-
-### 4. 可以配合docker-compose使用
-
-```yaml
-services:
-  perfect-pic:
-    image: ghcr.io/goodboyboy666/perfect-pic-server:latest
-    container_name: perfect-pic
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./config:/data/config
-      - ./database:/data/database
-      - ./uploads:/app/uploads
-    environment:
-      - PERFECT_PIC_SERVER_MODE=release
-      - PERFECT_PIC_JWT_SECRET=xxxxxx
-    restart: unless-stopped
-```
+构建完成后，可在 `docker run` 中把镜像名替换为 `perfect-pic-server:latest`；
+如果使用 `docker compose`，请将 `docker-compose.yml` 中的 `image` 改为 `perfect-pic-server:latest`。
 
 ## 🛠️手动构建
 
@@ -229,7 +229,7 @@ database:
   ssl: false
 
 jwt:
-  secret: "change_this_to_a_secure_random_string"
+  secret: "perfect_pic_secret"
   expiration_hours: 24
 
 upload:

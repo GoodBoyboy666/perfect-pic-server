@@ -1,0 +1,14 @@
+services:
+  perfect-pic:
+    image: ghcr.io/goodboyboy666/perfect-pic-server:latest
+    container_name: perfect-pic
+    ports:
+      - "${PERFECT_PIC_HOST_PORT}:8080"
+    volumes:
+      - ./config:/data/config
+      - ./database:/data/database
+      - ./uploads:/app/uploads
+    environment:
+      PERFECT_PIC_SERVER_MODE: ${PERFECT_PIC_SERVER_MODE}
+      PERFECT_PIC_JWT_SECRET: ${PERFECT_PIC_JWT_SECRET}
+    restart: unless-stopped
