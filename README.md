@@ -92,34 +92,15 @@ $env:PERFECT_PIC_JWT_SECRET="your_secure_random_secret_key"
 
 如果你更喜欢使用 Docker 部署，项目提供了开箱即用的 Docker 镜像以及 Dockerfile。
 
-### 1. 拉取镜像
+### docker run
+
+先拉取镜像：
 
 ```bash
 docker pull ghcr.io/goodboyboy666/perfect-pic-server:latest
 ```
 
-### 2. 或者自行构建镜像（可选）
-
-```bash
-# 获取构建版本信息
-VERSION=$(git describe --tags --always --dirty)
-COMMIT=$(git rev-parse HEAD)
-DATE=$(date '+%Y-%m-%d_%H:%M:%S')
-
-# 构建镜像
-docker build . \
-  -t perfect-pic-server:latest \
-  --build-arg APP_VERSION="$VERSION" \
-  --build-arg GIT_COMMIT="$COMMIT" \
-  --build-arg BUILD_TIME="$DATE" \
-  --build-arg FRONTEND_REF="origin/main"
-```
-
-### 3. 运行容器
-
 运行容器并持久化数据：
-> [!NOTE]
-> 如果您选择自行构建镜像，请将下方的 `ghcr.io/goodboyboy666/perfect-pic-server:latest` 替换为 `perfect-pic-server:latest`。
 
 ```bash
 docker run -d \
@@ -138,24 +119,43 @@ docker run -d \
   * `/data/database`: 存放数据库文件（默认 SQLite 路径为 `/data/database/perfect_pic.db`）。
   * `/app/uploads`: 持久化存储上传的图片。
 
-### 4. 可以配合docker-compose使用
+### docker compose
 
-```yaml
-services:
-  perfect-pic:
-    image: ghcr.io/goodboyboy666/perfect-pic-server:latest
-    container_name: perfect-pic
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./config:/data/config
-      - ./database:/data/database
-      - ./uploads:/app/uploads
-    environment:
-      - PERFECT_PIC_SERVER_MODE=release
-      - PERFECT_PIC_JWT_SECRET=xxxxxx
-    restart: unless-stopped
+项目根目录已提供 `docker-compose.yml`，可直接使用：
+
+```bash
+# 复制环境变量模板（必须按需修改）
+cp .env.example .env
+
+# 后台启动
+docker compose up -d
 ```
+
+如需停止并移除容器：
+
+```bash
+docker compose down
+```
+
+### 自行构建镜像
+
+```bash
+# 获取构建版本信息
+VERSION=$(git describe --tags --always --dirty)
+COMMIT=$(git rev-parse HEAD)
+DATE=$(date '+%Y-%m-%d_%H:%M:%S')
+
+# 构建镜像
+docker build . \
+  -t perfect-pic-server:latest \
+  --build-arg APP_VERSION="$VERSION" \
+  --build-arg GIT_COMMIT="$COMMIT" \
+  --build-arg BUILD_TIME="$DATE" \
+  --build-arg FRONTEND_REF="origin/main"
+```
+
+构建完成后，可在 `docker run` 中把镜像名替换为 `perfect-pic-server:latest`；
+如果使用 `docker compose`，请将 `docker-compose.yml` 中的 `image` 改为 `perfect-pic-server:latest`。
 
 ## 🛠️手动构建
 
