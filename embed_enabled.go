@@ -36,7 +36,7 @@ func setupFrontend(r *gin.Engine, distFS fs.FS) []byte {
 	indexData, err := fs.ReadFile(distFS, "index.html")
 	if err != nil {
 		log.Printf("⚠️ 警告: 无法读取 frontend/index.html: %v", err)
-		return nil
+		log.Panicf("致命错误: 无法读取嵌入的 frontend/index.html: %v", err)
 	}
 
 	return indexData
