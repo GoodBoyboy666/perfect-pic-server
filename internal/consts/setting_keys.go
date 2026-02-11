@@ -67,4 +67,52 @@ const (
 
 	// ConfigTrustedProxies 可信代理列表 (逗号分隔，留空表示不信任代理头)
 	ConfigTrustedProxies = "trusted_proxies"
+
+	// ConfigCaptchaProvider 验证码提供方 (image, turnstile, recaptcha, hcaptcha, geetest)
+	ConfigCaptchaProvider = "captcha_provider"
+
+	// ConfigCaptchaTurnstileSiteKey Turnstile Site Key
+	ConfigCaptchaTurnstileSiteKey = "captcha_turnstile_site_key"
+
+	// ConfigCaptchaTurnstileSecretKey Turnstile Secret Key
+	ConfigCaptchaTurnstileSecretKey = "captcha_turnstile_secret_key"
+
+	// ConfigCaptchaTurnstileVerifyURL Turnstile 验证接口地址
+	ConfigCaptchaTurnstileVerifyURL = "captcha_turnstile_verify_url"
+
+	// ConfigCaptchaTurnstileExpectedHostname Turnstile 预期回传主机名
+	ConfigCaptchaTurnstileExpectedHostname = "captcha_turnstile_expected_hostname"
+
+	// ConfigCaptchaRecaptchaSiteKey reCAPTCHA Site Key
+	ConfigCaptchaRecaptchaSiteKey = "captcha_recaptcha_site_key"
+
+	// ConfigCaptchaRecaptchaSecretKey reCAPTCHA Secret Key
+	ConfigCaptchaRecaptchaSecretKey = "captcha_recaptcha_secret_key"
+
+	// ConfigCaptchaRecaptchaVerifyURL reCAPTCHA 验证接口地址
+	ConfigCaptchaRecaptchaVerifyURL = "captcha_recaptcha_verify_url"
+
+	// ConfigCaptchaRecaptchaExpectedHostname reCAPTCHA 预期回传主机名
+	ConfigCaptchaRecaptchaExpectedHostname = "captcha_recaptcha_expected_hostname"
+
+	// ConfigCaptchaHcaptchaSiteKey hCaptcha Site Key
+	ConfigCaptchaHcaptchaSiteKey = "captcha_hcaptcha_site_key"
+
+	// ConfigCaptchaHcaptchaSecretKey hCaptcha Secret Key
+	ConfigCaptchaHcaptchaSecretKey = "captcha_hcaptcha_secret_key"
+
+	// ConfigCaptchaHcaptchaVerifyURL hCaptcha 验证接口地址
+	ConfigCaptchaHcaptchaVerifyURL = "captcha_hcaptcha_verify_url"
+
+	// ConfigCaptchaHcaptchaExpectedHostname hCaptcha 预期回传主机名
+	ConfigCaptchaHcaptchaExpectedHostname = "captcha_hcaptcha_expected_hostname"
+
+	// ConfigCaptchaGeetestCaptchaID GeeTest Captcha ID
+	ConfigCaptchaGeetestCaptchaID = "captcha_geetest_captcha_id"
+
+	// ConfigCaptchaGeetestCaptchaKey GeeTest Captcha Key
+	ConfigCaptchaGeetestCaptchaKey = "captcha_geetest_captcha_key"
+
+	// ConfigCaptchaGeetestVerifyURL GeeTest 验证接口地址
+	ConfigCaptchaGeetestVerifyURL = "captcha_geetest_verify_url"
 )
