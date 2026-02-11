@@ -38,6 +38,22 @@ var DefaultSettings = []model.Setting{
 	{Key: consts.ConfigMaxRequestBodySize, Value: "2", Desc: "非文件上传接口最大请求体限制 (MB)", Category: "服务"},
 	{Key: consts.ConfigStaticCacheControl, Value: "public, max-age=31536000", Desc: "静态资源缓存设置 (Cache-Control)", Category: "服务"},
 	{Key: consts.ConfigTrustedProxies, Value: "", Desc: "可信代理列表（逗号分隔，留空表示不信任代理头；修改后需重启服务生效）", Category: "安全"},
+	{Key: consts.ConfigCaptchaProvider, Value: "image", Desc: "验证码提供方（空=关闭, image, turnstile, recaptcha, hcaptcha, geetest）", Category: "验证码"},
+	{Key: consts.ConfigCaptchaTurnstileSiteKey, Value: "", Desc: "Cloudflare Turnstile Site Key", Category: "验证码"},
+	{Key: consts.ConfigCaptchaTurnstileSecretKey, Value: "", Desc: "Cloudflare Turnstile Secret Key", Category: "验证码"},
+	{Key: consts.ConfigCaptchaTurnstileVerifyURL, Value: "", Desc: "Cloudflare Turnstile 校验地址，留空使用官方默认", Category: "验证码"},
+	{Key: consts.ConfigCaptchaTurnstileExpectedHostname, Value: "", Desc: "Cloudflare Turnstile 期望回传域名（可选）", Category: "验证码"},
+	{Key: consts.ConfigCaptchaRecaptchaSiteKey, Value: "", Desc: "Google reCAPTCHA Site Key", Category: "验证码"},
+	{Key: consts.ConfigCaptchaRecaptchaSecretKey, Value: "", Desc: "Google reCAPTCHA Secret Key", Category: "验证码"},
+	{Key: consts.ConfigCaptchaRecaptchaVerifyURL, Value: "", Desc: "Google reCAPTCHA 校验地址，留空使用官方默认", Category: "验证码"},
+	{Key: consts.ConfigCaptchaRecaptchaExpectedHostname, Value: "", Desc: "Google reCAPTCHA 期望回传域名（可选）", Category: "验证码"},
+	{Key: consts.ConfigCaptchaHcaptchaSiteKey, Value: "", Desc: "hCaptcha Site Key", Category: "验证码"},
+	{Key: consts.ConfigCaptchaHcaptchaSecretKey, Value: "", Desc: "hCaptcha Secret Key", Category: "验证码"},
+	{Key: consts.ConfigCaptchaHcaptchaVerifyURL, Value: "", Desc: "hCaptcha 校验地址，留空使用官方默认", Category: "验证码"},
+	{Key: consts.ConfigCaptchaHcaptchaExpectedHostname, Value: "", Desc: "hCaptcha 期望回传域名（可选）", Category: "验证码"},
+	{Key: consts.ConfigCaptchaGeetestCaptchaID, Value: "", Desc: "GeeTest Captcha ID", Category: "验证码"},
+	{Key: consts.ConfigCaptchaGeetestCaptchaKey, Value: "", Desc: "GeeTest Captcha Key", Category: "验证码"},
+	{Key: consts.ConfigCaptchaGeetestVerifyURL, Value: "", Desc: "GeeTest 校验地址，留空使用官方默认", Category: "验证码"},
 }
 
 // ClearCache 清空设置缓存。

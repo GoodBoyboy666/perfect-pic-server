@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/service"
-	"perfect-pic-server/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,16 +12,17 @@ func Login(c *gin.Context) {
 	var req struct {
 		Username      string `json:"username" binding:"required"`
 		Password      string `json:"password" binding:"required"`
-		CaptchaID     string `json:"captcha_id" binding:"required"`
-		CaptchaAnswer string `json:"captcha_answer" binding:"required"`
+		CaptchaID     string `json:"captcha_id"`
+		CaptchaAnswer string `json:"captcha_answer"`
+		CaptchaToken  string `json:"captcha_token"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
 
-	if !utils.VerifyCaptcha(req.CaptchaID, req.CaptchaAnswer) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "验证码错误或已过期"})
+	if verified, msg := service.VerifyCaptchaChallenge(req.CaptchaID, req.CaptchaAnswer, req.CaptchaToken, c.ClientIP()); !verified {
+		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
 		return
 	}
 
@@ -54,16 +54,17 @@ func Register(c *gin.Context) {
 		Username      string `json:"username" binding:"required"`
 		Password      string `json:"password" binding:"required"`
 		Email         string `json:"email" binding:"required"`
-		CaptchaID     string `json:"captcha_id" binding:"required"`
-		CaptchaAnswer string `json:"captcha_answer" binding:"required"`
+		CaptchaID     string `json:"captcha_id"`
+		CaptchaAnswer string `json:"captcha_answer"`
+		CaptchaToken  string `json:"captcha_token"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数格式错误"})
 		return
 	}
 
-	if !utils.VerifyCaptcha(req.CaptchaID, req.CaptchaAnswer) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "验证码错误或已过期"})
+	if verified, msg := service.VerifyCaptchaChallenge(req.CaptchaID, req.CaptchaAnswer, req.CaptchaToken, c.ClientIP()); !verified {
+		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
 		return
 	}
 
@@ -158,16 +159,17 @@ func EmailChangeVerify(c *gin.Context) {
 func RequestPasswordReset(c *gin.Context) {
 	var req struct {
 		Email         string `json:"email" binding:"required,email"`
-		CaptchaID     string `json:"captcha_id" binding:"required"`
-		CaptchaAnswer string `json:"captcha_answer" binding:"required"`
+		CaptchaID     string `json:"captcha_id"`
+		CaptchaAnswer string `json:"captcha_answer"`
+		CaptchaToken  string `json:"captcha_token"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
 
-	if !utils.VerifyCaptcha(req.CaptchaID, req.CaptchaAnswer) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "验证码错误或已过期"})
+	if verified, msg := service.VerifyCaptchaChallenge(req.CaptchaID, req.CaptchaAnswer, req.CaptchaToken, c.ClientIP()); !verified {
+		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
 		return
 	}
 
