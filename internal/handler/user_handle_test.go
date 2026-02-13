@@ -1,0 +1,188 @@
+package handler
+
+import (
+	"bytes"
+	"encoding/json"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"perfect-pic-server/internal/db"
+	"perfect-pic-server/internal/model"
+
+	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
+)
+
+func TestGetSelfInfo_OK(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupTestDB(t)
+
+	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
+	_ = db.DB.Create(&u).Error
+
+	r := gin.New()
+	r.GET("/me", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, GetSelfInfo)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/me", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestUpdateSelfUsername_ValidAndInvalid(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupTestDB(t)
+
+	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
+	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
+	_ = db.DB.Create(&u).Error
+
+	r := gin.New()
+	r.PATCH("/username", func(c *gin.Context) { c.Set("id", u.ID); c.Set("admin", true); c.Next() }, UpdateSelfUsername)
+
+	bodyBad, _ := json.Marshal(gin.H{"username": "ab"})
+	w1 := httptest.NewRecorder()
+	r.ServeHTTP(w1, httptest.NewRequest(http.MethodPatch, "/username", bytes.NewReader(bodyBad)))
+	if w1.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", w1.Code, w1.Body.String())
+	}
+
+	bodyOK, _ := json.Marshal(gin.H{"username": "alice2"})
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, httptest.NewRequest(http.MethodPatch, "/username", bytes.NewReader(bodyOK)))
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w2.Code, w2.Body.String())
+	}
+}
+
+func TestUpdateSelfPassword(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupTestDB(t)
+
+	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
+	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
+	_ = db.DB.Create(&u).Error
+
+	r := gin.New()
+	r.PATCH("/password", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, UpdateSelfPassword)
+
+	bodyBad, _ := json.Marshal(gin.H{"old_password": "wrong", "new_password": "abc123456"})
+	w1 := httptest.NewRecorder()
+	r.ServeHTTP(w1, httptest.NewRequest(http.MethodPatch, "/password", bytes.NewReader(bodyBad)))
+	if w1.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", w1.Code, w1.Body.String())
+	}
+
+	bodyOK, _ := json.Marshal(gin.H{"old_password": "abc12345", "new_password": "abc123456"})
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, httptest.NewRequest(http.MethodPatch, "/password", bytes.NewReader(bodyOK)))
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w2.Code, w2.Body.String())
+	}
+}
+
+func TestUpdateSelfAvatar_OK(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupTestDB(t)
+
+	tmp := t.TempDir()
+	oldwd, _ := os.Getwd()
+	_ = os.Chdir(tmp)
+	defer func() { _ = os.Chdir(oldwd) }()
+
+	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
+	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
+	_ = db.DB.Create(&u).Error
+
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	part, _ := w.CreateFormFile("file", "a.png")
+	_, _ = part.Write(minimalPNG())
+	_ = w.Close()
+
+	r := gin.New()
+	r.PATCH("/avatar", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, UpdateSelfAvatar)
+
+	req := httptest.NewRequest(http.MethodPatch, "/avatar", &body)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	// Ensure file was created somewhere under uploads/avatars/{uid}
+	userDir := filepath.Join("uploads", "avatars", intToDec(u.ID))
+	entries, err := os.ReadDir(userDir)
+	if err != nil || len(entries) == 0 {
+		t.Fatalf("expected avatar file created in %q: err=%v entries=%d", userDir, err, len(entries))
+	}
+}
+
+func TestRequestUpdateEmailHandler_ForbiddenOnWrongPassword(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupTestDB(t)
+
+	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
+	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
+	_ = db.DB.Create(&u).Error
+
+	r := gin.New()
+	r.POST("/email", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, RequestUpdateEmail)
+
+	body, _ := json.Marshal(gin.H{"password": "wrong", "new_email": "new@example.com"})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/email", bytes.NewReader(body)))
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestGetSelfImagesCountHandler_OK(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupTestDB(t)
+
+	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
+	_ = db.DB.Create(&u).Error
+	_ = db.DB.Create(&model.Image{Filename: "a.png", Path: "2026/02/13/a.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}).Error
+
+	r := gin.New()
+	r.GET("/count", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, GetSelfImagesCount)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/count", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func intToDec(v uint) string {
+	// Avoid extra imports in this test file.
+	s := ""
+	x := v
+	if x == 0 {
+		return "0"
+	}
+	for x > 0 {
+		d := x % 10
+		s = string('0'+byte(d)) + s
+		x /= 10
+	}
+	return s
+}
+
+func minimalPNG() []byte {
+	return []byte{
+		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+		0x00, 0x00, 0x00, 0x0D,
+		0x49, 0x48, 0x44, 0x52,
+		0x00, 0x00, 0x00, 0x01,
+		0x00, 0x00, 0x00, 0x01,
+		0x08, 0x02, 0x00, 0x00, 0x00,
+	}
+}
