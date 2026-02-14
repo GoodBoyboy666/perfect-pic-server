@@ -84,6 +84,8 @@ func LoginUser(username, password string) (string, error) {
 }
 
 // RegisterUser 执行用户注册并异步发送邮箱验证邮件。
+//
+//nolint:gocyclo
 func RegisterUser(username, password, email string) error {
 	if ok, msg := utils.ValidatePassword(password); !ok {
 		return newAuthError(AuthErrorValidation, msg)
