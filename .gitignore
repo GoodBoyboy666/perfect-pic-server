@@ -1,6 +1,10 @@
 .idea/*
 tmp/*
+.cache/*
 .air.toml
 config/*
 uploads/*
 .env
+AGENTS.md
+coverage
+coverage.out

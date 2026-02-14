@@ -84,6 +84,8 @@ func LoginUser(username, password string) (string, error) {
 }
 
 // RegisterUser 执行用户注册并异步发送邮箱验证邮件。
+//
+//nolint:gocyclo
 func RegisterUser(username, password, email string) error {
 	if ok, msg := utils.ValidatePassword(password); !ok {
 		return newAuthError(AuthErrorValidation, msg)
@@ -149,9 +151,11 @@ func RegisterUser(username, password, email string) error {
 	}
 
 	verifyURL := fmt.Sprintf("%s/auth/email-verify?token=%s", baseURL, verifyToken)
-	go func() {
-		_ = SendVerificationEmail(newUser.Email, newUser.Username, verifyURL)
-	}()
+	if shouldSendEmail() {
+		go func() {
+			_ = SendVerificationEmail(newUser.Email, newUser.Username, verifyURL)
+		}()
+	}
 
 	return nil
 }
@@ -261,9 +265,11 @@ func RequestPasswordReset(email string) error {
 	}
 	resetURL := fmt.Sprintf("%s/auth/reset-password?token=%s", baseURL, token)
 
-	go func() {
-		_ = SendPasswordResetEmail(user.Email, user.Username, resetURL)
-	}()
+	if shouldSendEmail() {
+		go func() {
+			_ = SendPasswordResetEmail(user.Email, user.Username, resetURL)
+		}()
+	}
 
 	return nil
 }
