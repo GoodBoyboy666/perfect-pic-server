@@ -42,8 +42,12 @@ func TestIsEmailTaken_ExcludeUserID(t *testing.T) {
 
 	u1 := model.User{Username: "a1", Password: "x", Status: 1, Email: "x@example.com"}
 	u2 := model.User{Username: "a2", Password: "x", Status: 1, Email: "y@example.com"}
-	_ = db.DB.Create(&u1).Error
-	_ = db.DB.Create(&u2).Error
+	if err := db.DB.Create(&u1).Error; err != nil {
+		t.Fatalf("创建用户1失败: %v", err)
+	}
+	if err := db.DB.Create(&u2).Error; err != nil {
+		t.Fatalf("创建用户2失败: %v", err)
+	}
 
 	exclude := u1.ID
 	taken, err := IsEmailTaken("x@example.com", &exclude, true)
