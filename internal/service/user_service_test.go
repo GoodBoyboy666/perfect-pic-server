@@ -3,6 +3,8 @@ package service
 import (
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -32,6 +34,35 @@ func TestGenerateAndVerifyForgetPasswordToken_OneTimeUse(t *testing.T) {
 	uid2, ok2 := VerifyForgetPasswordToken(token)
 	if ok2 || uid2 != 0 {
 		t.Fatalf("期望 one-time use token to be 无效 on second use，实际为 uid=%d ok=%v", uid2, ok2)
+	}
+}
+
+// 测试内容：验证并发场景下同一个重置密码 token 最多只能成功一次。
+func TestVerifyForgetPasswordToken_ConcurrentOneTime(t *testing.T) {
+	setupTestDB(t)
+	resetPasswordResetStore()
+
+	token, err := GenerateForgetPasswordToken(99)
+	if err != nil {
+		t.Fatalf("GenerateForgetPasswordToken: %v", err)
+	}
+
+	var success int32
+	const workers = 16
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			if _, ok := VerifyForgetPasswordToken(token); ok {
+				atomic.AddInt32(&success, 1)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if success != 1 {
+		t.Fatalf("期望并发消费仅成功 1 次，实际成功 %d 次", success)
 	}
 }
 
@@ -140,17 +171,48 @@ func TestEmailChangeToken_ExpiredRejected(t *testing.T) {
 	t.Cleanup(resetEmailChangeStore)
 
 	const expiredToken = "expired_email_change_token"
-	emailChangeStore.Store(uint(1001), EmailChangeToken{
+	expired := EmailChangeToken{
 		UserID:    1001,
 		Token:     expiredToken,
 		OldEmail:  "old@example.com",
 		NewEmail:  "new@example.com",
 		ExpiresAt: time.Now().Add(-time.Minute),
-	})
+	}
+	emailChangeStore.Store(uint(1001), expiredToken)
+	emailChangeTokenStore.Store(expiredToken, expired)
 
 	item, ok := VerifyEmailChangeToken(expiredToken)
 	if ok || item != nil {
 		t.Fatalf("expected expired token to be rejected, got item=%+v ok=%v", item, ok)
+	}
+}
+
+// 测试内容：验证并发场景下同一个邮箱变更 token 最多只能成功一次。
+func TestVerifyEmailChangeToken_ConcurrentOneTime(t *testing.T) {
+	setupTestDB(t)
+	resetEmailChangeStore()
+
+	token, err := GenerateEmailChangeToken(101, "old@example.com", "new@example.com")
+	if err != nil {
+		t.Fatalf("GenerateEmailChangeToken: %v", err)
+	}
+
+	var success int32
+	const workers = 16
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			if _, ok := VerifyEmailChangeToken(token); ok {
+				atomic.AddInt32(&success, 1)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if success != 1 {
+		t.Fatalf("期望并发消费仅成功 1 次，实际成功 %d 次", success)
 	}
 }
 

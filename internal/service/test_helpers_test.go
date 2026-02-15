@@ -19,11 +19,19 @@ func resetPasswordResetStore() {
 		passwordResetStore.Delete(key)
 		return true
 	})
+	passwordResetTokenStore.Range(func(key, value any) bool {
+		passwordResetTokenStore.Delete(key)
+		return true
+	})
 }
 
 func resetEmailChangeStore() {
 	emailChangeStore.Range(func(key, value any) bool {
 		emailChangeStore.Delete(key)
+		return true
+	})
+	emailChangeTokenStore.Range(func(key, value any) bool {
+		emailChangeTokenStore.Delete(key)
 		return true
 	})
 }

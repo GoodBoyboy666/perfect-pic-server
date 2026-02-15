@@ -44,12 +44,18 @@ type emailChangeRedisPayload struct {
 
 var (
 	// passwordResetStore 存储忘记密码 Token
-	// Key: UserID (uint), Value: ForgetPasswordToken
+	// Key: UserID (uint), Value: Token (string)
 	passwordResetStore sync.Map
+	// passwordResetTokenStore 存储忘记密码 Token 索引
+	// Key: Token (string), Value: ForgetPasswordToken
+	passwordResetTokenStore sync.Map
 
 	// emailChangeStore 存储修改邮箱 Token
-	// Key: UserID (uint), Value: EmailChangeToken
+	// Key: UserID (uint), Value: Token (string)
 	emailChangeStore sync.Map
+	// emailChangeTokenStore 存储修改邮箱 Token 索引
+	// Key: Token (string), Value: EmailChangeToken
+	emailChangeTokenStore sync.Map
 )
 
 var errRedisTokenCASMismatch = errors.New("redis token cas mismatch")
@@ -145,7 +151,13 @@ func GenerateForgetPasswordToken(userID uint) (string, error) {
 	}
 
 	// 存储（覆盖之前的）
-	passwordResetStore.Store(userID, resetToken)
+	if prev, ok := passwordResetStore.Load(userID); ok {
+		if prevToken, ok2 := prev.(string); ok2 && prevToken != "" {
+			passwordResetTokenStore.Delete(prevToken)
+		}
+	}
+	passwordResetStore.Store(userID, token)
+	passwordResetTokenStore.Store(token, resetToken)
 	return token, nil
 }
 
@@ -179,40 +191,28 @@ func VerifyForgetPasswordToken(token string) (uint, bool) {
 		}
 	}
 
-	var foundUserID uint
-	var valid bool
-
-	// 遍历 Map 查找 Token
-	passwordResetStore.Range(func(key, value interface{}) bool {
-		resetToken, ok := value.(ForgetPasswordToken)
-		if !ok {
-			return true
-		}
-
-		if resetToken.Token == token {
-			// 找到 Token，无论是否过期，都先停止遍历
-			// 并且为了保证一次性使用（防止重放）以及清理过期数据，直接删除
-			passwordResetStore.Delete(key)
-
-			if time.Now().Before(resetToken.ExpiresAt) {
-				foundUserID = resetToken.UserID
-				valid = true
-			}
-			return false // 停止遍历
-		}
-
-		// 顺便清理其他已过期的 Token (惰性清理)
-		if time.Now().After(resetToken.ExpiresAt) {
-			passwordResetStore.Delete(key)
-		}
-		return true
-	})
-
-	if valid {
-		return foundUserID, true
+	// LoadAndDelete 保证并发下同一 token 只会被成功消费一次。
+	val, ok := passwordResetTokenStore.LoadAndDelete(token)
+	if !ok {
+		return 0, false
 	}
 
-	return 0, false
+	resetToken, ok := val.(ForgetPasswordToken)
+	if !ok {
+		return 0, false
+	}
+
+	// 仅当 user->token 映射仍指向当前 token 时再删除，避免误删更新后的新 token 映射。
+	if current, ok := passwordResetStore.Load(resetToken.UserID); ok {
+		if currentToken, ok2 := current.(string); ok2 && currentToken == token {
+			passwordResetStore.Delete(resetToken.UserID)
+		}
+	}
+
+	if time.Now().After(resetToken.ExpiresAt) {
+		return 0, false
+	}
+	return resetToken.UserID, true
 }
 
 // GenerateEmailChangeToken 生成修改邮箱 Token，有效期 30 分钟。
@@ -263,7 +263,13 @@ func GenerateEmailChangeToken(userID uint, oldEmail, newEmail string) (string, e
 	}
 
 	// 存储（覆盖之前的）
-	emailChangeStore.Store(userID, changeToken)
+	if prev, ok := emailChangeStore.Load(userID); ok {
+		if prevToken, ok2 := prev.(string); ok2 && prevToken != "" {
+			emailChangeTokenStore.Delete(prevToken)
+		}
+	}
+	emailChangeStore.Store(userID, token)
+	emailChangeTokenStore.Store(token, changeToken)
 	return token, nil
 }
 
@@ -305,40 +311,28 @@ func VerifyEmailChangeToken(token string) (*EmailChangeToken, bool) {
 		}
 	}
 
-	var foundToken *EmailChangeToken
-	var valid bool
-
-	// 遍历 Map 查找 Token
-	emailChangeStore.Range(func(key, value interface{}) bool {
-		changeToken, ok := value.(EmailChangeToken)
-		if !ok {
-			return true
-		}
-
-		if changeToken.Token == token {
-			// 找到 Token，无论是否过期，都先删除以保证一次性使用。
-			emailChangeStore.Delete(key)
-
-			if time.Now().Before(changeToken.ExpiresAt) {
-				copyToken := changeToken
-				foundToken = &copyToken
-				valid = true
-			}
-			return false // 停止遍历
-		}
-
-		// 顺便清理其他已过期的 Token (惰性清理)
-		if time.Now().After(changeToken.ExpiresAt) {
-			emailChangeStore.Delete(key)
-		}
-		return true
-	})
-
-	if valid {
-		return foundToken, true
+	// LoadAndDelete 保证并发下同一 token 只会被成功消费一次。
+	val, ok := emailChangeTokenStore.LoadAndDelete(token)
+	if !ok {
+		return nil, false
 	}
 
-	return nil, false
+	changeToken, ok := val.(EmailChangeToken)
+	if !ok {
+		return nil, false
+	}
+
+	// 仅当 user->token 映射仍指向当前 token 时再删除，避免误删更新后的新 token 映射。
+	if current, ok := emailChangeStore.Load(changeToken.UserID); ok {
+		if currentToken, ok2 := current.(string); ok2 && currentToken == token {
+			emailChangeStore.Delete(changeToken.UserID)
+		}
+	}
+
+	if time.Now().After(changeToken.ExpiresAt) {
+		return nil, false
+	}
+	return &changeToken, true
 }
 
 // GetSystemDefaultStorageQuota 获取系统默认存储配额
