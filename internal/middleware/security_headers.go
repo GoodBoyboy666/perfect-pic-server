@@ -23,7 +23,8 @@ func SecurityHeaders() gin.HandlerFunc {
 			"script-src 'self' *.geetest.com https://challenges.cloudflare.com https://www.google.com https://www.gstatic.com https://*.hcaptcha.com https://hcaptcha.com; " +
 			"connect-src 'self' *.geetest.com https://challenges.cloudflare.com https://www.google.com https://*.hcaptcha.com https://hcaptcha.com; " +
 			"object-src 'none'; " +
-			"frame-src 'self' *.geetest.com https://challenges.cloudflare.com https://www.google.com https://*.hcaptcha.com https://hcaptcha.com;"
+			"frame-src 'self' *.geetest.com https://challenges.cloudflare.com https://www.google.com https://*.hcaptcha.com https://hcaptcha.com; " +
+			"base-uri 'self';"
 
 		c.Header("Content-Security-Policy", csp)
 
