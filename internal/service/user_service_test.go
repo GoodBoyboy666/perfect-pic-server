@@ -3,7 +3,10 @@ package service
 import (
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/db"
@@ -31,6 +34,35 @@ func TestGenerateAndVerifyForgetPasswordToken_OneTimeUse(t *testing.T) {
 	uid2, ok2 := VerifyForgetPasswordToken(token)
 	if ok2 || uid2 != 0 {
 		t.Fatalf("期望 one-time use token to be 无效 on second use，实际为 uid=%d ok=%v", uid2, ok2)
+	}
+}
+
+// 测试内容：验证并发场景下同一个重置密码 token 最多只能成功一次。
+func TestVerifyForgetPasswordToken_ConcurrentOneTime(t *testing.T) {
+	setupTestDB(t)
+	resetPasswordResetStore()
+
+	token, err := GenerateForgetPasswordToken(99)
+	if err != nil {
+		t.Fatalf("GenerateForgetPasswordToken: %v", err)
+	}
+
+	var success int32
+	const workers = 16
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			if _, ok := VerifyForgetPasswordToken(token); ok {
+				atomic.AddInt32(&success, 1)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if success != 1 {
+		t.Fatalf("期望并发消费仅成功 1 次，实际成功 %d 次", success)
 	}
 }
 
@@ -95,6 +127,92 @@ func TestDeleteUserFiles_RemovesAvatarDirAndImages(t *testing.T) {
 	}
 	if _, err := os.Stat(imgFile); !os.IsNotExist(err) {
 		t.Fatalf("期望 image file to be removed, stat err=%v", err)
+	}
+}
+
+// 测试内容：验证邮箱变更 token 为一次性使用，且同一用户新 token 会使旧 token 失效。
+func TestEmailChangeToken_OneTimeAndReplaced(t *testing.T) {
+	setupTestDB(t)
+	resetEmailChangeStore()
+	t.Cleanup(resetEmailChangeStore)
+
+	tok1, err := GenerateEmailChangeToken(1, "old@example.com", "new1@example.com")
+	if err != nil {
+		t.Fatalf("GenerateEmailChangeToken: %v", err)
+	}
+	if _, ok := VerifyEmailChangeToken(tok1); !ok {
+		t.Fatalf("expected token to be valid on first consume")
+	}
+	if _, ok := VerifyEmailChangeToken(tok1); ok {
+		t.Fatalf("expected token to be one-time use")
+	}
+
+	tok2, err := GenerateEmailChangeToken(2, "old@example.com", "new2@example.com")
+	if err != nil {
+		t.Fatalf("GenerateEmailChangeToken: %v", err)
+	}
+	tok3, err := GenerateEmailChangeToken(2, "old@example.com", "new3@example.com")
+	if err != nil {
+		t.Fatalf("GenerateEmailChangeToken: %v", err)
+	}
+	if _, ok := VerifyEmailChangeToken(tok2); ok {
+		t.Fatalf("expected older token to be invalid after replaced by a new one")
+	}
+	item, ok := VerifyEmailChangeToken(tok3)
+	if !ok || item == nil || item.NewEmail != "new3@example.com" {
+		t.Fatalf("expected newest token to be valid, got item=%+v ok=%v", item, ok)
+	}
+}
+
+// 测试内容：验证过期的邮箱变更 token 会被拒绝（内存回退分支）。
+func TestEmailChangeToken_ExpiredRejected(t *testing.T) {
+	setupTestDB(t)
+	resetEmailChangeStore()
+	t.Cleanup(resetEmailChangeStore)
+
+	const expiredToken = "expired_email_change_token"
+	expired := EmailChangeToken{
+		UserID:    1001,
+		Token:     expiredToken,
+		OldEmail:  "old@example.com",
+		NewEmail:  "new@example.com",
+		ExpiresAt: time.Now().Add(-time.Minute),
+	}
+	emailChangeStore.Store(uint(1001), expiredToken)
+	emailChangeTokenStore.Store(expiredToken, expired)
+
+	item, ok := VerifyEmailChangeToken(expiredToken)
+	if ok || item != nil {
+		t.Fatalf("expected expired token to be rejected, got item=%+v ok=%v", item, ok)
+	}
+}
+
+// 测试内容：验证并发场景下同一个邮箱变更 token 最多只能成功一次。
+func TestVerifyEmailChangeToken_ConcurrentOneTime(t *testing.T) {
+	setupTestDB(t)
+	resetEmailChangeStore()
+
+	token, err := GenerateEmailChangeToken(101, "old@example.com", "new@example.com")
+	if err != nil {
+		t.Fatalf("GenerateEmailChangeToken: %v", err)
+	}
+
+	var success int32
+	const workers = 16
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			if _, ok := VerifyEmailChangeToken(token); ok {
+				atomic.AddInt32(&success, 1)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if success != 1 {
+		t.Fatalf("期望并发消费仅成功 1 次，实际成功 %d 次", success)
 	}
 }
 
