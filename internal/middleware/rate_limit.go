@@ -144,34 +144,33 @@ func RateLimitMiddleware(rpsKey string, burstKey string) gin.HandlerFunc {
 // IntervalRateMiddleware 按数据库配置的最小调用间隔进行限流。
 // intervalKey 对应设置项，值为秒数（int），例如 120 表示 2 分钟。
 func IntervalRateMiddleware(intervalKey string) gin.HandlerFunc {
-	getInterval := func() time.Duration {
-		seconds := service.GetInt(intervalKey)
-		if seconds <= 0 {
-			return defaultSensitiveOperationInterval
-		}
-		return time.Duration(seconds) * time.Second
-	}
-
-	// 内部建立一个 map 缓存 IP 最后访问时间
+	// 每个中间件实例维护自己的访问时间表，并通过 sync.Once 确保清理协程只启动一次。
 	var requestTimes sync.Map
+	var cleanupOnce sync.Once
 
-	// 启动清理协程
-	go func() {
-		for {
-			time.Sleep(5 * time.Minute)
-			now := time.Now()
-			interval := getInterval()
-			requestTimes.Range(func(key, value interface{}) bool {
-				if t, ok := value.(time.Time); ok {
+	startCleanupLoop := func() {
+		go func() {
+			ticker := time.NewTicker(5 * time.Minute)
+			defer ticker.Stop()
+
+			for range ticker.C {
+				now := time.Now()
+				interval := getIntervalBySettingKey(intervalKey)
+				requestTimes.Range(func(key, value interface{}) bool {
+					t, ok := value.(time.Time)
+					if !ok {
+						requestTimes.Delete(key)
+						return true
+					}
 					// 清理较久未访问的记录（至少超过 2*interval 且超过 5 分钟）。
 					if now.Sub(t) > interval*2 && now.Sub(t) > 5*time.Minute {
 						requestTimes.Delete(key)
 					}
-				}
-				return true
-			})
-		}
-	}()
+					return true
+				})
+			}
+		}()
+	}
 
 	return func(c *gin.Context) {
 		// 检查是否开启敏感操作限流
@@ -180,7 +179,9 @@ func IntervalRateMiddleware(intervalKey string) gin.HandlerFunc {
 			return
 		}
 
-		interval := getInterval()
+		cleanupOnce.Do(startCleanupLoop)
+
+		interval := getIntervalBySettingKey(intervalKey)
 
 		ip := c.ClientIP()
 
@@ -211,6 +212,14 @@ func IntervalRateMiddleware(intervalKey string) gin.HandlerFunc {
 		requestTimes.Store(ip, time.Now())
 		c.Next()
 	}
+}
+
+func getIntervalBySettingKey(intervalKey string) time.Duration {
+	seconds := service.GetInt(intervalKey)
+	if seconds <= 0 {
+		return defaultSensitiveOperationInterval
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 func allowByRedisInterval(client *redis.Client, namespace, ip string, interval time.Duration) (bool, error) {
