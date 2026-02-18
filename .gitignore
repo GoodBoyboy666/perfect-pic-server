@@ -1,5 +1,11 @@
 .idea/*
 tmp/*
+.cache/*
+.gocache/*
 .air.toml
 config/*
 uploads/*
+.env
+AGENTS.md
+coverage
+coverage.out

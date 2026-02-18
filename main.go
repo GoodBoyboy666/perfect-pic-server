@@ -17,6 +17,7 @@ import (
 	"perfect-pic-server/internal/middleware"
 	"perfect-pic-server/internal/router"
 	"perfect-pic-server/internal/service"
+	"perfect-pic-server/internal/utils"
 	"strings"
 	"syscall"
 	"time"
@@ -35,9 +36,12 @@ var (
 func main() {
 
 	exportRoutes := flag.Bool("export", false, "导出路由到 routes.json 并退出")
+	configDir := flag.String("config-dir", "config", "配置文件目录")
 	flag.Parse()
 
-	config.InitConfig()
+	config.InitConfig(*configDir)
+	_ = service.GetRedisClient()
+	defer func() { _ = service.CloseRedisClient() }()
 	db.InitDB()
 	service.InitializeSettings()
 
@@ -90,23 +94,6 @@ func setupStaticFiles(r *gin.Engine, uploadPath, avatarPath string) {
 
 	r.Group(config.Get().Upload.AvatarURLPrefix, middleware.StaticCacheMiddleware()).
 		StaticFS("", gin.Dir(avatarPath, false))
-}
-
-func setupFrontend(r *gin.Engine, distFS fs.FS) []byte {
-	var indexData []byte
-
-	if distFS != nil {
-		assetsFS, _ := fs.Sub(distFS, "assets")
-		r.StaticFS("/assets", http.FS(assetsFS))
-
-		// 预读取 index.html
-		var err error
-		indexData, err = fs.ReadFile(distFS, "index.html")
-		if err != nil {
-			log.Printf("⚠️ 警告: 无法读取 frontend/index.html: %v", err)
-		}
-	}
-	return indexData
 }
 
 func getNoRouteHandler(distFS fs.FS, indexData []byte) gin.HandlerFunc {
@@ -228,6 +215,10 @@ func checkSecurePath(path string) {
 	if err != nil {
 		log.Fatalf("❌ 路径解析失败: %v", err)
 	}
+	// 先检查目录节点本身不是符号链接（例如 uploads/imgs 本身被链接到外部目录）。
+	if err := utils.EnsurePathNotSymlink(absPath); err != nil {
+		log.Fatalf("❌ 安全配置错误: 静态资源目录 '%s' 存在符号链接风险: %v", path, err)
+	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -236,12 +227,17 @@ func checkSecurePath(path string) {
 
 	// 检查是否直接指向项目根目录
 	if absPath == cwd {
-		log.Fatalf("❌ 安全配置错误: 静态资源目录 '%s' 不能设置为项目根目录！这会导致源代码泄露。", path)
+		log.Fatalf("❌ 安全配置错误: 静态资源目录 '%s' 不能设置为项目根目录！这会导致源代码/SQLite数据库泄露。", path)
 	}
 
 	// 检查路径安全
 	rel, err := filepath.Rel(cwd, absPath)
 	if err == nil && !strings.HasPrefix(rel, "..") {
+		// 对项目内路径再做一次 cwd->目标 的链路检查，防止中间层级存在符号链接穿透。
+		if err := utils.EnsureNoSymlinkBetween(cwd, absPath); err != nil {
+			log.Fatalf("❌ 安全配置错误: 静态资源目录 '%s' 路径链路存在符号链接风险: %v", path, err)
+		}
+
 		// 统一路径分隔符为 / 方便匹配
 		relSlash := filepath.ToSlash(rel)
 

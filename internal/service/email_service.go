@@ -10,6 +10,7 @@ import (
 	"net/mail"
 	"net/smtp"
 	"os"
+	"path/filepath"
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
 	"regexp"
@@ -44,6 +45,14 @@ type PasswordResetData struct {
 
 var strictEmailRegex = regexp.MustCompile(`[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z0-9]+`)
 
+func shouldSendEmail() bool {
+	if !GetBool(consts.ConfigEnableSMTP) {
+		return false
+	}
+	cfg := config.Get()
+	return strings.TrimSpace(cfg.SMTP.Host) != ""
+}
+
 // SendVerificationEmail 发送验证邮件
 func SendVerificationEmail(toEmail, username, verifyUrl string) error {
 	// 检查是否开启 SMTP
@@ -67,7 +76,7 @@ func SendVerificationEmail(toEmail, username, verifyUrl string) error {
 	subject := fmt.Sprintf("欢迎注册 %s - 请验证您的邮箱", siteName)
 
 	// 读取模板文件
-	templatePath := "config/verification-mail.html"
+	templatePath := filepath.Join(config.GetConfigDir(), "verification-mail.html")
 	contentBytes, err := os.ReadFile(templatePath)
 	var bodyTpl string
 	if err != nil {
@@ -198,7 +207,7 @@ func SendEmailChangeVerification(toEmail, username, oldEmail, newEmail, verifyUr
 	subject := fmt.Sprintf("%s - 请确认修改邮箱", siteName)
 
 	// 读取模板文件
-	templatePath := "config/email-change-mail.html"
+	templatePath := filepath.Join(config.GetConfigDir(), "email-change-mail.html")
 	contentBytes, err := os.ReadFile(templatePath)
 	var bodyTpl string
 	if err != nil {
@@ -270,7 +279,7 @@ func SendPasswordResetEmail(toEmail, username, resetUrl string) error {
 	subject := fmt.Sprintf("%s - 重置密码请求", siteName)
 
 	// 读取模板文件
-	templatePath := "config/reset-password-mail.html"
+	templatePath := filepath.Join(config.GetConfigDir(), "reset-password-mail.html")
 	contentBytes, err := os.ReadFile(templatePath)
 	var bodyTpl string
 	if err != nil {
@@ -317,6 +326,7 @@ func SendPasswordResetEmail(toEmail, username, resetUrl string) error {
 	return smtp.SendMail(addr, auth, fromAddr, []string{toAddr}, msg)
 }
 
+// sendMailWithSSL 使用 TLS 直连方式发送邮件（常用于 465 端口）。
 func sendMailWithSSL(addr string, auth smtp.Auth, from string, to []string, msg []byte) error {
 	cfg := config.Get()
 	// log.Printf("[Email] 正在使用 SSL 连接至 %s 发送邮件", addr)
@@ -437,6 +447,7 @@ func renderTemplate(tpl string, data interface{}) (string, error) {
 	return buf.String(), nil
 }
 
+// formatAddressHeader 规范化邮箱头部地址并返回 header 展示值与裸邮箱地址。
 func formatAddressHeader(input string) (string, string, error) {
 	// 解析地址 (如果格式不对，这里直接报错，起到 Validation 作用)
 	addr, err := mail.ParseAddress(input)

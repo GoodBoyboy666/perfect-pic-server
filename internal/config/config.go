@@ -16,6 +16,7 @@ var (
 	// 使用 atomic.Value 存储 *Config，实现无锁读取
 	appConfig atomic.Value
 	configMu  sync.Mutex // 仅用于写操作互斥
+	configDir = "config"
 )
 
 type Config struct {
@@ -24,6 +25,7 @@ type Config struct {
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	Upload   UploadConfig   `mapstructure:"upload"`
 	SMTP     SMTPConfig     `mapstructure:"smtp"`
+	Redis    RedisConfig    `mapstructure:"redis"`
 }
 
 type ServerConfig struct {
@@ -63,6 +65,14 @@ type SMTPConfig struct {
 	SSL      bool   `mapstructure:"ssl"`
 }
 
+type RedisConfig struct {
+	Enabled  bool   `mapstructure:"enabled"`
+	Addr     string `mapstructure:"addr"`
+	Password string `mapstructure:"password"`
+	DB       int    `mapstructure:"db"`
+	Prefix   string `mapstructure:"prefix"`
+}
+
 // Get 获取当前配置的快照（高性能无锁）
 func Get() Config {
 	val := appConfig.Load()
@@ -76,11 +86,43 @@ func Get() Config {
 	return *c
 }
 
-func InitConfig() {
+func GetConfigDir() string {
+	return configDir
+}
+
+func InitConfig(customConfigDir string) {
+	v := initViper(customConfigDir)
+	loadAndStore(v)
+	enforceJWTSecretSafety()
+
+	v.WatchConfig()
+	v.OnConfigChange(func(e fsnotify.Event) {
+		log.Println("🔄 检测到配置文件变化:", e.Name)
+		loadAndStore(v)
+	})
+
+	log.Println("✅ 配置加载成功")
+}
+
+// InitConfigWithoutWatch 初始化配置但不启用热重载监听（用于测试场景）。
+func InitConfigWithoutWatch(customConfigDir string) {
+	v := initViper(customConfigDir)
+	loadAndStore(v)
+	enforceJWTSecretSafety()
+	log.Println("✅ 配置加载成功")
+}
+
+func initViper(customConfigDir string) *viper.Viper {
 	v := viper.New()
 
+	customConfigDir = strings.TrimSpace(customConfigDir)
+	if customConfigDir == "" {
+		customConfigDir = "config"
+	}
+	configDir = customConfigDir
+
 	// 设置配置文件路径
-	v.AddConfigPath("config")
+	v.AddConfigPath(configDir)
 	v.AddConfigPath(".")
 	v.SetConfigName("config")
 	v.SetConfigType("yaml")
@@ -93,7 +135,7 @@ func InitConfig() {
 	v.SetDefault("server.port", "8080")
 	v.SetDefault("server.mode", "debug")
 	v.SetDefault("database.type", "sqlite")
-	v.SetDefault("database.filename", "config/perfect_pic.db")
+	v.SetDefault("database.filename", "database/perfect_pic.db")
 	v.SetDefault("database.host", "127.0.0.1")
 	v.SetDefault("database.port", "3306")
 	v.SetDefault("database.user", "root")
@@ -108,6 +150,11 @@ func InitConfig() {
 	v.SetDefault("smtp.password", "")
 	v.SetDefault("smtp.from", "")
 	v.SetDefault("smtp.ssl", false)
+	v.SetDefault("redis.enabled", false)
+	v.SetDefault("redis.addr", "127.0.0.1:6379")
+	v.SetDefault("redis.password", "")
+	v.SetDefault("redis.db", 0)
+	v.SetDefault("redis.prefix", "perfect_pic")
 
 	// 读取配置文件
 	if err := v.ReadInConfig(); err != nil {
@@ -131,23 +178,7 @@ func InitConfig() {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	// 初始加载配置
-	loadAndStore(v)
-
-	// 首次启动安全检查：如果是 release 模式，拦截不安全的 JWT Secret
-	curr := Get()
-	if curr.Server.Mode == "release" {
-		if curr.JWT.Secret == "" || curr.JWT.Secret == "perfect_pic_secret" {
-			log.Fatal("❌ [安全严重错误] 生产模式(release)下必须设置安全的 JWT Secret！\n请设置环境变量 PERFECT_PIC_JWT_SECRET 或在配置文件中指定 jwt.secret")
-		}
-	}
-
-	v.WatchConfig()
-	v.OnConfigChange(func(e fsnotify.Event) {
-		log.Println("🔄 检测到配置文件变化:", e.Name)
-		loadAndStore(v)
-	})
-
-	log.Println("✅ 配置加载成功")
+	return v
 }
 
 // loadAndStore 解析并原子更新配置
@@ -178,4 +209,14 @@ func loadAndStore(v *viper.Viper) {
 	// 原子替换全局配置
 	appConfig.Store(&tempConfig)
 	log.Println("✅ 配置已更新")
+}
+
+func enforceJWTSecretSafety() {
+	// 首次启动安全检查：如果是 release 模式，拦截不安全的 JWT Secret
+	curr := Get()
+	if curr.Server.Mode == "release" {
+		if curr.JWT.Secret == "" || curr.JWT.Secret == "perfect_pic_secret" {
+			log.Fatal("❌ [安全严重错误] 生产模式(release)下必须设置安全的 JWT Secret！\n请设置环境变量 PERFECT_PIC_JWT_SECRET 或在配置文件中指定 jwt.secret")
+		}
+	}
 }

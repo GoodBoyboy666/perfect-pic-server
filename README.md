@@ -12,6 +12,7 @@
 * **🚀 高性能架构**
   * **多数据库适配**: 开箱即用支持 **SQLite** (零配置)，并可无缝切换至 **MySQL** 或 **PostgreSQL** 以适应生产环境。
   * **多级缓存加速**: 结合 HTTP 静态资源缓存与服务端内存缓存策略，大幅降低数据库压力，提升响应速度。
+  * **Redis 持久化支持**: 可选接入 **Redis**，用于限流状态、Auth 用户状态缓存与重置密码 Token 的跨实例持久化与共享。
   * **并发与稳定性**: 针对不同数据库自动调优连接池，支持高并发读写；配合优雅停机机制，保障业务处理不中断。
 
 * **🛡️ 安全可靠**
@@ -31,6 +32,7 @@
 * **Web 框架**: [Gin](https://github.com/gin-gonic/gin)
 * **ORM**: [GORM](https://gorm.io/)
 * **数据库**: SQLite, MySQL, PostgreSQL
+* **缓存/持久化**: Redis (可选) / Memory
 * **配置管理**: [Viper](https://github.com/spf13/viper)
 * **工具库**: UUID, Captcha, Lumberjack (日志)
 
@@ -56,16 +58,28 @@ chmod +x perfect-pic-server
 
 # 设置环境变量并启动
 export PERFECT_PIC_SERVER_MODE=release
-export PERFECT_PIC_JWT_SECRET=your_secure_random_secret_key
+export PERFECT_PIC_JWT_SECRET=perfect_pic_secret
 ./perfect-pic-server
+```
+
+可选参数：
+
+```bash
+./perfect-pic-server --config-dir ./config
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
 $env:PERFECT_PIC_SERVER_MODE="release"
-$env:PERFECT_PIC_JWT_SECRET="your_secure_random_secret_key"
+$env:PERFECT_PIC_JWT_SECRET="perfect_pic_secret"
 .\perfect-pic-server.exe
+```
+
+可选参数：
+
+```powershell
+.\perfect-pic-server.exe --config-dir .\config
 ```
 
 服务启动后，默认运行在 `http://localhost:8080`。
@@ -78,13 +92,52 @@ $env:PERFECT_PIC_JWT_SECRET="your_secure_random_secret_key"
 
 如果你更喜欢使用 Docker 部署，项目提供了开箱即用的 Docker 镜像以及 Dockerfile。
 
-### 1. 拉取镜像
+### docker run
+
+先拉取镜像：
 
 ```bash
 docker pull ghcr.io/goodboyboy666/perfect-pic-server:latest
 ```
 
-### 2. 或者自行构建镜像（可选）
+运行容器并持久化数据：
+
+```bash
+docker run -d \
+  --name perfect-pic \
+  -p 8080:8080 \
+  -e PERFECT_PIC_SERVER_MODE=release \
+  -e PERFECT_PIC_JWT_SECRET=perfect_pic_secret \
+  -v $PWD/config:/data/config \
+  -v $PWD/database:/data/database \
+  -v $PWD/uploads:/app/uploads \
+  ghcr.io/goodboyboy666/perfect-pic-server:latest
+```
+
+* **挂载说明**:
+  * `/data/config`: 存放配置文件和邮件模板。强烈建议首次运行前在该目录下配置好 `config.yaml`。
+  * `/data/database`: 存放数据库文件（默认 SQLite 路径为 `/data/database/perfect_pic.db`）。
+  * `/app/uploads`: 持久化存储上传的图片。
+
+### docker compose
+
+项目根目录已提供 `docker-compose.yml`，可直接使用：
+
+```bash
+# 复制环境变量模板（不可直接使用，必须按需修改）
+cp .env.example .env
+
+# 后台启动
+docker compose up -d
+```
+
+如需停止并移除容器：
+
+```bash
+docker compose down
+```
+
+### 自行构建镜像
 
 ```bash
 # 获取构建版本信息
@@ -101,44 +154,8 @@ docker build . \
   --build-arg FRONTEND_REF="origin/main"
 ```
 
-### 3. 运行容器
-
-运行容器并持久化数据：
-> [!NOTE]
-> 如果您选择自行构建镜像，请将下方的 `ghcr.io/goodboyboy666/perfect-pic-server:latest` 替换为 `perfect-pic-server:latest`。
-
-```bash
-docker run -d \
-  --name perfect-pic \
-  -p 8080:8080 \
-  -e PERFECT_PIC_SERVER_MODE=release \
-  -e PERFECT_PIC_JWT_SECRET=xxxxx \
-  -v $PWD/config:/app/config \
-  -v $PWD/uploads:/app/uploads \
-  ghcr.io/goodboyboy666/perfect-pic-server:latest
-```
-
-* **挂载说明**:
-  * `/app/config`: 存放数据库文件 (如果是 SQLite) 、配置文件和邮件模板。强烈建议首次运行前在该目录下配置好 `config.yaml`。
-  * `/app/uploads`: 持久化存储上传的图片。
-
-### 4. 可以配合docker-compose使用
-
-```yaml
-services:
-  perfect-pic:
-    image: ghcr.io/goodboyboy666/perfect-pic-server:latest
-    container_name: perfect-pic
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./config:/app/config
-      - ./uploads:/app/uploads
-    environment:
-      - PERFECT_PIC_SERVER_MODE=release
-      - PERFECT_PIC_JWT_SECRET=xxxxxx
-    restart: unless-stopped
-```
+构建完成后，可在 `docker run` 中把镜像名替换为 `perfect-pic-server:latest`；
+如果使用 `docker compose`，请将 `docker-compose.yml` 中的 `image` 改为 `perfect-pic-server:latest`。
 
 ## 🛠️手动构建
 
@@ -190,6 +207,8 @@ chmod +x build.sh
 
 项目支持 `config.yaml` 配置文件和环境变量双重配置。
 
+程序默认使用 `config/` 目录，可通过启动参数 `--config-dir` 指定其它目录（例如 `--config-dir /data/config`）。
+
 ### 配置文件 (config.yaml)
 
 首次运行会自动使用默认配置，你可以在根目录或 `config/` 目录下创建 `config.yaml`：
@@ -201,7 +220,7 @@ server:
 
 database:
   type: "sqlite" # sqlite, mysql, postgres
-  filename: "config/perfect_pic.db" # for sqlite  
+  filename: "database/perfect_pic.db" # for sqlite  
   host: "127.0.0.1" # for mysql/postgres
   port: "3306"
   user: "root"
@@ -210,7 +229,7 @@ database:
   ssl: false
 
 jwt:
-  secret: "change_this_to_a_secure_random_string"
+  secret: "perfect_pic_secret"
   expiration_hours: 24
 
 upload:
@@ -226,6 +245,13 @@ smtp:
   password: "your_smtp_password"
   from: "examle@example.com"
   ssl: false
+
+redis:
+  enabled: false # 是否启用 Redis 持久化
+  addr: "127.0.0.1:6379"
+  password: ""
+  db: 0
+  prefix: "perfect_pic"
 ```
 
 ### 环境变量
@@ -235,6 +261,27 @@ smtp:
 
 * `server.port` -> `PERFECT_PIC_SERVER_PORT`
 * `jwt.secret` -> `PERFECT_PIC_JWT_SECRET`
+* `redis.enabled` -> `PERFECT_PIC_REDIS_ENABLED`
+* `redis.addr` -> `PERFECT_PIC_REDIS_ADDR`
+* `redis.password` -> `PERFECT_PIC_REDIS_PASSWORD`
+* `redis.db` -> `PERFECT_PIC_REDIS_DB`
+* `redis.prefix` -> `PERFECT_PIC_REDIS_PREFIX`
+
+当 `redis.enabled=true` 且可连接时，IP 限流、中间件间隔限流、重置密码 token 会写入 Redis；Redis 不可用时自动降级为内存模式。
+
+验证码配置仅通过管理员后台「系统设置」管理（数据库存储）。
+支持以下键：
+`captcha_provider`（空=关闭验证码，`image`=图形验证码，`turnstile`=Cloudflare Turnstile，`recaptcha`=Google reCAPTCHA，`hcaptcha`=hCaptcha，`geetest`=GeeTest）
+`captcha_turnstile_site_key`、`captcha_turnstile_secret_key`、`captcha_turnstile_verify_url`、`captcha_turnstile_expected_hostname`
+`captcha_recaptcha_site_key`、`captcha_recaptcha_secret_key`、`captcha_recaptcha_verify_url`、`captcha_recaptcha_expected_hostname`。
+`captcha_hcaptcha_site_key`、`captcha_hcaptcha_secret_key`、`captcha_hcaptcha_verify_url`、`captcha_hcaptcha_expected_hostname`。
+`captcha_geetest_captcha_id`、`captcha_geetest_captcha_key`、`captcha_geetest_verify_url`。
+`captcha_provider` 默认值为 `image`。
+当提供方为 `turnstile`、`recaptcha`、`hcaptcha` 或 `geetest` 且对应配置已完整时，后端启用对应的人机验证。
+前端登录/注册/找回密码统一提交 `captcha_token`（当 provider 为 turnstile/recaptcha/hcaptcha/geetest 时使用）。
+
+GeeTest 模式下，`captcha_token` 需传 JSON 字符串，包含：
+`lot_number`、`captcha_output`、`pass_token`、`gen_time`。
 
 ### 邮件模板
 
@@ -272,6 +319,7 @@ smtp:
 * `POST /api/init`: 初始化管理员账号
 * `POST /api/login`: 用户登录
 * `POST /api/register`: 用户注册
+* `GET /api/captcha`: 获取验证码元信息（`provider` + `public_config`，当 provider 为空表示已关闭验证码）
 * `GET /api/webinfo`: 获取站点公开信息
 
 ### 用户接口 (需 Auth)

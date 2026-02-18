@@ -34,12 +34,32 @@ var DefaultSettings = []model.Setting{
 	{Key: consts.ConfigRateLimitAuthBurst, Value: "2", Desc: "认证接口突发请求限制", Category: "速率限制"},
 	{Key: consts.ConfigRateLimitUploadRPS, Value: "1.0", Desc: "上传接口每秒请求限制 (RPS)", Category: "速率限制"},
 	{Key: consts.ConfigRateLimitUploadBurst, Value: "5", Desc: "上传接口突发请求限制", Category: "速率限制"},
-	{Key: consts.ConfigEnableSensitiveRateLimit, Value: "true", Desc: "是否开启敏感操作（忘记密码、修改邮箱）频率限制", Category: "速率限制"},
+	{Key: consts.ConfigEnableSensitiveRateLimit, Value: "true", Desc: "是否开启敏感操作（忘记密码、修改用户名、修改邮箱）频率限制", Category: "速率限制"},
+	{Key: consts.ConfigRateLimitPasswordResetIntervalSeconds, Value: "120", Desc: "忘记密码请求最小间隔（秒）", Category: "速率限制"},
+	{Key: consts.ConfigRateLimitUsernameUpdateIntervalSeconds, Value: "120", Desc: "修改用户名请求最小间隔（秒）", Category: "速率限制"},
+	{Key: consts.ConfigRateLimitEmailUpdateIntervalSeconds, Value: "120", Desc: "修改邮箱请求最小间隔（秒）", Category: "速率限制"},
 	{Key: consts.ConfigMaxRequestBodySize, Value: "2", Desc: "非文件上传接口最大请求体限制 (MB)", Category: "服务"},
 	{Key: consts.ConfigStaticCacheControl, Value: "public, max-age=31536000", Desc: "静态资源缓存设置 (Cache-Control)", Category: "服务"},
 	{Key: consts.ConfigTrustedProxies, Value: "", Desc: "可信代理列表（逗号分隔，留空表示不信任代理头；修改后需重启服务生效）", Category: "安全"},
+	{Key: consts.ConfigCaptchaProvider, Value: "image", Desc: "验证码提供方（空=关闭, image, turnstile, recaptcha, hcaptcha, geetest）", Category: "验证码"},
+	{Key: consts.ConfigCaptchaTurnstileSiteKey, Value: "", Desc: "Cloudflare Turnstile Site Key", Category: "验证码"},
+	{Key: consts.ConfigCaptchaTurnstileSecretKey, Value: "", Desc: "Cloudflare Turnstile Secret Key", Category: "验证码", Sensitive: true},
+	{Key: consts.ConfigCaptchaTurnstileVerifyURL, Value: "", Desc: "Cloudflare Turnstile 校验地址，留空使用官方默认", Category: "验证码"},
+	{Key: consts.ConfigCaptchaTurnstileExpectedHostname, Value: "", Desc: "Cloudflare Turnstile 期望回传域名（可选）", Category: "验证码"},
+	{Key: consts.ConfigCaptchaRecaptchaSiteKey, Value: "", Desc: "Google reCAPTCHA Site Key", Category: "验证码"},
+	{Key: consts.ConfigCaptchaRecaptchaSecretKey, Value: "", Desc: "Google reCAPTCHA Secret Key", Category: "验证码", Sensitive: true},
+	{Key: consts.ConfigCaptchaRecaptchaVerifyURL, Value: "", Desc: "Google reCAPTCHA 校验地址，留空使用官方默认", Category: "验证码"},
+	{Key: consts.ConfigCaptchaRecaptchaExpectedHostname, Value: "", Desc: "Google reCAPTCHA 期望回传域名（可选）", Category: "验证码"},
+	{Key: consts.ConfigCaptchaHcaptchaSiteKey, Value: "", Desc: "hCaptcha Site Key", Category: "验证码"},
+	{Key: consts.ConfigCaptchaHcaptchaSecretKey, Value: "", Desc: "hCaptcha Secret Key", Category: "验证码", Sensitive: true},
+	{Key: consts.ConfigCaptchaHcaptchaVerifyURL, Value: "", Desc: "hCaptcha 校验地址，留空使用官方默认", Category: "验证码"},
+	{Key: consts.ConfigCaptchaHcaptchaExpectedHostname, Value: "", Desc: "hCaptcha 期望回传域名（可选）", Category: "验证码"},
+	{Key: consts.ConfigCaptchaGeetestCaptchaID, Value: "", Desc: "GeeTest Captcha ID", Category: "验证码"},
+	{Key: consts.ConfigCaptchaGeetestCaptchaKey, Value: "", Desc: "GeeTest Captcha Key", Category: "验证码", Sensitive: true},
+	{Key: consts.ConfigCaptchaGeetestVerifyURL, Value: "", Desc: "GeeTest 校验地址，留空使用官方默认", Category: "验证码"},
 }
 
+// ClearCache 清空设置缓存。
 func ClearCache() {
 	settingsCache.Range(func(key, value interface{}) bool {
 		settingsCache.Delete(key)
@@ -47,6 +67,7 @@ func ClearCache() {
 	})
 }
 
+// InitializeSettings 将默认设置写入数据库，并同步描述与分类信息。
 func InitializeSettings() {
 	for _, def := range DefaultSettings {
 		var count int64
@@ -56,13 +77,15 @@ func InitializeSettings() {
 		} else {
 			// 同步更新 Category 和 Desc
 			db.DB.Model(&model.Setting{}).Where("key = ?", def.Key).Updates(map[string]interface{}{
-				"category": def.Category,
-				"desc":     def.Desc,
+				"category":  def.Category,
+				"desc":      def.Desc,
+				"sensitive": def.Sensitive,
 			})
 		}
 	}
 }
 
+// GetString 读取字符串配置值（优先缓存，其次数据库，最后默认值）。
 func GetString(key string) string {
 	if val, ok := settingsCache.Load(key); ok {
 		strVal, ok := val.(string)
@@ -101,6 +124,7 @@ func GetString(key string) string {
 	return setting.Value
 }
 
+// GetInt 读取整型配置值。
 func GetInt(key string) int {
 	valStr := GetString(key)
 	if valStr == "" {
@@ -115,6 +139,7 @@ func GetInt(key string) int {
 	return val
 }
 
+// GetInt64 读取 int64 配置值。
 func GetInt64(key string) int64 {
 	valStr := GetString(key)
 	if valStr == "" {
@@ -129,6 +154,7 @@ func GetInt64(key string) int64 {
 	return val
 }
 
+// GetFloat64 读取浮点型配置值。
 func GetFloat64(key string) float64 {
 	valStr := GetString(key)
 	if valStr == "" {
@@ -142,6 +168,7 @@ func GetFloat64(key string) float64 {
 	return val
 }
 
+// GetBool 读取布尔配置值。
 func GetBool(key string) bool {
 	valStr := GetString(key)
 	if valStr == "" {
