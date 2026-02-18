@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"perfect-pic-server/internal/config"
@@ -172,6 +173,11 @@ func VerifyForgetPasswordToken(token string) (uint, bool) {
 		if err == nil {
 			uid, parseErr := strconv.ParseUint(uidStr, 10, 64)
 			if parseErr == nil {
+				// Ensure the parsed UID fits into the platform-dependent uint type.
+				if uid > math.MaxUint {
+					_ = redisClient.Del(ctx, tokenKey).Err()
+					return 0, false
+				}
 				userKey := RedisKey("password_reset", "user", strconv.FormatUint(uid, 10))
 				casErr := verifyAndConsumeRedisTokenPair(ctx, redisClient, tokenKey, userKey, token, uidStr)
 				if casErr == nil {
