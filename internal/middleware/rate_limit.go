@@ -27,6 +27,8 @@ type client struct {
 	lastSeen time.Time
 }
 
+const defaultSensitiveOperationInterval = 2 * time.Minute
+
 func NewIPRateLimiter(r rate.Limit, b int) *IPRateLimiter {
 	i := &IPRateLimiter{
 		r: r,
@@ -80,10 +82,11 @@ func (i *IPRateLimiter) cleanupLoop() {
 	}
 }
 
-// RateLimitMiddleware 创建一个动态限流中间件
+// RateLimitMiddleware 按“每秒速率 + 突发容量”进行限流（令牌桶）。
+// rpsKey/burstKey 分别对应配置中的 RPS 和 Burst。
 func RateLimitMiddleware(rpsKey string, burstKey string) gin.HandlerFunc {
-	// 内部建立一个 map 缓存 limiter，避免每次请求都创建 IPRateLimiter 对象
-	// 这里其实是每个 group（auth/upload）共用一个 IPRateLimiter 实例
+	// 每个中间件实例共用一个 IPRateLimiter，并按 IP 复用 limiter。
+	// 这样可以避免每次请求都创建新 limiter。
 	var limiter *IPRateLimiter
 	var once sync.Once
 
@@ -138,27 +141,36 @@ func RateLimitMiddleware(rpsKey string, burstKey string) gin.HandlerFunc {
 	}
 }
 
-// IntervalRateMiddleware 限制调用间隔的中间件
-func IntervalRateMiddleware(interval time.Duration) gin.HandlerFunc {
-	// 内部建立一个 map 缓存 IP 最后访问时间
+// IntervalRateMiddleware 按数据库配置的最小调用间隔进行限流。
+// intervalKey 对应设置项，值为秒数（int），例如 120 表示 2 分钟。
+func IntervalRateMiddleware(intervalKey string) gin.HandlerFunc {
+	// 每个中间件实例维护自己的访问时间表，并通过 sync.Once 确保清理协程只启动一次。
 	var requestTimes sync.Map
+	var cleanupOnce sync.Once
 
-	// 启动清理协程
-	go func() {
-		for {
-			time.Sleep(5 * time.Minute)
-			now := time.Now()
-			requestTimes.Range(func(key, value interface{}) bool {
-				if t, ok := value.(time.Time); ok {
-					// 清理超过2倍间隔时间的记录
+	startCleanupLoop := func() {
+		go func() {
+			ticker := time.NewTicker(5 * time.Minute)
+			defer ticker.Stop()
+
+			for range ticker.C {
+				now := time.Now()
+				interval := getIntervalBySettingKey(intervalKey)
+				requestTimes.Range(func(key, value interface{}) bool {
+					t, ok := value.(time.Time)
+					if !ok {
+						requestTimes.Delete(key)
+						return true
+					}
+					// 清理较久未访问的记录（至少超过 2*interval 且超过 5 分钟）。
 					if now.Sub(t) > interval*2 && now.Sub(t) > 5*time.Minute {
 						requestTimes.Delete(key)
 					}
-				}
-				return true
-			})
-		}
-	}()
+					return true
+				})
+			}
+		}()
+	}
 
 	return func(c *gin.Context) {
 		// 检查是否开启敏感操作限流
@@ -167,10 +179,14 @@ func IntervalRateMiddleware(interval time.Duration) gin.HandlerFunc {
 			return
 		}
 
+		cleanupOnce.Do(startCleanupLoop)
+
+		interval := getIntervalBySettingKey(intervalKey)
+
 		ip := c.ClientIP()
 
 		if redisClient := service.GetRedisClient(); redisClient != nil {
-			ok, err := allowByRedisInterval(redisClient, "interval", ip, interval)
+			ok, err := allowByRedisInterval(redisClient, intervalKey, ip, interval)
 			if err == nil {
 				if !ok {
 					c.JSON(http.StatusTooManyRequests, gin.H{"error": fmt.Sprintf("操作过于频繁，请等待 %v 后再试", interval)})
@@ -196,6 +212,14 @@ func IntervalRateMiddleware(interval time.Duration) gin.HandlerFunc {
 		requestTimes.Store(ip, time.Now())
 		c.Next()
 	}
+}
+
+func getIntervalBySettingKey(intervalKey string) time.Duration {
+	seconds := service.GetInt(intervalKey)
+	if seconds <= 0 {
+		return defaultSensitiveOperationInterval
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 func allowByRedisInterval(client *redis.Client, namespace, ip string, interval time.Duration) (bool, error) {

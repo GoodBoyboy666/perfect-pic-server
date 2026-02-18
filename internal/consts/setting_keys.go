@@ -56,8 +56,17 @@ const (
 	// ConfigRateLimitUploadBurst 上传接口限流 Burst
 	ConfigRateLimitUploadBurst = "rate_limit_upload_burst"
 
-	// ConfigEnableSensitiveRateLimit 是否开启敏感操作（忘记密码、修改邮箱）频率限制
+	// ConfigEnableSensitiveRateLimit 是否开启敏感操作（忘记密码、修改用户名、修改邮箱）频率限制
 	ConfigEnableSensitiveRateLimit = "enable_sensitive_rate_limit"
+
+	// ConfigRateLimitPasswordResetIntervalSeconds 忘记密码请求最小间隔（秒）
+	ConfigRateLimitPasswordResetIntervalSeconds = "rate_limit_password_reset_interval_seconds"
+
+	// ConfigRateLimitUsernameUpdateIntervalSeconds 修改用户名请求最小间隔（秒）
+	ConfigRateLimitUsernameUpdateIntervalSeconds = "rate_limit_username_update_interval_seconds"
+
+	// ConfigRateLimitEmailUpdateIntervalSeconds 修改邮箱请求最小间隔（秒）
+	ConfigRateLimitEmailUpdateIntervalSeconds = "rate_limit_email_update_interval_seconds"
 
 	// ConfigMaxRequestBodySize 最大API请求体大小 (MB, 排除文件上传)
 	ConfigMaxRequestBodySize = "max_request_body_size"
