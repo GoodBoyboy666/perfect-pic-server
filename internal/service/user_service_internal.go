@@ -32,8 +32,9 @@ func buildAdminUserListQuery(params AdminUserListParams) *gorm.DB {
 	if params.ShowDeleted {
 		query = query.Unscoped()
 	}
-	if strings.TrimSpace(params.Keyword) != "" {
-		query = query.Where("username LIKE ?", "%"+params.Keyword+"%")
+	keyword := strings.TrimSpace(params.Keyword)
+	if keyword != "" {
+		query = query.Where("username LIKE ?", "%"+keyword+"%")
 	}
 	return query
 }
