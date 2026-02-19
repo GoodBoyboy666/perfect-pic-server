@@ -15,7 +15,7 @@ type UpdateSettingRequest struct {
 }
 
 func GetSettings(c *gin.Context) {
-	settings, err := service.ListSettingsForAdmin()
+	settings, err := service.AdminListSettings()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取配置失败"})
 		return
@@ -36,7 +36,7 @@ func UpdateSettings(c *gin.Context) {
 		items = append(items, service.UpdateSettingPayload{Key: item.Key, Value: item.Value})
 	}
 
-	err := service.UpdateSettingsForAdmin(items)
+	err := service.AdminUpdateSettings(items)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
 		return

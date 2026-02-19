@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/redis/go-redis/v9"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type ForgetPasswordToken struct {
@@ -43,6 +43,16 @@ type emailChangeRedisPayload struct {
 	NewEmail string `json:"new_email"`
 }
 
+type UserProfile struct {
+	ID           uint   `json:"id"`
+	Username     string `json:"username"`
+	Email        string `json:"email"`
+	Avatar       string `json:"avatar"`
+	Admin        bool   `json:"admin"`
+	StorageQuota *int64 `json:"storage_quota"`
+	StorageUsed  int64  `json:"storage_used"`
+}
+
 var (
 	// passwordResetStore 存储忘记密码 Token
 	// Key: UserID (uint), Value: Token (string)
@@ -60,60 +70,6 @@ var (
 )
 
 var errRedisTokenCASMismatch = errors.New("redis token cas mismatch")
-
-func verifyAndConsumeRedisTokenPair(
-	ctx context.Context,
-	redisClient *redis.Client,
-	tokenKey string,
-	userKey string,
-	expectedUserToken string,
-	expectedTokenValue string,
-) error {
-	var consumed bool
-	watchErr := redisClient.Watch(ctx, func(tx *redis.Tx) error {
-		currentUserToken, getErr := tx.Get(ctx, userKey).Result()
-		if getErr != nil {
-			if errors.Is(getErr, redis.Nil) {
-				return redis.TxFailedErr
-			}
-			return getErr
-		}
-		if currentUserToken != expectedUserToken {
-			return redis.TxFailedErr
-		}
-
-		currentTokenValue, tokenErr := tx.Get(ctx, tokenKey).Result()
-		if tokenErr != nil {
-			if errors.Is(tokenErr, redis.Nil) {
-				return redis.TxFailedErr
-			}
-			return tokenErr
-		}
-		if currentTokenValue != expectedTokenValue {
-			return redis.TxFailedErr
-		}
-
-		_, pipeErr := tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-			pipe.Del(ctx, tokenKey)
-			pipe.Del(ctx, userKey)
-			return nil
-		})
-		if pipeErr != nil {
-			return pipeErr
-		}
-
-		consumed = true
-		return nil
-	}, userKey, tokenKey)
-
-	if watchErr == nil && consumed {
-		return nil
-	}
-	if errors.Is(watchErr, redis.TxFailedErr) || (!consumed && watchErr == nil) {
-		return errRedisTokenCASMismatch
-	}
-	return watchErr
-}
 
 // GenerateForgetPasswordToken 生成忘记密码 Token，有效期 15 分钟
 func GenerateForgetPasswordToken(userID uint) (string, error) {
@@ -422,4 +378,148 @@ func DeleteUserFiles(userID uint) error {
 	}
 
 	return nil
+}
+
+// IsUsernameTaken 检查用户名是否已被占用。
+// excludeUserID 用于更新场景下排除当前用户；includeDeleted 为 true 时会包含软删除用户。
+func IsUsernameTaken(username string, excludeUserID *uint, includeDeleted bool) (bool, error) {
+	return isUserFieldTaken("username", username, excludeUserID, includeDeleted)
+}
+
+// IsEmailTaken 检查邮箱是否已被占用。
+// excludeUserID 用于更新场景下排除当前用户；includeDeleted 为 true 时会包含软删除用户。
+func IsEmailTaken(email string, excludeUserID *uint, includeDeleted bool) (bool, error) {
+	return isUserFieldTaken("email", email, excludeUserID, includeDeleted)
+}
+
+// GetUserByID 按用户 ID 获取用户模型。
+func GetUserByID(userID uint) (*model.User, error) {
+	var user model.User
+	if err := db.DB.First(&user, userID).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// GetUserProfile 获取用户个人资料。
+func GetUserProfile(userID uint) (*UserProfile, error) {
+	user, err := GetUserByID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &UserProfile{
+		ID:           user.ID,
+		Username:     user.Username,
+		Email:        user.Email,
+		Avatar:       user.Avatar,
+		Admin:        user.Admin,
+		StorageQuota: user.StorageQuota,
+		StorageUsed:  user.StorageUsed,
+	}, nil
+}
+
+// UpdateUsernameAndGenerateToken 更新用户名并签发新登录令牌。
+func UpdateUsernameAndGenerateToken(userID uint, newUsername string, isAdmin bool) (string, string, error) {
+	if ok, msg := utils.ValidateUsername(newUsername); !ok {
+		return "", msg, nil
+	}
+
+	excludeID := userID
+	usernameTaken, err := IsUsernameTaken(newUsername, &excludeID, true)
+	if err != nil {
+		return "", "", err
+	}
+	if usernameTaken {
+		return "", "用户名已存在", nil
+	}
+
+	if err := db.DB.Model(&model.User{}).Where("id = ?", userID).Update("username", newUsername).Error; err != nil {
+		return "", "", err
+	}
+
+	cfg := config.Get()
+	token, err := utils.GenerateLoginToken(userID, newUsername, isAdmin, time.Hour*time.Duration(cfg.JWT.ExpirationHours))
+	if err != nil {
+		return "", "", err
+	}
+
+	return token, "", nil
+}
+
+// UpdatePasswordByOldPassword 使用旧密码校验后更新新密码。
+func UpdatePasswordByOldPassword(userID uint, oldPassword, newPassword string) (string, error) {
+	if ok, msg := utils.ValidatePassword(newPassword); !ok {
+		return msg, nil
+	}
+
+	var user model.User
+	if err := db.DB.First(&user, userID).Error; err != nil {
+		return "", err
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword)); err != nil {
+		return "旧密码错误", nil
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+
+	if err := db.DB.Model(&user).Update("password", string(hashedPassword)).Error; err != nil {
+		return "", err
+	}
+
+	return "", nil
+}
+
+// RequestEmailChange 发起邮箱修改流程并异步发送验证邮件。
+func RequestEmailChange(userID uint, password, newEmail string) (string, error) {
+	if ok, msg := utils.ValidateEmail(newEmail); !ok {
+		return msg, nil
+	}
+
+	var user model.User
+	if err := db.DB.First(&user, userID).Error; err != nil {
+		return "", err
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		return "密码错误", nil
+	}
+
+	if user.Email == newEmail {
+		return "新邮箱不能与当前邮箱相同", nil
+	}
+
+	emailTaken, err := IsEmailTaken(newEmail, nil, true)
+	if err != nil {
+		return "", err
+	}
+	if emailTaken {
+		return "该邮箱已被使用", nil
+	}
+
+	token, err := GenerateEmailChangeToken(user.ID, user.Email, newEmail)
+	if err != nil {
+		return "", err
+	}
+
+	baseURL := GetString(consts.ConfigBaseURL)
+	if baseURL == "" {
+		baseURL = "http://localhost"
+	}
+	if len(baseURL) > 0 && baseURL[len(baseURL)-1] == '/' {
+		baseURL = baseURL[:len(baseURL)-1]
+	}
+	verifyURL := fmt.Sprintf("%s/auth/email-change-verify?token=%s", baseURL, token)
+
+	if shouldSendEmail() {
+		go func() {
+			_ = SendEmailChangeVerification(newEmail, user.Username, user.Email, newEmail, verifyURL)
+		}()
+	}
+
+	return "", nil
 }

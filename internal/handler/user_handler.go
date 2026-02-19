@@ -179,7 +179,7 @@ func UpdateSelfAvatar(c *gin.Context) {
 		return
 	}
 
-	user, err := service.GetUserDetailForAdmin(uid)
+	user, err := service.GetUserByID(uid)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		return
