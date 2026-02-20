@@ -308,7 +308,7 @@ func TestGetUserOwnedImage(t *testing.T) {
 	img := model.Image{Filename: "a.png", Path: "2026/02/13/a.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
 	_ = db.DB.Create(&img).Error
 
-	got, err := GetUserOwnedImage("1", u.ID)
+	got, err := GetUserOwnedImage(img.ID, u.ID)
 	if err != nil {
 		t.Fatalf("GetUserOwnedImage: %v", err)
 	}
@@ -316,7 +316,7 @@ func TestGetUserOwnedImage(t *testing.T) {
 		t.Fatalf("期望 image id %d，实际为 %d", img.ID, got.ID)
 	}
 
-	_, err = GetUserOwnedImage("1", u.ID+1)
+	_, err = GetUserOwnedImage(img.ID, u.ID+1)
 	if err == nil {
 		t.Fatalf("期望返回错误 for non-owned image")
 	}
@@ -347,7 +347,7 @@ func TestGetUserImageCountAndBatchGetters(t *testing.T) {
 		t.Fatalf("GetImagesByIDsForUser: err=%v len=%d", err, len(images))
 	}
 
-	got, err := AdminGetImageByID(strconv.FormatUint(uint64(img1.ID), 10))
+	got, err := AdminGetImageByID(img1.ID)
 	if err != nil {
 		t.Fatalf("AdminGetImageByID: %v", err)
 	}

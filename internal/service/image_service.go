@@ -28,7 +28,7 @@ type UserImageListParams struct {
 	PaginationQuery
 	UserID   uint
 	Filename string
-	ID       string
+	ID       *uint
 }
 
 type AdminImageListParams struct {
@@ -36,7 +36,7 @@ type AdminImageListParams struct {
 	Username string
 	Filename string
 	UserID   *uint
-	ID       string
+	ID       *uint
 }
 
 // ValidateImageFile 验证上传的图片文件（大小、后缀、内容）
@@ -457,7 +457,7 @@ func GetUserImageCount(userID uint) (int64, error) {
 }
 
 // GetUserOwnedImage 获取用户名下的指定图片，用于鉴权后的删除/查看。
-func GetUserOwnedImage(imageID string, userID uint) (*model.Image, error) {
+func GetUserOwnedImage(imageID uint, userID uint) (*model.Image, error) {
 	return repository.Image.FindByIDAndUserID(imageID, userID)
 }
 

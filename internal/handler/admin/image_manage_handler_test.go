@@ -170,3 +170,18 @@ func TestGetImageListHandler_InvalidID(t *testing.T) {
 		t.Fatalf("期望 400，实际为 %d body=%s", w.Code, w.Body.String())
 	}
 }
+
+// 测试内容：验证管理员删除图片接口对非法路径 id 返回 400。
+func TestDeleteImageHandler_InvalidID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupTestDB(t)
+
+	r := gin.New()
+	r.DELETE("/images/:id", DeleteImage)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/images/abc", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("期望 400，实际为 %d body=%s", w.Code, w.Body.String())
+	}
+}

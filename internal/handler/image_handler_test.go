@@ -257,6 +257,42 @@ func TestBatchDeleteMyImagesHandler_Errors(t *testing.T) {
 	}
 }
 
+// 测试内容：验证我的图片列表接口对非法 id 参数返回 400。
+func TestGetMyImagesHandler_InvalidID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupTestDB(t)
+
+	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
+	_ = db.DB.Create(&u).Error
+
+	r := gin.New()
+	r.GET("/images", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, GetMyImages)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/images?id=abc", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("期望 400，实际为 %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+// 测试内容：验证删除我的图片接口对非法路径 id 返回 400。
+func TestDeleteMyImageHandler_InvalidID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupTestDB(t)
+
+	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
+	_ = db.DB.Create(&u).Error
+
+	r := gin.New()
+	r.DELETE("/images/:id", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, DeleteMyImage)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/images/abc", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("期望 400，实际为 %d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func newUploadRequest(t *testing.T, path, filename string, content []byte) *http.Request {
 	t.Helper()
 

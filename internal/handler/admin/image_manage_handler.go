@@ -21,7 +21,7 @@ func GetImageList(c *gin.Context) {
 	username := c.Query("username")
 	filename := c.Query("filename")
 	userIDStr := c.Query("user_id")
-	id := c.Query("id")
+	idStr := c.Query("id")
 
 	page, _ := strconv.Atoi(pageStr)
 	pageSize, _ := strconv.Atoi(pageSizeStr)
@@ -43,13 +43,15 @@ func GetImageList(c *gin.Context) {
 		userID = &uid
 	}
 
-	if id != "" {
-		parsed, err := strconv.ParseUint(id, 10, 64)
+	var imageID *uint
+	if idStr != "" {
+		parsed, err := strconv.ParseUint(idStr, 10, 64)
 		if err != nil || parsed == 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "id 参数错误"})
 			return
 		}
-		id = strconv.FormatUint(parsed, 10)
+		id := uint(parsed)
+		imageID = &id
 	}
 
 	images, total, page, pageSize, err := service.AdminListImages(service.AdminImageListParams{
@@ -57,7 +59,7 @@ func GetImageList(c *gin.Context) {
 		Username:        username,
 		Filename:        filename,
 		UserID:          userID,
-		ID:              id,
+		ID:              imageID,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取图片列表失败"})
@@ -83,9 +85,14 @@ func GetImageList(c *gin.Context) {
 
 // DeleteImage 删除图片
 func DeleteImage(c *gin.Context) {
-	id := c.Param("id")
+	idParam := c.Param("id")
+	id, err := strconv.ParseUint(idParam, 10, 64)
+	if err != nil || id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id 参数错误"})
+		return
+	}
 
-	image, err := service.AdminGetImageByID(id)
+	image, err := service.AdminGetImageByID(uint(id))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "图片不存在"})
 		return

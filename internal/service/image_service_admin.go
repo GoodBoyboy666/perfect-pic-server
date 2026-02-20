@@ -25,7 +25,7 @@ func AdminListImages(params AdminImageListParams) ([]model.Image, int64, int, in
 }
 
 // AdminGetImageByID 获取后台指定图片。
-func AdminGetImageByID(id string) (*model.Image, error) {
+func AdminGetImageByID(id uint) (*model.Image, error) {
 	return repository.Image.FindByID(id)
 }
 

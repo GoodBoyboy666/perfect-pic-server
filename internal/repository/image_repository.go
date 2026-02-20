@@ -13,7 +13,7 @@ type ListImagesParams struct {
 	UserID      *uint
 	Username    string
 	Filename    string
-	ID          string
+	ID          *uint
 	Offset      int
 	Limit       int
 	PreloadUser bool
@@ -81,8 +81,8 @@ func (r *ImageRepository) ListImages(params ListImagesParams) ([]model.Image, in
 	if params.Filename != "" {
 		query = query.Where("images.filename LIKE ?", "%"+params.Filename+"%")
 	}
-	if params.ID != "" {
-		query = query.Where("images.id = ?", params.ID)
+	if params.ID != nil {
+		query = query.Where("images.id = ?", *params.ID)
 	}
 
 	if err := query.Count(&total).Error; err != nil {
@@ -103,7 +103,7 @@ func (r *ImageRepository) ListImages(params ListImagesParams) ([]model.Image, in
 func (r *ImageRepository) ListUserImages(
 	userID uint,
 	filename string,
-	id string,
+	id *uint,
 	offset int,
 	limit int,
 ) ([]model.Image, int64, error) {
@@ -124,7 +124,7 @@ func (r *ImageRepository) CountByUserID(userID uint) (int64, error) {
 	return count, nil
 }
 
-func (r *ImageRepository) FindByIDAndUserID(imageID string, userID uint) (*model.Image, error) {
+func (r *ImageRepository) FindByIDAndUserID(imageID uint, userID uint) (*model.Image, error) {
 	var image model.Image
 	if err := db.DB.Where("id = ? AND user_id = ?", imageID, userID).First(&image).Error; err != nil {
 		return nil, err
@@ -144,7 +144,7 @@ func (r *ImageRepository) AdminListImages(
 	username string,
 	filename string,
 	userID *uint,
-	id string,
+	id *uint,
 	offset int,
 	limit int,
 ) ([]model.Image, int64, error) {
@@ -159,7 +159,7 @@ func (r *ImageRepository) AdminListImages(
 	})
 }
 
-func (r *ImageRepository) FindByID(id string) (*model.Image, error) {
+func (r *ImageRepository) FindByID(id uint) (*model.Image, error) {
 	var image model.Image
 	if err := db.DB.First(&image, id).Error; err != nil {
 		return nil, err
