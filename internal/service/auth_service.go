@@ -14,41 +14,6 @@ import (
 	"gorm.io/gorm"
 )
 
-type AuthErrorCode string
-
-const (
-	AuthErrorValidation   AuthErrorCode = "validation"
-	AuthErrorUnauthorized AuthErrorCode = "unauthorized"
-	AuthErrorForbidden    AuthErrorCode = "forbidden"
-	AuthErrorConflict     AuthErrorCode = "conflict"
-	AuthErrorNotFound     AuthErrorCode = "not_found"
-	AuthErrorInternal     AuthErrorCode = "internal"
-)
-
-type AuthError struct {
-	Code    AuthErrorCode
-	Message string
-}
-
-// Error 返回认证错误的消息文本。
-func (e *AuthError) Error() string {
-	return e.Message
-}
-
-// newAuthError 构造统一的认证错误对象。
-func newAuthError(code AuthErrorCode, message string) error {
-	return &AuthError{Code: code, Message: message}
-}
-
-// AsAuthError 将通用 error 安全转换为 AuthError。
-func AsAuthError(err error) (*AuthError, bool) {
-	var authErr *AuthError
-	if errors.As(err, &authErr) {
-		return authErr, true
-	}
-	return nil, false
-}
-
 // LoginUser 执行登录鉴权并返回登录令牌。
 func LoginUser(username, password string) (string, error) {
 	user, err := repository.User.FindByUsername(username)

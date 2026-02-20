@@ -62,7 +62,7 @@ func GetImageList(c *gin.Context) {
 		ID:              imageID,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取图片列表失败"})
+		writeServiceError(c, err, "获取图片列表失败")
 		return
 	}
 
@@ -94,12 +94,12 @@ func DeleteImage(c *gin.Context) {
 
 	image, err := service.AdminGetImageByID(uint(id))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "图片不存在"})
+		writeServiceError(c, err, "图片不存在")
 		return
 	}
 
 	if err := service.DeleteImage(image); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
+		writeServiceError(c, err, "删除失败")
 		return
 	}
 
@@ -128,7 +128,7 @@ func BatchDeleteImages(c *gin.Context) {
 
 	images, err := service.AdminGetImagesByIDs(req.Ids)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "查找图片失败"})
+		writeServiceError(c, err, "查找图片失败")
 		return
 	}
 
@@ -138,7 +138,7 @@ func BatchDeleteImages(c *gin.Context) {
 	}
 
 	if err := service.BatchDeleteImages(images); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
+		writeServiceError(c, err, "删除失败")
 		return
 	}
 

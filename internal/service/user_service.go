@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type ForgetPasswordToken struct {
@@ -394,14 +395,21 @@ func IsEmailTaken(email string, excludeUserID *uint, includeDeleted bool) (bool,
 
 // GetUserByID 按用户 ID 获取用户模型。
 func GetUserByID(userID uint) (*model.User, error) {
-	return repository.User.FindByID(userID)
+	user, err := repository.User.FindByID(userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, NewNotFoundError("用户不存在")
+		}
+		return nil, NewInternalError("获取用户信息失败")
+	}
+	return user, nil
 }
 
 // GetUserProfile 获取用户个人资料。
 func GetUserProfile(userID uint) (*UserProfile, error) {
 	user, err := GetUserByID(userID)
 	if err != nil {
-		return nil, err
+		return nil, NewNotFoundError("用户不存在")
 	}
 
 	return &UserProfile{
@@ -416,90 +424,90 @@ func GetUserProfile(userID uint) (*UserProfile, error) {
 }
 
 // UpdateUsernameAndGenerateToken 更新用户名并签发新登录令牌。
-func UpdateUsernameAndGenerateToken(userID uint, newUsername string, isAdmin bool) (string, string, error) {
+func UpdateUsernameAndGenerateToken(userID uint, newUsername string, isAdmin bool) (string, error) {
 	if ok, msg := utils.ValidateUsername(newUsername); !ok {
-		return "", msg, nil
+		return "", NewValidationError(msg)
 	}
 
 	excludeID := userID
 	usernameTaken, err := IsUsernameTaken(newUsername, &excludeID, true)
 	if err != nil {
-		return "", "", err
+		return "", NewInternalError("更新失败")
 	}
 	if usernameTaken {
-		return "", "用户名已存在", nil
+		return "", NewConflictError("用户名已存在")
 	}
 
 	if err := repository.User.UpdateUsernameByID(userID, newUsername); err != nil {
-		return "", "", err
+		return "", NewInternalError("更新失败")
 	}
 
 	cfg := config.Get()
 	token, err := utils.GenerateLoginToken(userID, newUsername, isAdmin, time.Hour*time.Duration(cfg.JWT.ExpirationHours))
 	if err != nil {
-		return "", "", err
+		return "", NewInternalError("更新失败")
 	}
 
-	return token, "", nil
+	return token, nil
 }
 
 // UpdatePasswordByOldPassword 使用旧密码校验后更新新密码。
-func UpdatePasswordByOldPassword(userID uint, oldPassword, newPassword string) (string, error) {
+func UpdatePasswordByOldPassword(userID uint, oldPassword, newPassword string) error {
 	if ok, msg := utils.ValidatePassword(newPassword); !ok {
-		return msg, nil
+		return NewValidationError(msg)
 	}
 
 	user, err := repository.User.FindByID(userID)
 	if err != nil {
-		return "", err
+		return NewNotFoundError("用户不存在")
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword)); err != nil {
-		return "旧密码错误", nil
+		return NewValidationError("旧密码错误")
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
-		return "", err
+		return NewInternalError("更新失败")
 	}
 
 	if err := repository.User.UpdatePasswordByID(userID, string(hashedPassword)); err != nil {
-		return "", err
+		return NewInternalError("更新失败")
 	}
 
-	return "", nil
+	return nil
 }
 
 // RequestEmailChange 发起邮箱修改流程并异步发送验证邮件。
-func RequestEmailChange(userID uint, password, newEmail string) (string, error) {
+func RequestEmailChange(userID uint, password, newEmail string) error {
 	if ok, msg := utils.ValidateEmail(newEmail); !ok {
-		return msg, nil
+		return NewValidationError(msg)
 	}
 
 	user, err := repository.User.FindByID(userID)
 	if err != nil {
-		return "", err
+		return NewNotFoundError("用户不存在")
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		return "密码错误", nil
+		return NewForbiddenError("密码错误")
 	}
 
 	if user.Email == newEmail {
-		return "新邮箱不能与当前邮箱相同", nil
+		return NewValidationError("新邮箱不能与当前邮箱相同")
 	}
 
 	emailTaken, err := IsEmailTaken(newEmail, nil, true)
 	if err != nil {
-		return "", err
+		return NewInternalError("生成验证链接失败")
 	}
 	if emailTaken {
-		return "该邮箱已被使用", nil
+		return NewConflictError("该邮箱已被使用")
 	}
 
 	token, err := GenerateEmailChangeToken(user.ID, user.Email, newEmail)
 	if err != nil {
-		return "", err
+		return NewInternalError("生成验证链接失败")
 	}
 
 	baseURL := GetString(consts.ConfigBaseURL)
@@ -517,5 +525,5 @@ func RequestEmailChange(userID uint, password, newEmail string) (string, error) 
 		}()
 	}
 
-	return "", nil
+	return nil
 }

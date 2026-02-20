@@ -17,6 +17,18 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+func assertServiceErrorCode(t *testing.T, err error, code ErrorCode) *ServiceError {
+	t.Helper()
+	serviceErr, ok := AsServiceError(err)
+	if !ok {
+		t.Fatalf("期望 ServiceError，实际为: %v", err)
+	}
+	if serviceErr.Code != code {
+		t.Fatalf("期望错误码 %q，实际为 %q", code, serviceErr.Code)
+	}
+	return serviceErr
+}
+
 // 测试内容：验证重置密码令牌可生成、可校验且为一次性使用。
 func TestGenerateAndVerifyForgetPasswordToken_OneTimeUse(t *testing.T) {
 	setupTestDB(t)
@@ -285,15 +297,17 @@ func TestListUsersForAdmin_FilterAndShowDeleted(t *testing.T) {
 func TestCreateUserForAdmin_Validates(t *testing.T) {
 	setupTestDB(t)
 
-	user, msg, err := AdminCreateUser(AdminCreateUserInput{Username: "ab", Password: "abc12345"})
-	if err != nil || msg == "" || user != nil {
-		t.Fatalf("期望 username validation msg，实际为 user=%v msg=%q err=%v", user, msg, err)
+	user, err := AdminCreateUser(AdminCreateUserInput{Username: "ab", Password: "abc12345"})
+	if user != nil {
+		t.Fatalf("期望 user=nil，实际为 %v", user)
 	}
+	assertServiceErrorCode(t, err, ErrorCodeValidation)
 
-	user, msg, err = AdminCreateUser(AdminCreateUserInput{Username: "alice", Password: "short"})
-	if err != nil || msg == "" || user != nil {
-		t.Fatalf("期望 password validation msg，实际为 user=%v msg=%q err=%v", user, msg, err)
+	user, err = AdminCreateUser(AdminCreateUserInput{Username: "alice", Password: "short"})
+	if user != nil {
+		t.Fatalf("期望 user=nil，实际为 %v", user)
 	}
+	assertServiceErrorCode(t, err, ErrorCodeValidation)
 }
 
 // 测试内容：验证管理员创建用户可选字段与配额清空逻辑。
@@ -305,7 +319,7 @@ func TestCreateUserForAdmin_SuccessOptions(t *testing.T) {
 	quota := int64(100)
 	status := 2
 
-	user, msg, err := AdminCreateUser(AdminCreateUserInput{
+	user, err := AdminCreateUser(AdminCreateUserInput{
 		Username:      "alice_1",
 		Password:      "abc12345",
 		Email:         &email,
@@ -313,8 +327,8 @@ func TestCreateUserForAdmin_SuccessOptions(t *testing.T) {
 		StorageQuota:  &quota,
 		Status:        &status,
 	})
-	if err != nil || msg != "" || user == nil {
-		t.Fatalf("期望 success，实际为 user=%v msg=%q err=%v", user, msg, err)
+	if err != nil || user == nil {
+		t.Fatalf("期望 success，实际为 user=%v err=%v", user, err)
 	}
 	if user.Email != email || user.EmailVerified != true || user.Status != 2 {
 		t.Fatalf("非预期 created user: %+v", user)
@@ -325,13 +339,13 @@ func TestCreateUserForAdmin_SuccessOptions(t *testing.T) {
 
 	// StorageQuota=-1 应设置为 nil。
 	q2 := int64(-1)
-	user2, msg, err := AdminCreateUser(AdminCreateUserInput{
+	user2, err := AdminCreateUser(AdminCreateUserInput{
 		Username:     "alice_2",
 		Password:     "abc12345",
 		StorageQuota: &q2,
 	})
-	if err != nil || msg != "" || user2 == nil {
-		t.Fatalf("期望 success，实际为 user=%v msg=%q err=%v", user2, msg, err)
+	if err != nil || user2 == nil {
+		t.Fatalf("期望 success，实际为 user=%v err=%v", user2, err)
 	}
 	if user2.StorageQuota != nil {
 		t.Fatalf("期望为 nil quota for -1")
@@ -348,9 +362,9 @@ func TestPrepareAndApplyUserUpdatesForAdmin(t *testing.T) {
 
 	newName := "alice2"
 	newStatus := 2
-	updates, msg, err := AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{Username: &newName, Status: &newStatus})
-	if err != nil || msg != "" {
-		t.Fatalf("AdminPrepareUserUpdates: msg=%q err=%v", msg, err)
+	updates, err := AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{Username: &newName, Status: &newStatus})
+	if err != nil {
+		t.Fatalf("AdminPrepareUserUpdates: err=%v", err)
 	}
 	if err := AdminApplyUserUpdates(u.ID, updates); err != nil {
 		t.Fatalf("AdminApplyUserUpdates: %v", err)
@@ -373,33 +387,27 @@ func TestPrepareUserUpdatesForAdmin_MoreBranches(t *testing.T) {
 
 	// 无效状态
 	badStatus := 9
-	_, msg, err := AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{Status: &badStatus})
-	if err != nil || msg == "" {
-		t.Fatalf("期望 status validation msg，实际为 msg=%q err=%v", msg, err)
-	}
+	_, err := AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{Status: &badStatus})
+	assertServiceErrorCode(t, err, ErrorCodeValidation)
 
 	// 无效配额
 	badQuota := int64(-2)
-	_, msg, err = AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{StorageQuota: &badQuota})
-	if err != nil || msg == "" {
-		t.Fatalf("期望 quota validation msg，实际为 msg=%q err=%v", msg, err)
-	}
+	_, err = AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{StorageQuota: &badQuota})
+	assertServiceErrorCode(t, err, ErrorCodeValidation)
 
 	// 邮箱已被占用
 	u2 := model.User{Username: "bobby", Password: string(hashed), Status: 1, Email: "taken@example.com"}
 	_ = db.DB.Create(&u2).Error
 	newEmail := "taken@example.com"
-	_, msg, err = AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{Email: &newEmail})
-	if err != nil || msg == "" {
-		t.Fatalf("期望 email taken msg，实际为 msg=%q err=%v", msg, err)
-	}
+	_, err = AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{Email: &newEmail})
+	assertServiceErrorCode(t, err, ErrorCodeConflict)
 
 	// 更新密码并清空配额（-1）
 	newPass := "abc123456"
 	clearQuota := int64(-1)
-	updates, msg, err := AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{Password: &newPass, StorageQuota: &clearQuota})
-	if err != nil || msg != "" {
-		t.Fatalf("期望 success，实际为 msg=%q err=%v", msg, err)
+	updates, err := AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{Password: &newPass, StorageQuota: &clearQuota})
+	if err != nil {
+		t.Fatalf("期望 success，实际为 err=%v", err)
 	}
 	if err := AdminApplyUserUpdates(u.ID, updates); err != nil {
 		t.Fatalf("apply: %v", err)
@@ -582,21 +590,22 @@ func TestUpdateUsernameAndGenerateToken(t *testing.T) {
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
 	_ = db.DB.Create(&u).Error
 
-	token, msg, err := UpdateUsernameAndGenerateToken(u.ID, "ab", false)
-	if err != nil || msg == "" || token != "" {
-		t.Fatalf("期望 validation msg，实际为 token=%q msg=%q err=%v", token, msg, err)
+	token, err := UpdateUsernameAndGenerateToken(u.ID, "ab", false)
+	if token != "" {
+		t.Fatalf("期望 token 为空，实际为 %q", token)
 	}
+	assertServiceErrorCode(t, err, ErrorCodeValidation)
 
 	u2 := model.User{Username: "bobby", Password: string(hashed), Status: 1, Email: "b@example.com"}
 	_ = db.DB.Create(&u2).Error
-	_, msg, err = UpdateUsernameAndGenerateToken(u.ID, "bobby", false)
-	if err != nil || msg != "用户名已存在" {
-		t.Fatalf("期望 conflict msg，实际为 msg=%q err=%v", msg, err)
+	_, err = UpdateUsernameAndGenerateToken(u.ID, "bobby", false)
+	if serviceErr := assertServiceErrorCode(t, err, ErrorCodeConflict); serviceErr.Message != "用户名已存在" {
+		t.Fatalf("期望 conflict message，实际为 %q", serviceErr.Message)
 	}
 
-	token, msg, err = UpdateUsernameAndGenerateToken(u.ID, "alice2", true)
-	if err != nil || msg != "" || token == "" {
-		t.Fatalf("期望 success，实际为 token=%q msg=%q err=%v", token, msg, err)
+	token, err = UpdateUsernameAndGenerateToken(u.ID, "alice2", true)
+	if err != nil || token == "" {
+		t.Fatalf("期望 success，实际为 token=%q err=%v", token, err)
 	}
 	claims, err := utils.ParseLoginToken(token)
 	if err != nil {
@@ -615,19 +624,17 @@ func TestUpdatePasswordByOldPassword(t *testing.T) {
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
 	_ = db.DB.Create(&u).Error
 
-	msg, err := UpdatePasswordByOldPassword(u.ID, "abc12345", "short")
-	if err != nil || msg == "" {
-		t.Fatalf("期望 validation msg，实际为 msg=%q err=%v", msg, err)
+	err := UpdatePasswordByOldPassword(u.ID, "abc12345", "short")
+	assertServiceErrorCode(t, err, ErrorCodeValidation)
+
+	err = UpdatePasswordByOldPassword(u.ID, "wrong", "abc123456")
+	if serviceErr := assertServiceErrorCode(t, err, ErrorCodeValidation); serviceErr.Message != "旧密码错误" {
+		t.Fatalf("期望 old password message，实际为 %q", serviceErr.Message)
 	}
 
-	msg, err = UpdatePasswordByOldPassword(u.ID, "wrong", "abc123456")
-	if err != nil || msg != "旧密码错误" {
-		t.Fatalf("期望 old password 错误，实际为 msg=%q err=%v", msg, err)
-	}
-
-	msg, err = UpdatePasswordByOldPassword(u.ID, "abc12345", "abc123456")
-	if err != nil || msg != "" {
-		t.Fatalf("期望 success，实际为 msg=%q err=%v", msg, err)
+	err = UpdatePasswordByOldPassword(u.ID, "abc12345", "abc123456")
+	if err != nil {
+		t.Fatalf("期望 success，实际为 err=%v", err)
 	}
 
 	var got model.User
@@ -649,30 +656,28 @@ func TestRequestEmailChange(t *testing.T) {
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
 	_ = db.DB.Create(&u).Error
 
-	msg, err := RequestEmailChange(u.ID, "abc12345", "bad-email")
-	if err != nil || msg == "" {
-		t.Fatalf("期望 validation msg，实际为 msg=%q err=%v", msg, err)
+	err := RequestEmailChange(u.ID, "abc12345", "bad-email")
+	assertServiceErrorCode(t, err, ErrorCodeValidation)
+
+	err = RequestEmailChange(u.ID, "wrong", "new@example.com")
+	if serviceErr := assertServiceErrorCode(t, err, ErrorCodeForbidden); serviceErr.Message != "密码错误" {
+		t.Fatalf("期望 password message，实际为 %q", serviceErr.Message)
 	}
 
-	msg, err = RequestEmailChange(u.ID, "wrong", "new@example.com")
-	if err != nil || msg != "密码错误" {
-		t.Fatalf("期望 password 错误，实际为 msg=%q err=%v", msg, err)
-	}
-
-	msg, err = RequestEmailChange(u.ID, "abc12345", "a@example.com")
-	if err != nil || msg != "新邮箱不能与当前邮箱相同" {
-		t.Fatalf("期望 same email msg，实际为 msg=%q err=%v", msg, err)
+	err = RequestEmailChange(u.ID, "abc12345", "a@example.com")
+	if serviceErr := assertServiceErrorCode(t, err, ErrorCodeValidation); serviceErr.Message != "新邮箱不能与当前邮箱相同" {
+		t.Fatalf("期望 same email message，实际为 %q", serviceErr.Message)
 	}
 
 	u2 := model.User{Username: "bob", Password: string(hashed), Status: 1, Email: "taken@example.com"}
 	_ = db.DB.Create(&u2).Error
-	msg, err = RequestEmailChange(u.ID, "abc12345", "taken@example.com")
-	if err != nil || msg != "该邮箱已被使用" {
-		t.Fatalf("期望 taken msg，实际为 msg=%q err=%v", msg, err)
+	err = RequestEmailChange(u.ID, "abc12345", "taken@example.com")
+	if serviceErr := assertServiceErrorCode(t, err, ErrorCodeConflict); serviceErr.Message != "该邮箱已被使用" {
+		t.Fatalf("期望 taken message，实际为 %q", serviceErr.Message)
 	}
 
-	msg, err = RequestEmailChange(u.ID, "abc12345", "new@example.com")
-	if err != nil || msg != "" {
-		t.Fatalf("期望 success，实际为 msg=%q err=%v", msg, err)
+	err = RequestEmailChange(u.ID, "abc12345", "new@example.com")
+	if err != nil {
+		t.Fatalf("期望 success，实际为 err=%v", err)
 	}
 }

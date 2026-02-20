@@ -25,7 +25,7 @@ func TestInitializeSystemAndIsSystemInitialized(t *testing.T) {
 	}
 
 	payload := InitPayload{
-		Username:        "admin",
+		Username:        "admin_1",
 		Password:        "abc12345",
 		SiteName:        "MySite",
 		SiteDescription: "Desc",
@@ -45,7 +45,7 @@ func TestInitializeSystemAndIsSystemInitialized(t *testing.T) {
 	}
 
 	var u model.User
-	if err := db.DB.Where("username = ?", "admin").First(&u).Error; err != nil {
+	if err := db.DB.Where("username = ?", "admin_1").First(&u).Error; err != nil {
 		t.Fatalf("期望 admin user created: %v", err)
 	}
 	if !u.Admin {

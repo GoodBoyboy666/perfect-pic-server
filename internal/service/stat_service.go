@@ -24,17 +24,17 @@ type ServerStats struct {
 func AdminGetServerStats() (*ServerStats, error) {
 	imageCount, err := repository.Image.CountAll()
 	if err != nil {
-		return nil, err
+		return nil, NewInternalError("统计图片数据失败")
 	}
 
 	totalSize, err := repository.Image.SumAllSize()
 	if err != nil {
-		return nil, err
+		return nil, NewInternalError("统计图片数据失败")
 	}
 
 	userCount, err := repository.User.CountAll()
 	if err != nil {
-		return nil, err
+		return nil, NewInternalError("统计用户数据失败")
 	}
 
 	return &ServerStats{

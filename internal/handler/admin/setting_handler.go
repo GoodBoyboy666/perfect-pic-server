@@ -1,10 +1,8 @@
 package admin
 
 import (
-	"fmt"
 	"net/http"
 	"perfect-pic-server/internal/service"
-	"perfect-pic-server/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,7 +15,7 @@ type UpdateSettingRequest struct {
 func GetSettings(c *gin.Context) {
 	settings, err := service.AdminListSettings()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取配置失败"})
+		writeServiceError(c, err, "获取配置失败")
 		return
 	}
 
@@ -38,7 +36,7 @@ func UpdateSettings(c *gin.Context) {
 
 	err := service.AdminUpdateSettings(items)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
+		writeServiceError(c, err, "更新失败")
 		return
 	}
 
@@ -57,13 +55,8 @@ func SendTestEmail(c *gin.Context) {
 		return
 	}
 
-	if ok, msg := utils.ValidateEmail(req.ToEmail); !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
-		return
-	}
-
-	if err := service.SendTestEmail(req.ToEmail); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("发送失败: %v", err)})
+	if err := service.AdminSendTestEmail(req.ToEmail); err != nil {
+		writeServiceError(c, err, "发送失败")
 		return
 	}
 
