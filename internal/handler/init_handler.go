@@ -48,7 +48,7 @@ func Init(c *gin.Context) {
 		SiteName:        initInfo.SiteName,
 		SiteDescription: initInfo.SiteDescription,
 	}); err != nil {
-		writeServiceError(c, err, "初始化失败")
+		WriteServiceError(c, err, "初始化失败")
 		return
 	}
 

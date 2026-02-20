@@ -7,7 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func writeServiceError(c *gin.Context, err error, fallbackMessage string) {
+// WriteServiceError writes a standardized HTTP error response for service-layer errors.
+func WriteServiceError(c *gin.Context, err error, fallbackMessage string) {
 	if serviceErr, ok := service.AsServiceError(err); ok {
 		c.JSON(serviceErrorStatus(serviceErr.Code), gin.H{"error": serviceErr.Message})
 		return

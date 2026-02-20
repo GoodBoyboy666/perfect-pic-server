@@ -33,7 +33,7 @@ func UploadImage(c *gin.Context) {
 		if _, ok := service.AsServiceError(err); !ok {
 			log.Printf("Upload failed: %v", err)
 		}
-		writeServiceError(c, err, "上传失败，请稍后重试")
+		WriteServiceError(c, err, "上传失败，请稍后重试")
 		return
 	}
 
@@ -120,7 +120,7 @@ func DeleteMyImage(c *gin.Context) {
 	}
 
 	if err := service.DeleteImage(image); err != nil {
-		writeServiceError(c, err, "删除失败")
+		WriteServiceError(c, err, "删除失败")
 		return
 	}
 
@@ -166,7 +166,7 @@ func BatchDeleteMyImages(c *gin.Context) {
 	}
 
 	if err := service.BatchDeleteImages(images); err != nil {
-		writeServiceError(c, err, "删除失败")
+		WriteServiceError(c, err, "删除失败")
 		return
 	}
 

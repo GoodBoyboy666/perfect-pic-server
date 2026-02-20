@@ -24,7 +24,7 @@ func GetSelfInfo(c *gin.Context) {
 
 	profile, err := service.GetUserProfile(uid)
 	if err != nil {
-		writeServiceError(c, err, "获取用户信息失败")
+		WriteServiceError(c, err, "获取用户信息失败")
 		return
 	}
 
@@ -62,7 +62,7 @@ func UpdateSelfUsername(c *gin.Context) {
 
 	token, err := service.UpdateUsernameAndGenerateToken(uid, req.Username, isAdmin)
 	if err != nil {
-		writeServiceError(c, err, "更新失败")
+		WriteServiceError(c, err, "更新失败")
 		return
 	}
 
@@ -97,7 +97,7 @@ func UpdateSelfPassword(c *gin.Context) {
 
 	err := service.UpdatePasswordByOldPassword(uid, req.OldPassword, req.NewPassword)
 	if err != nil {
-		writeServiceError(c, err, "更新失败")
+		WriteServiceError(c, err, "更新失败")
 		return
 	}
 
@@ -128,7 +128,7 @@ func RequestUpdateEmail(c *gin.Context) {
 
 	err := service.RequestEmailChange(uid, req.Password, req.NewEmail)
 	if err != nil {
-		writeServiceError(c, err, "生成验证链接失败")
+		WriteServiceError(c, err, "生成验证链接失败")
 		return
 	}
 
@@ -150,7 +150,7 @@ func UpdateSelfAvatar(c *gin.Context) {
 
 	valid, ext, err := service.ValidateImageFile(file)
 	if !valid {
-		writeServiceError(c, err, "头像文件校验失败")
+		WriteServiceError(c, err, "头像文件校验失败")
 		return
 	}
 	_ = ext
@@ -162,14 +162,14 @@ func UpdateSelfAvatar(c *gin.Context) {
 
 	user, err := service.GetUserByID(uid)
 	if err != nil {
-		writeServiceError(c, err, "获取用户失败")
+		WriteServiceError(c, err, "获取用户失败")
 		return
 	}
 
 	newFilename, err := service.UpdateUserAvatar(user, file)
 	if err != nil {
 		log.Printf("UpdateUserAvatar error: %v", err)
-		writeServiceError(c, err, "头像更新失败")
+		WriteServiceError(c, err, "头像更新失败")
 		return
 	}
 
@@ -191,7 +191,7 @@ func GetSelfImagesCount(c *gin.Context) {
 
 	count, err := service.GetUserImageCount(uid)
 	if err != nil {
-		writeServiceError(c, err, "获取图片数量失败")
+		WriteServiceError(c, err, "获取图片数量失败")
 		return
 	}
 

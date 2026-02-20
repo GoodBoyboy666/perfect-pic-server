@@ -28,7 +28,7 @@ func Login(c *gin.Context) {
 
 	token, err := service.LoginUser(req.Username, req.Password)
 	if err != nil {
-		writeServiceError(c, err, "登录失败，请稍后重试")
+		WriteServiceError(c, err, "登录失败，请稍后重试")
 		return
 	}
 
@@ -58,7 +58,7 @@ func Register(c *gin.Context) {
 	}
 
 	if err := service.RegisterUser(req.Username, req.Password, req.Email); err != nil {
-		writeServiceError(c, err, "注册失败，请稍后重试")
+		WriteServiceError(c, err, "注册失败，请稍后重试")
 		return
 	}
 
@@ -77,7 +77,7 @@ func EmailVerify(c *gin.Context) {
 
 	alreadyVerified, err := service.VerifyEmail(tokenString)
 	if err != nil {
-		writeServiceError(c, err, "验证失败，请稍后重试")
+		WriteServiceError(c, err, "验证失败，请稍后重试")
 		return
 	}
 
@@ -100,7 +100,7 @@ func EmailChangeVerify(c *gin.Context) {
 	tokenString := req.Token
 
 	if err := service.VerifyEmailChange(tokenString); err != nil {
-		writeServiceError(c, err, "邮箱修改失败，请稍后重试")
+		WriteServiceError(c, err, "邮箱修改失败，请稍后重试")
 		return
 	}
 
@@ -126,7 +126,7 @@ func RequestPasswordReset(c *gin.Context) {
 	}
 
 	if err := service.RequestPasswordReset(req.Email); err != nil {
-		writeServiceError(c, err, "生成重置链接失败，请稍后重试")
+		WriteServiceError(c, err, "生成重置链接失败，请稍后重试")
 		return
 	}
 
@@ -145,7 +145,7 @@ func ResetPassword(c *gin.Context) {
 	}
 
 	if err := service.ResetPassword(req.Token, req.NewPassword); err != nil {
-		writeServiceError(c, err, "密码重置失败")
+		WriteServiceError(c, err, "密码重置失败")
 		return
 	}
 
