@@ -525,8 +525,3 @@ func GetImagesByIDsForUser(ids []uint, userID uint) ([]model.Image, error) {
 	}
 	return images, nil
 }
-
-// IsRecordNotFound 判断错误是否为记录不存在。
-func IsRecordNotFound(err error) bool {
-	return errors.Is(err, gorm.ErrRecordNotFound)
-}

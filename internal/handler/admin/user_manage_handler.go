@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"perfect-pic-server/internal/middleware"
@@ -8,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // GetUserList 获取用户列表
@@ -147,7 +149,7 @@ func UpdateUser(c *gin.Context) {
 
 	if len(updates) > 0 {
 		if err := service.AdminApplyUserUpdates(uint(id), updates); err != nil {
-			if service.IsRecordNotFound(err) {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
 				c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 				return
 			}

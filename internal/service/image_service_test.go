@@ -13,8 +13,6 @@ import (
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/testutils"
-
-	"gorm.io/gorm"
 )
 
 // 测试内容：验证图片文件校验在合法图片时返回通过。
@@ -390,12 +388,6 @@ func TestListImagesForAdmin_FiltersByUsername(t *testing.T) {
 	}
 }
 
-// 测试内容：验证记录不存在错误的判定函数。
-func TestIsRecordNotFound(t *testing.T) {
-	if !IsRecordNotFound(gorm.ErrRecordNotFound) {
-		t.Fatalf("期望 true")
-	}
-}
 
 func mustFileHeader(t *testing.T, filename string, content []byte) *multipart.FileHeader {
 	t.Helper()
