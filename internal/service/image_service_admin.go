@@ -5,7 +5,7 @@ import (
 	"perfect-pic-server/internal/repository"
 )
 
-// AdminListImages 分页查询后台图片列表，支持按用户名、用户ID、文件名、图片 ID 过滤；
+// AdminListImages 分页查询后台图片列表，支持按用户名、用户ID、文件名、图片 ID 过滤。
 func AdminListImages(params AdminImageListParams) ([]model.Image, int64, int, int, error) {
 	page, pageSize := normalizePagination(params.Page, params.PageSize)
 
