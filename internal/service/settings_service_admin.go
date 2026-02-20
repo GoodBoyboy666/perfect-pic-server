@@ -3,6 +3,7 @@ package service
 import (
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/repository"
+	"perfect-pic-server/internal/utils"
 )
 
 type UpdateSettingPayload struct {
@@ -14,7 +15,7 @@ type UpdateSettingPayload struct {
 func AdminListSettings() ([]model.Setting, error) {
 	settings, err := repository.Setting.FindAll()
 	if err != nil {
-		return nil, err
+		return nil, NewInternalError("获取配置失败")
 	}
 
 	maskSensitiveSettings(settings)
@@ -23,6 +24,12 @@ func AdminListSettings() ([]model.Setting, error) {
 
 // AdminUpdateSettings 批量更新系统设置，并在成功后清理配置缓存。
 func AdminUpdateSettings(items []UpdateSettingPayload) error {
+	for _, item := range items {
+		if item.Key == "" {
+			return NewValidationError("配置键不能为空")
+		}
+	}
+
 	repoItems := make([]repository.UpdateSettingItem, 0, len(items))
 	for _, item := range items {
 		repoItems = append(repoItems, repository.UpdateSettingItem{
@@ -32,9 +39,22 @@ func AdminUpdateSettings(items []UpdateSettingPayload) error {
 	}
 
 	if err := repository.Setting.UpdateSettings(repoItems, maskedSettingValue); err != nil {
-		return err
+		return NewInternalError("更新失败")
 	}
 
 	ClearCache()
+	return nil
+}
+
+// AdminSendTestEmail 发送管理员测试邮件。
+func AdminSendTestEmail(toEmail string) error {
+	if ok, msg := utils.ValidateEmail(toEmail); !ok {
+		return NewValidationError(msg)
+	}
+
+	if err := SendTestEmail(toEmail); err != nil {
+		return NewInternalError("发送失败")
+	}
+
 	return nil
 }

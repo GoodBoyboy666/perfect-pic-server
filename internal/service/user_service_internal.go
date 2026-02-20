@@ -30,36 +30,36 @@ func resolveAdminUserSortOrder(order string) string {
 }
 
 // validateAdminCreateUserInput 校验管理员创建用户输入是否合法。
-func validateAdminCreateUserInput(input AdminCreateUserInput) (string, error) {
+func validateAdminCreateUserInput(input AdminCreateUserInput) error {
 	if ok, msg := utils.ValidatePassword(input.Password); !ok {
-		return msg, nil
+		return NewValidationError(msg)
 	}
 	if ok, msg := utils.ValidateUsername(input.Username); !ok {
-		return msg, nil
+		return NewValidationError(msg)
 	}
 
 	usernameTaken, err := IsUsernameTaken(input.Username, nil, true)
 	if err != nil {
-		return "", err
+		return NewInternalError("创建用户失败")
 	}
 	if usernameTaken {
-		return "用户名已存在", nil
+		return NewConflictError("用户名已存在")
 	}
 
 	if input.Email != nil && *input.Email != "" {
 		if ok, msg := utils.ValidateEmail(*input.Email); !ok {
-			return msg, nil
+			return NewValidationError(msg)
 		}
 		emailTaken, err := IsEmailTaken(*input.Email, nil, true)
 		if err != nil {
-			return "", err
+			return NewInternalError("创建用户失败")
 		}
 		if emailTaken {
-			return "邮箱已被注册", nil
+			return NewConflictError("邮箱已被注册")
 		}
 	}
 
-	return "", nil
+	return nil
 }
 
 // hashPassword 使用 bcrypt 对密码进行哈希。
@@ -72,7 +72,7 @@ func hashPassword(password string) (string, error) {
 }
 
 // applyAdminCreateUserOptionals 将管理员创建用户的可选字段应用到模型。
-func applyAdminCreateUserOptionals(user *model.User, input AdminCreateUserInput) string {
+func applyAdminCreateUserOptionals(user *model.User, input AdminCreateUserInput) error {
 	if input.Email != nil {
 		user.Email = *input.Email
 	}
@@ -88,7 +88,7 @@ func applyAdminCreateUserOptionals(user *model.User, input AdminCreateUserInput)
 			quota := *input.StorageQuota
 			user.StorageQuota = &quota
 		} else {
-			return "存储配额不能为负数（-1除外）"
+			return NewValidationError("存储配额不能为负数（-1除外）")
 		}
 	}
 
@@ -96,73 +96,73 @@ func applyAdminCreateUserOptionals(user *model.User, input AdminCreateUserInput)
 		if *input.Status == 1 || *input.Status == 2 {
 			user.Status = *input.Status
 		} else {
-			return "无效的用户状态"
+			return NewValidationError("无效的用户状态")
 		}
 	}
 
-	return ""
+	return nil
 }
 
 // prepareAdminUsernameUpdate 校验并准备用户名更新字段。
-func prepareAdminUsernameUpdate(userID uint, username *string, updates map[string]interface{}) (string, error) {
+func prepareAdminUsernameUpdate(userID uint, username *string, updates map[string]interface{}) error {
 	if username == nil || *username == "" {
-		return "", nil
+		return nil
 	}
 	if ok, msg := utils.ValidateUsername(*username); !ok {
-		return msg, nil
+		return NewValidationError(msg)
 	}
 
 	excludeID := userID
 	usernameTaken, err := IsUsernameTaken(*username, &excludeID, true)
 	if err != nil {
-		return "", err
+		return NewInternalError("更新用户失败")
 	}
 	if usernameTaken {
-		return "该用户名已被其他用户占用", nil
+		return NewConflictError("该用户名已被其他用户占用")
 	}
 
 	updates["username"] = *username
-	return "", nil
+	return nil
 }
 
 // prepareAdminPasswordUpdate 校验并准备密码更新字段。
-func prepareAdminPasswordUpdate(password *string, updates map[string]interface{}) (string, error) {
+func prepareAdminPasswordUpdate(password *string, updates map[string]interface{}) error {
 	if password == nil || *password == "" {
-		return "", nil
+		return nil
 	}
 	if ok, msg := utils.ValidatePassword(*password); !ok {
-		return msg, nil
+		return NewValidationError(msg)
 	}
 
 	hashedPassword, err := hashPassword(*password)
 	if err != nil {
-		return "", err
+		return NewInternalError("更新用户失败")
 	}
 
 	updates["password"] = hashedPassword
-	return "", nil
+	return nil
 }
 
 // prepareAdminEmailUpdate 校验并准备邮箱更新字段。
-func prepareAdminEmailUpdate(userID uint, email *string, updates map[string]interface{}) (string, error) {
+func prepareAdminEmailUpdate(userID uint, email *string, updates map[string]interface{}) error {
 	if email == nil || *email == "" {
-		return "", nil
+		return nil
 	}
 	if ok, msg := utils.ValidateEmail(*email); !ok {
-		return msg, nil
+		return NewValidationError(msg)
 	}
 
 	excludeID := userID
 	emailTaken, err := IsEmailTaken(*email, &excludeID, true)
 	if err != nil {
-		return "", err
+		return NewInternalError("更新用户失败")
 	}
 	if emailTaken {
-		return "该邮箱已被其他用户占用", nil
+		return NewConflictError("该邮箱已被其他用户占用")
 	}
 
 	updates["email"] = *email
-	return "", nil
+	return nil
 }
 
 // prepareAdminEmailVerifiedUpdate 准备邮箱验证状态更新字段。
@@ -173,31 +173,31 @@ func prepareAdminEmailVerifiedUpdate(emailVerified *bool, updates map[string]int
 }
 
 // prepareAdminStorageQuotaUpdate 校验并准备存储配额更新字段。
-func prepareAdminStorageQuotaUpdate(storageQuota *int64, updates map[string]interface{}) string {
+func prepareAdminStorageQuotaUpdate(storageQuota *int64, updates map[string]interface{}) error {
 	if storageQuota == nil {
-		return ""
+		return nil
 	}
 	if *storageQuota == -1 {
 		updates["storage_quota"] = nil
-		return ""
+		return nil
 	}
 	if *storageQuota >= 0 {
 		updates["storage_quota"] = *storageQuota
-		return ""
+		return nil
 	}
-	return "存储配额不能为负数（-1除外）"
+	return NewValidationError("存储配额不能为负数（-1除外）")
 }
 
 // prepareAdminStatusUpdate 校验并准备用户状态更新字段。
-func prepareAdminStatusUpdate(status *int, updates map[string]interface{}) string {
+func prepareAdminStatusUpdate(status *int, updates map[string]interface{}) error {
 	if status == nil {
-		return ""
+		return nil
 	}
 	if *status == 1 || *status == 2 {
 		updates["status"] = *status
-		return ""
+		return nil
 	}
-	return "无效的用户状态"
+	return NewValidationError("无效的用户状态")
 }
 
 // verifyAndConsumeRedisTokenPair 使用 Redis WATCH/CAS 原子校验并消费 token 对。

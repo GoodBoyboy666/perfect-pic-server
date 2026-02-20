@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type PaginationQuery struct {
@@ -48,14 +49,14 @@ func ValidateImageFile(file *multipart.FileHeader) (bool, string, error) {
 	// 检查文件大小
 	maxSizeMB := GetInt(consts.ConfigMaxUploadSize) // 默认 10MB
 	if file.Size > int64(maxSizeMB*1024*1024) {
-		return false, "", fmt.Errorf("文件大小不能超过 %dMB", maxSizeMB)
+		return false, "", NewValidationError(fmt.Sprintf("文件大小不能超过 %dMB", maxSizeMB))
 	}
 
 	// 检查文件扩展名
 	allowExtsStr := GetString(consts.ConfigAllowFileExtensions)
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	if ext == "" {
-		return false, "", errors.New("无法识别文件类型")
+		return false, "", NewValidationError("无法识别文件类型")
 	}
 
 	allowed := false
@@ -66,18 +67,18 @@ func ValidateImageFile(file *multipart.FileHeader) (bool, string, error) {
 		}
 	}
 	if !allowed {
-		return false, ext, fmt.Errorf("不支持的文件类型: %s", ext)
+		return false, ext, NewValidationError(fmt.Sprintf("不支持的文件类型: %s", ext))
 	}
 
 	// 检查文件内容 (Magic Bytes)
 	src, err := file.Open()
 	if err != nil {
-		return false, ext, errors.New("无法打开上传的文件")
+		return false, ext, NewInternalError("无法打开上传的文件")
 	}
 	defer func() { _ = src.Close() }()
 
 	if valid, msg := utils.ValidateImageContent(src, ext); !valid {
-		return false, ext, errors.New(msg)
+		return false, ext, NewValidationError(msg)
 	}
 
 	return true, ext, nil
@@ -98,7 +99,7 @@ func ProcessImageUpload(file *multipart.FileHeader, uid uint) (*model.Image, str
 	user, err := repository.User.FindByID(uid)
 	if err != nil {
 		log.Printf("Get user error: %v\n", err)
-		return nil, "", errors.New("查询用户信息失败")
+		return nil, "", NewInternalError("查询用户信息失败")
 	}
 
 	// 如果 StorageUsed 为 0 但不是新用户，可能需要同步
@@ -115,7 +116,7 @@ func ProcessImageUpload(file *multipart.FileHeader, uid uint) (*model.Image, str
 	}
 
 	if usedSize+file.Size > quota {
-		return nil, "", fmt.Errorf("存储空间不足，上传失败。当前已用: %d B, 剩余: %d B", usedSize, quota-usedSize)
+		return nil, "", NewForbiddenError(fmt.Sprintf("存储空间不足，上传失败。当前已用: %d B, 剩余: %d B", usedSize, quota-usedSize))
 	}
 
 	// 准备路径
@@ -129,29 +130,29 @@ func ProcessImageUpload(file *multipart.FileHeader, uid uint) (*model.Image, str
 	}
 	uploadRootAbs, err := filepath.Abs(uploadRoot)
 	if err != nil {
-		return nil, "", errors.New("系统错误: 上传目录解析失败")
+		return nil, "", NewInternalError("系统错误: 上传目录解析失败")
 	}
 	// 先检查上传根目录节点本身不是符号链接（防止根目录直接指向外部路径）。
 	if err := utils.EnsurePathNotSymlink(uploadRootAbs); err != nil {
 		log.Printf("Upload root security check failed: %v\n", err)
-		return nil, "", errors.New("系统错误: 上传目录存在符号链接风险")
+		return nil, "", NewInternalError("系统错误: 上传目录存在符号链接风险")
 	}
 	// 完整的磁盘文件夹路径
 	fullDir, err := utils.SecureJoin(uploadRootAbs, datePath)
 	if err != nil {
 		log.Printf("SecureJoin dir error: %v\n", err)
-		return nil, "", errors.New("系统错误: 非法存储目录")
+		return nil, "", NewInternalError("系统错误: 非法存储目录")
 	}
 
 	// 自动创建文件夹
 	if err := os.MkdirAll(fullDir, 0755); err != nil {
 		log.Printf("MkdirAll error: %v\n", err)
-		return nil, "", errors.New("系统错误: 无法创建存储目录")
+		return nil, "", NewInternalError("系统错误: 无法创建存储目录")
 	}
 	// 目录创建后再次检查链路，降低 TOCTOU 风险。
 	if err := utils.EnsureNoSymlinkBetween(uploadRootAbs, fullDir); err != nil {
 		log.Printf("Upload dir security check failed: %v\n", err)
-		return nil, "", errors.New("系统错误: 存储目录存在符号链接风险")
+		return nil, "", NewInternalError("系统错误: 存储目录存在符号链接风险")
 	}
 
 	// 生成唯一文件名
@@ -159,24 +160,24 @@ func ProcessImageUpload(file *multipart.FileHeader, uid uint) (*model.Image, str
 	dst, err := utils.SecureJoin(fullDir, newFilename)
 	if err != nil {
 		log.Printf("SecureJoin dst error: %v\n", err)
-		return nil, "", errors.New("系统错误: 非法文件路径")
+		return nil, "", NewInternalError("系统错误: 非法文件路径")
 	}
 
 	// 保存文件 (IO 操作放在事务前，如果 DB 失败则删除文件)
 	src, err := file.Open()
 	if err != nil {
-		return nil, "", errors.New("无法读取上传文件")
+		return nil, "", NewInternalError("无法读取上传文件")
 	}
 	defer func() { _ = src.Close() }()
 
 	out, err := os.Create(dst)
 	if err != nil {
-		return nil, "", errors.New("系统错误: 无法创建文件")
+		return nil, "", NewInternalError("系统错误: 无法创建文件")
 	}
 	defer func() { _ = out.Close() }()
 
 	if _, err = io.Copy(out, src); err != nil {
-		return nil, "", errors.New("文件保存失败")
+		return nil, "", NewInternalError("文件保存失败")
 	}
 
 	// 数据库操作 (事务)
@@ -195,7 +196,7 @@ func ProcessImageUpload(file *multipart.FileHeader, uid uint) (*model.Image, str
 	if err := repository.Image.CreateAndIncreaseUserStorage(&imageRecord, uid, file.Size); err != nil {
 		_ = os.Remove(dst) // 回滚文件
 		log.Printf("Process upload DB error: %v\n", err)
-		return nil, "", errors.New("系统错误: 数据库记录失败")
+		return nil, "", NewInternalError("系统错误: 数据库记录失败")
 	}
 
 	return &imageRecord, cfg.Upload.URLPrefix + relativePath, nil
@@ -210,19 +211,19 @@ func DeleteImage(image *model.Image) error {
 	}
 	uploadRootAbs, err := filepath.Abs(uploadRoot)
 	if err != nil {
-		return errors.New("系统错误: 上传目录解析失败")
+		return NewInternalError("系统错误: 上传目录解析失败")
 	}
 	// 删除前先校验上传根目录节点本身，避免根目录被替换为符号链接。
 	if err := utils.EnsurePathNotSymlink(uploadRootAbs); err != nil {
 		log.Printf("DeleteImage upload root security check failed: %v\n", err)
-		return errors.New("系统错误: 上传目录存在符号链接风险")
+		return NewInternalError("系统错误: 上传目录存在符号链接风险")
 	}
 
 	// 拼接完整物理路径
 	fullPath, err := utils.SecureJoin(uploadRootAbs, image.Path)
 	if err != nil {
 		log.Printf("DeleteImage secure path error: %v\n", err)
-		return errors.New("系统错误: 非法文件路径")
+		return NewInternalError("系统错误: 非法文件路径")
 	}
 
 	// 使用事务确保数据库操作原子性
@@ -259,12 +260,12 @@ func BatchDeleteImages(images []model.Image) error {
 	}
 	uploadRootAbs, err := filepath.Abs(uploadRoot)
 	if err != nil {
-		return errors.New("系统错误: 上传目录解析失败")
+		return NewInternalError("系统错误: 上传目录解析失败")
 	}
 	// 批量删除前先校验上传根目录节点本身，避免根目录被替换为符号链接。
 	if err := utils.EnsurePathNotSymlink(uploadRootAbs); err != nil {
 		log.Printf("BatchDeleteImages upload root security check failed: %v\n", err)
-		return errors.New("系统错误: 上传目录存在符号链接风险")
+		return NewInternalError("系统错误: 上传目录存在符号链接风险")
 	}
 
 	for _, img := range images {
@@ -304,12 +305,12 @@ func UpdateUserAvatar(user *model.User, file *multipart.FileHeader) (string, err
 	}
 	avatarRootAbs, err := filepath.Abs(avatarRoot)
 	if err != nil {
-		return "", errors.New("系统错误: 头像目录解析失败")
+		return "", NewInternalError("系统错误: 头像目录解析失败")
 	}
 	// 先检查头像根目录节点本身不是符号链接。
 	if err := utils.EnsurePathNotSymlink(avatarRootAbs); err != nil {
 		log.Printf("Avatar root security check failed: %v\n", err)
-		return "", errors.New("系统错误: 头像目录存在符号链接风险")
+		return "", NewInternalError("系统错误: 头像目录存在符号链接风险")
 	}
 
 	ext := strings.ToLower(filepath.Ext(file.Filename))
@@ -318,18 +319,18 @@ func UpdateUserAvatar(user *model.User, file *multipart.FileHeader) (string, err
 	storageDir, err := utils.SecureJoin(avatarRootAbs, userIdStr)
 	if err != nil {
 		log.Printf("Avatar storage dir error: %v\n", err)
-		return "", errors.New("系统错误: 非法头像目录")
+		return "", NewInternalError("系统错误: 非法头像目录")
 	}
 
 	// 自动创建文件夹
 	if err := os.MkdirAll(storageDir, 0755); err != nil {
 		log.Printf("MkdirAll error: %v\n", err)
-		return "", errors.New("系统错误: 无法创建存储目录")
+		return "", NewInternalError("系统错误: 无法创建存储目录")
 	}
 	// 用户目录创建后再次检查链路，确保新增层级未被符号链接替换。
 	if err := utils.EnsureNoSymlinkBetween(avatarRootAbs, storageDir); err != nil {
 		log.Printf("Avatar storage security check failed: %v\n", err)
-		return "", errors.New("系统错误: 头像目录存在符号链接风险")
+		return "", NewInternalError("系统错误: 头像目录存在符号链接风险")
 	}
 
 	// 生成唯一文件名
@@ -337,14 +338,14 @@ func UpdateUserAvatar(user *model.User, file *multipart.FileHeader) (string, err
 	dstPath, err := utils.SecureJoin(storageDir, newFilename)
 	if err != nil {
 		log.Printf("Avatar dst secure join error: %v\n", err)
-		return "", errors.New("系统错误: 非法头像文件路径")
+		return "", NewInternalError("系统错误: 非法头像文件路径")
 	}
 
 	// 打开源文件
 	src, err := file.Open()
 	if err != nil {
 		log.Printf("File open error: %v\n", err)
-		return "", errors.New("无法读取上传文件")
+		return "", NewInternalError("无法读取上传文件")
 	}
 	defer func() { _ = src.Close() }()
 
@@ -352,14 +353,14 @@ func UpdateUserAvatar(user *model.User, file *multipart.FileHeader) (string, err
 	out, err := os.Create(dstPath)
 	if err != nil {
 		log.Printf("File create error: %v\n", err)
-		return "", errors.New("系统错误: 无法创建文件")
+		return "", NewInternalError("系统错误: 无法创建文件")
 	}
 	defer func() { _ = out.Close() }()
 
 	// 复制内容
 	if _, err = io.Copy(out, src); err != nil {
 		log.Printf("File save error: %v\n", err)
-		return "", errors.New("文件保存失败")
+		return "", NewInternalError("文件保存失败")
 	}
 
 	// 保存旧头像文件名用于后续删除
@@ -369,7 +370,7 @@ func UpdateUserAvatar(user *model.User, file *multipart.FileHeader) (string, err
 	if err := repository.User.UpdateAvatar(user, newFilename); err != nil {
 		_ = os.Remove(dstPath) // 回滚文件
 		log.Printf("DB Update avatar error: %v\n", err)
-		return "", errors.New("系统错误: 数据库更新失败")
+		return "", NewInternalError("系统错误: 数据库更新失败")
 	}
 
 	// 删除旧头像
@@ -399,30 +400,30 @@ func RemoveUserAvatar(user *model.User) error {
 	}
 	avatarRootAbs, err := filepath.Abs(avatarRoot)
 	if err != nil {
-		return errors.New("系统错误: 头像目录解析失败")
+		return NewInternalError("系统错误: 头像目录解析失败")
 	}
 	// 删除头像前先校验头像根目录节点本身，防止根目录符号链接穿透。
 	if err := utils.EnsurePathNotSymlink(avatarRootAbs); err != nil {
 		log.Printf("RemoveUserAvatar root security check failed: %v\n", err)
-		return errors.New("系统错误: 头像目录存在符号链接风险")
+		return NewInternalError("系统错误: 头像目录存在符号链接风险")
 	}
 
 	userIdStr := fmt.Sprintf("%v", user.ID)
 	storageDir, err := utils.SecureJoin(avatarRootAbs, userIdStr)
 	if err != nil {
 		log.Printf("RemoveUserAvatar storage dir secure join error: %v\n", err)
-		return errors.New("系统错误: 非法头像目录")
+		return NewInternalError("系统错误: 非法头像目录")
 	}
 	oldAvatarPath, err := utils.SecureJoin(storageDir, user.Avatar)
 	if err != nil {
 		log.Printf("RemoveUserAvatar file secure join error: %v\n", err)
-		return errors.New("系统错误: 非法头像文件路径")
+		return NewInternalError("系统错误: 非法头像文件路径")
 	}
 
 	// 更新数据库
 	if err := repository.User.ClearAvatar(user); err != nil {
 		log.Printf("DB Remove avatar error: %v\n", err)
-		return errors.New("系统错误: 移除头像失败")
+		return NewInternalError("系统错误: 移除头像失败")
 	}
 
 	// 删除文件
@@ -445,7 +446,7 @@ func ListUserImages(params UserImageListParams) ([]model.Image, int64, int, int,
 		pageSize,
 	)
 	if err != nil {
-		return nil, 0, page, pageSize, err
+		return nil, 0, page, pageSize, NewInternalError("获取图片列表失败")
 	}
 
 	return images, total, page, pageSize, nil
@@ -453,15 +454,30 @@ func ListUserImages(params UserImageListParams) ([]model.Image, int64, int, int,
 
 // GetUserImageCount 获取用户图片总数。
 func GetUserImageCount(userID uint) (int64, error) {
-	return repository.Image.CountByUserID(userID)
+	count, err := repository.Image.CountByUserID(userID)
+	if err != nil {
+		return 0, NewInternalError("获取图片数量失败")
+	}
+	return count, nil
 }
 
 // GetUserOwnedImage 获取用户名下的指定图片，用于鉴权后的删除/查看。
 func GetUserOwnedImage(imageID uint, userID uint) (*model.Image, error) {
-	return repository.Image.FindByIDAndUserID(imageID, userID)
+	image, err := repository.Image.FindByIDAndUserID(imageID, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, NewNotFoundError("图片不存在或无权删除")
+		}
+		return nil, NewInternalError("查找图片失败")
+	}
+	return image, nil
 }
 
 // GetImagesByIDsForUser 按 ID 列表获取用户名下图片（批量场景）。
 func GetImagesByIDsForUser(ids []uint, userID uint) ([]model.Image, error) {
-	return repository.Image.FindByIDsAndUserID(ids, userID)
+	images, err := repository.Image.FindByIDsAndUserID(ids, userID)
+	if err != nil {
+		return nil, NewInternalError("查找图片失败")
+	}
+	return images, nil
 }

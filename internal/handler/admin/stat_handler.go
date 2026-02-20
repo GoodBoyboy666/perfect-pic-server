@@ -11,7 +11,7 @@ import (
 func GetServerStats(c *gin.Context) {
 	stats, err := service.AdminGetServerStats()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "统计图片数据失败"})
+		writeServiceError(c, err, "统计图片数据失败")
 		return
 	}
 

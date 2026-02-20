@@ -28,18 +28,7 @@ func Login(c *gin.Context) {
 
 	token, err := service.LoginUser(req.Username, req.Password)
 	if err != nil {
-		if authErr, ok := service.AsAuthError(err); ok {
-			switch authErr.Code {
-			case service.AuthErrorUnauthorized:
-				c.JSON(http.StatusUnauthorized, gin.H{"error": authErr.Message})
-			case service.AuthErrorForbidden:
-				c.JSON(http.StatusForbidden, gin.H{"error": authErr.Message})
-			default:
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "登录失败，请稍后重试"})
-			}
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "登录失败，请稍后重试"})
+		writeServiceError(c, err, "登录失败，请稍后重试")
 		return
 	}
 
@@ -69,20 +58,7 @@ func Register(c *gin.Context) {
 	}
 
 	if err := service.RegisterUser(req.Username, req.Password, req.Email); err != nil {
-		if authErr, ok := service.AsAuthError(err); ok {
-			switch authErr.Code {
-			case service.AuthErrorValidation:
-				c.JSON(http.StatusBadRequest, gin.H{"error": authErr.Message})
-			case service.AuthErrorForbidden:
-				c.JSON(http.StatusForbidden, gin.H{"error": authErr.Message})
-			case service.AuthErrorConflict:
-				c.JSON(http.StatusConflict, gin.H{"error": authErr.Message})
-			default:
-				c.JSON(http.StatusInternalServerError, gin.H{"error": authErr.Message})
-			}
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "注册失败，请稍后重试"})
+		writeServiceError(c, err, "注册失败，请稍后重试")
 		return
 	}
 
@@ -101,18 +77,7 @@ func EmailVerify(c *gin.Context) {
 
 	alreadyVerified, err := service.VerifyEmail(tokenString)
 	if err != nil {
-		if authErr, ok := service.AsAuthError(err); ok {
-			switch authErr.Code {
-			case service.AuthErrorValidation:
-				c.JSON(http.StatusBadRequest, gin.H{"error": authErr.Message})
-			case service.AuthErrorNotFound:
-				c.JSON(http.StatusNotFound, gin.H{"error": authErr.Message})
-			default:
-				c.JSON(http.StatusInternalServerError, gin.H{"error": authErr.Message})
-			}
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "验证失败，请稍后重试"})
+		writeServiceError(c, err, "验证失败，请稍后重试")
 		return
 	}
 
@@ -135,20 +100,7 @@ func EmailChangeVerify(c *gin.Context) {
 	tokenString := req.Token
 
 	if err := service.VerifyEmailChange(tokenString); err != nil {
-		if authErr, ok := service.AsAuthError(err); ok {
-			switch authErr.Code {
-			case service.AuthErrorValidation:
-				c.JSON(http.StatusBadRequest, gin.H{"error": authErr.Message})
-			case service.AuthErrorConflict:
-				c.JSON(http.StatusConflict, gin.H{"error": authErr.Message})
-			case service.AuthErrorNotFound:
-				c.JSON(http.StatusNotFound, gin.H{"error": authErr.Message})
-			default:
-				c.JSON(http.StatusInternalServerError, gin.H{"error": authErr.Message})
-			}
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "邮箱修改失败，请稍后重试"})
+		writeServiceError(c, err, "邮箱修改失败，请稍后重试")
 		return
 	}
 
@@ -174,15 +126,7 @@ func RequestPasswordReset(c *gin.Context) {
 	}
 
 	if err := service.RequestPasswordReset(req.Email); err != nil {
-		if authErr, ok := service.AsAuthError(err); ok {
-			if authErr.Code == service.AuthErrorForbidden {
-				c.JSON(http.StatusForbidden, gin.H{"error": authErr.Message})
-				return
-			}
-			c.JSON(http.StatusInternalServerError, gin.H{"error": authErr.Message})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成重置链接失败，请稍后重试"})
+		writeServiceError(c, err, "生成重置链接失败，请稍后重试")
 		return
 	}
 
@@ -201,20 +145,7 @@ func ResetPassword(c *gin.Context) {
 	}
 
 	if err := service.ResetPassword(req.Token, req.NewPassword); err != nil {
-		if authErr, ok := service.AsAuthError(err); ok {
-			switch authErr.Code {
-			case service.AuthErrorValidation:
-				c.JSON(http.StatusBadRequest, gin.H{"error": authErr.Message})
-			case service.AuthErrorForbidden:
-				c.JSON(http.StatusForbidden, gin.H{"error": authErr.Message})
-			case service.AuthErrorNotFound:
-				c.JSON(http.StatusNotFound, gin.H{"error": authErr.Message})
-			default:
-				c.JSON(http.StatusInternalServerError, gin.H{"error": authErr.Message})
-			}
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "密码重置失败"})
+		writeServiceError(c, err, "密码重置失败")
 		return
 	}
 

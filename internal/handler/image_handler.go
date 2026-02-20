@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"perfect-pic-server/internal/service"
 	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -31,16 +30,10 @@ func UploadImage(c *gin.Context) {
 
 	imageRecord, url, err := service.ProcessImageUpload(file, uid)
 	if err != nil {
-		errStr := err.Error()
-		if strings.Contains(errStr, "存储空间不足") {
-			c.JSON(http.StatusForbidden, gin.H{"error": errStr})
-		} else if strings.Contains(errStr, "不支持的文件类型") || strings.Contains(errStr, "文件大小") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": errStr})
-		} else {
-			// 对于其他错误（包括系统错误），记录日志并返回通用错误信息
+		if _, ok := service.AsServiceError(err); !ok {
 			log.Printf("Upload failed: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "上传失败，请稍后重试"})
 		}
+		writeServiceError(c, err, "上传失败，请稍后重试")
 		return
 	}
 
@@ -127,7 +120,7 @@ func DeleteMyImage(c *gin.Context) {
 	}
 
 	if err := service.DeleteImage(image); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
+		writeServiceError(c, err, "删除失败")
 		return
 	}
 
@@ -173,7 +166,7 @@ func BatchDeleteMyImages(c *gin.Context) {
 	}
 
 	if err := service.BatchDeleteImages(images); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
+		writeServiceError(c, err, "删除失败")
 		return
 	}
 

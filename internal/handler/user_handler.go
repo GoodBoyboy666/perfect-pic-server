@@ -24,7 +24,7 @@ func GetSelfInfo(c *gin.Context) {
 
 	profile, err := service.GetUserProfile(uid)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		writeServiceError(c, err, "获取用户信息失败")
 		return
 	}
 
@@ -60,13 +60,9 @@ func UpdateSelfUsername(c *gin.Context) {
 		isAdmin = val
 	}
 
-	token, validateMsg, err := service.UpdateUsernameAndGenerateToken(uid, req.Username, isAdmin)
+	token, err := service.UpdateUsernameAndGenerateToken(uid, req.Username, isAdmin)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
-		return
-	}
-	if validateMsg != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": validateMsg})
+		writeServiceError(c, err, "更新失败")
 		return
 	}
 
@@ -99,13 +95,9 @@ func UpdateSelfPassword(c *gin.Context) {
 		return
 	}
 
-	errMsg, err := service.UpdatePasswordByOldPassword(uid, req.OldPassword, req.NewPassword)
+	err := service.UpdatePasswordByOldPassword(uid, req.OldPassword, req.NewPassword)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
-		return
-	}
-	if errMsg != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
+		writeServiceError(c, err, "更新失败")
 		return
 	}
 
@@ -134,20 +126,9 @@ func RequestUpdateEmail(c *gin.Context) {
 		return
 	}
 
-	errMsg, err := service.RequestEmailChange(uid, req.Password, req.NewEmail)
+	err := service.RequestEmailChange(uid, req.Password, req.NewEmail)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成验证链接失败"})
-		return
-	}
-	if errMsg != "" {
-		status := http.StatusBadRequest
-		if errMsg == "密码错误" {
-			status = http.StatusForbidden
-		}
-		if errMsg == "该邮箱已被使用" {
-			status = http.StatusConflict
-		}
-		c.JSON(status, gin.H{"error": errMsg})
+		writeServiceError(c, err, "生成验证链接失败")
 		return
 	}
 
@@ -169,7 +150,11 @@ func UpdateSelfAvatar(c *gin.Context) {
 
 	valid, ext, err := service.ValidateImageFile(file)
 	if !valid {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err != nil {
+			writeServiceError(c, err, "头像文件校验失败")
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "头像文件校验失败"})
+		}
 		return
 	}
 	_ = ext
@@ -181,14 +166,14 @@ func UpdateSelfAvatar(c *gin.Context) {
 
 	user, err := service.GetUserByID(uid)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		writeServiceError(c, err, "获取用户失败")
 		return
 	}
 
 	newFilename, err := service.UpdateUserAvatar(user, file)
 	if err != nil {
 		log.Printf("UpdateUserAvatar error: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "头像更新失败"})
+		writeServiceError(c, err, "头像更新失败")
 		return
 	}
 
@@ -210,7 +195,7 @@ func GetSelfImagesCount(c *gin.Context) {
 
 	count, err := service.GetUserImageCount(uid)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取图片数量失败"})
+		writeServiceError(c, err, "获取图片数量失败")
 		return
 	}
 
