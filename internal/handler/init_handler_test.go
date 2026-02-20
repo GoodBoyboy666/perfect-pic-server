@@ -18,7 +18,9 @@ func TestInitHandlers_StateAndInit(t *testing.T) {
 	setupTestDB(t)
 
 	// 确保默认设置存在，使 InitializeSystem 能更新到实际行。
-	service.InitializeSettings()
+	if err := service.InitializeSettings(); err != nil {
+		t.Fatalf("InitializeSettings: %v", err)
+	}
 
 	r := gin.New()
 	r.GET("/init", GetInitState)

@@ -10,14 +10,13 @@ import (
 	"path/filepath"
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
+	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/utils"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type PaginationQuery struct {
@@ -29,13 +28,15 @@ type UserImageListParams struct {
 	PaginationQuery
 	UserID   uint
 	Filename string
-	ID       string
+	ID       *uint
 }
 
 type AdminImageListParams struct {
 	PaginationQuery
 	Username string
-	ID       string
+	Filename string
+	UserID   *uint
+	ID       *uint
 }
 
 // ValidateImageFile 验证上传的图片文件（大小、后缀、内容）
@@ -94,8 +95,8 @@ func ProcessImageUpload(file *multipart.FileHeader, uid uint) (*model.Image, str
 	}
 
 	// 检查配额 (使用 StorageUsed 字段)
-	var user model.User
-	if err := db.DB.First(&user, uid).Error; err != nil {
+	user, err := repository.User.FindByID(uid)
+	if err != nil {
 		log.Printf("Get user error: %v\n", err)
 		return nil, "", errors.New("查询用户信息失败")
 	}
@@ -191,19 +192,7 @@ func ProcessImageUpload(file *multipart.FileHeader, uid uint) (*model.Image, str
 		MimeType:   ext,
 	}
 
-	err = db.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&imageRecord).Error; err != nil {
-			return err
-		}
-		// 增加已用空间
-		if err := tx.Model(&model.User{}).Where("id = ?", uid).
-			UpdateColumn("storage_used", gorm.Expr("storage_used + ?", file.Size)).Error; err != nil {
-			return err
-		}
-		return nil
-	})
-
-	if err != nil {
+	if err := repository.Image.CreateAndIncreaseUserStorage(&imageRecord, uid, file.Size); err != nil {
 		_ = os.Remove(dst) // 回滚文件
 		log.Printf("Process upload DB error: %v\n", err)
 		return nil, "", errors.New("系统错误: 数据库记录失败")
@@ -237,19 +226,7 @@ func DeleteImage(image *model.Image) error {
 	}
 
 	// 使用事务确保数据库操作原子性
-	err = db.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Delete(image).Error; err != nil {
-			return err
-		}
-		// 减少用户已用存储空间
-		if err := tx.Model(&model.User{}).Where("id = ?", image.UserID).
-			UpdateColumn("storage_used", gorm.Expr("storage_used - ?", image.Size)).Error; err != nil {
-			return err
-		}
-		return nil
-	})
-
-	if err != nil {
+	if err := repository.Image.DeleteAndDecreaseUserStorage(image); err != nil {
 		return err
 	}
 
@@ -302,24 +279,7 @@ func BatchDeleteImages(images []model.Image) error {
 	}
 
 	// 开启单一事务处理所有数据库变更
-	err = db.DB.Transaction(func(tx *gorm.DB) error {
-		// 批量删除图片记录
-		if err := tx.Where("id IN ?", imageIDs).Delete(&model.Image{}).Error; err != nil {
-			return err
-		}
-
-		// 按用户分别更新已用存储空间
-		// 即使是管理员批量删除不同用户的图片，这里也只会有 N 个 UPDATE 语句 (N = 涉及的用户数量)
-		for uid, size := range userSizeMap {
-			if err := tx.Model(&model.User{}).Where("id = ?", uid).
-				UpdateColumn("storage_used", gorm.Expr("storage_used - ?", size)).Error; err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-
-	if err != nil {
+	if err := repository.Image.BatchDeleteAndDecreaseUserStorage(imageIDs, userSizeMap); err != nil {
 		return err
 	}
 
@@ -406,7 +366,7 @@ func UpdateUserAvatar(user *model.User, file *multipart.FileHeader) (string, err
 	oldAvatar := user.Avatar
 
 	// 更新数据库
-	if err := db.DB.Model(user).Update("avatar", newFilename).Error; err != nil {
+	if err := repository.User.UpdateAvatar(user, newFilename); err != nil {
 		_ = os.Remove(dstPath) // 回滚文件
 		log.Printf("DB Update avatar error: %v\n", err)
 		return "", errors.New("系统错误: 数据库更新失败")
@@ -460,7 +420,7 @@ func RemoveUserAvatar(user *model.User) error {
 	}
 
 	// 更新数据库
-	if err := db.DB.Model(user).Select("Avatar").Updates(map[string]interface{}{"avatar": ""}).Error; err != nil {
+	if err := repository.User.ClearAvatar(user); err != nil {
 		log.Printf("DB Remove avatar error: %v\n", err)
 		return errors.New("系统错误: 移除头像失败")
 	}
@@ -477,22 +437,14 @@ func RemoveUserAvatar(user *model.User) error {
 func ListUserImages(params UserImageListParams) ([]model.Image, int64, int, int, error) {
 	page, pageSize := normalizePagination(params.Page, params.PageSize)
 
-	var total int64
-	var images []model.Image
-
-	query := db.DB.Model(&model.Image{}).Where("user_id = ?", params.UserID)
-	if params.Filename != "" {
-		query = query.Where("filename LIKE ?", "%"+params.Filename+"%")
-	}
-	if params.ID != "" {
-		query = query.Where("id = ?", params.ID)
-	}
-
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, page, pageSize, err
-	}
-
-	if err := query.Order("id desc").Offset((page - 1) * pageSize).Limit(pageSize).Find(&images).Error; err != nil {
+	images, total, err := repository.Image.ListUserImages(
+		params.UserID,
+		params.Filename,
+		params.ID,
+		(page-1)*pageSize,
+		pageSize,
+	)
+	if err != nil {
 		return nil, 0, page, pageSize, err
 	}
 
@@ -501,27 +453,15 @@ func ListUserImages(params UserImageListParams) ([]model.Image, int64, int, int,
 
 // GetUserImageCount 获取用户图片总数。
 func GetUserImageCount(userID uint) (int64, error) {
-	var count int64
-	if err := db.DB.Model(&model.Image{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
-		return 0, err
-	}
-	return count, nil
+	return repository.Image.CountByUserID(userID)
 }
 
 // GetUserOwnedImage 获取用户名下的指定图片，用于鉴权后的删除/查看。
-func GetUserOwnedImage(imageID string, userID uint) (*model.Image, error) {
-	var image model.Image
-	if err := db.DB.Where("id = ? AND user_id = ?", imageID, userID).First(&image).Error; err != nil {
-		return nil, err
-	}
-	return &image, nil
+func GetUserOwnedImage(imageID uint, userID uint) (*model.Image, error) {
+	return repository.Image.FindByIDAndUserID(imageID, userID)
 }
 
 // GetImagesByIDsForUser 按 ID 列表获取用户名下图片（批量场景）。
 func GetImagesByIDsForUser(ids []uint, userID uint) ([]model.Image, error) {
-	var images []model.Image
-	if err := db.DB.Where("id IN ? AND user_id = ?", ids, userID).Find(&images).Error; err != nil {
-		return nil, err
-	}
-	return images, nil
+	return repository.Image.FindByIDsAndUserID(ids, userID)
 }

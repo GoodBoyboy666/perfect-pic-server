@@ -15,7 +15,9 @@ func TestInitializeSystemAndIsSystemInitialized(t *testing.T) {
 	setupTestDB(t)
 
 	// 创建默认设置行，使 InitializeSystem 的 Update() 命中真实行。
-	InitializeSettings()
+	if err := InitializeSettings(); err != nil {
+		t.Fatalf("InitializeSettings: %v", err)
+	}
 	ClearCache()
 
 	if IsSystemInitialized() {

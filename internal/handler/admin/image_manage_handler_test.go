@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"perfect-pic-server/internal/db"
@@ -27,6 +28,8 @@ func TestImageManageHandlers_ListAndDelete(t *testing.T) {
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
 	_ = db.DB.Create(&u).Error
+	u2 := model.User{Username: "bob", Password: "x", Status: 1, Email: "b@example.com"}
+	_ = db.DB.Create(&u2).Error
 
 	// 创建图片物理文件和记录。
 	imgRel := "2026/02/13/a.png"
@@ -36,6 +39,8 @@ func TestImageManageHandlers_ListAndDelete(t *testing.T) {
 
 	img := model.Image{Filename: "a.png", Path: imgRel, Size: 4, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
 	_ = db.DB.Create(&img).Error
+	imgOther := model.Image{Filename: "other.png", Path: "2026/02/13/other.png", Size: 4, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u2.ID}
+	_ = db.DB.Create(&imgOther).Error
 
 	r := gin.New()
 	r.GET("/images", GetImageList)
@@ -44,9 +49,18 @@ func TestImageManageHandlers_ListAndDelete(t *testing.T) {
 
 	// 列表
 	w1 := httptest.NewRecorder()
-	r.ServeHTTP(w1, httptest.NewRequest(http.MethodGet, "/images?page=1&page_size=10&username=ali", nil))
+	r.ServeHTTP(w1, httptest.NewRequest(http.MethodGet, "/images?page=1&page_size=10&filename=a.&user_id="+strconv.FormatUint(uint64(u.ID), 10), nil))
 	if w1.Code != http.StatusOK {
 		t.Fatalf("list 期望 200，实际为 %d body=%s", w1.Code, w1.Body.String())
+	}
+	var listResp struct {
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal(w1.Body.Bytes(), &listResp); err != nil {
+		t.Fatalf("解析列表响应失败: %v", err)
+	}
+	if listResp.Total != 1 {
+		t.Fatalf("期望 total=1，实际为 %d", listResp.Total)
 	}
 
 	// 删除单个
@@ -124,5 +138,50 @@ func TestBatchDeleteImagesHandler_Errors(t *testing.T) {
 	r.ServeHTTP(w4, httptest.NewRequest(http.MethodDelete, "/images/batch", bytes.NewReader(body3)))
 	if w4.Code != http.StatusNotFound {
 		t.Fatalf("期望 404，实际为 %d body=%s", w4.Code, w4.Body.String())
+	}
+}
+
+// 测试内容：验证管理员图片列表接口对非法 user_id 参数返回 400。
+func TestGetImageListHandler_InvalidUserID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupTestDB(t)
+
+	r := gin.New()
+	r.GET("/images", GetImageList)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/images?user_id=abc", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("期望 400，实际为 %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+// 测试内容：验证管理员图片列表接口对非法 id 参数返回 400。
+func TestGetImageListHandler_InvalidID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupTestDB(t)
+
+	r := gin.New()
+	r.GET("/images", GetImageList)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/images?id=abc", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("期望 400，实际为 %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+// 测试内容：验证管理员删除图片接口对非法路径 id 返回 400。
+func TestDeleteImageHandler_InvalidID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupTestDB(t)
+
+	r := gin.New()
+	r.DELETE("/images/:id", DeleteImage)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/images/abc", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("期望 400，实际为 %d body=%s", w.Code, w.Body.String())
 	}
 }

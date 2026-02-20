@@ -44,7 +44,9 @@ func main() {
 	_ = service.GetRedisClient()
 	defer func() { _ = service.CloseRedisClient() }()
 	db.InitDB()
-	service.InitializeSettings()
+	if err := service.InitializeSettings(); err != nil {
+		log.Fatal("❌ 初始化默认系统设置失败: ", err)
+	}
 
 	uploadPath, avatarPath := ensureDirectories()
 

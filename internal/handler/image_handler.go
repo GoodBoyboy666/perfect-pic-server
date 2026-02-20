@@ -57,7 +57,7 @@ func GetMyImages(c *gin.Context) {
 	pageStr := c.DefaultQuery("page", "1")
 	pageSizeStr := c.DefaultQuery("page_size", "10")
 	filename := c.Query("filename")
-	id := c.Query("id")
+	idStr := c.Query("id")
 
 	page, _ := strconv.Atoi(pageStr)
 	pageSize, _ := strconv.Atoi(pageSizeStr)
@@ -74,11 +74,22 @@ func GetMyImages(c *gin.Context) {
 		return
 	}
 
+	var imageID *uint
+	if idStr != "" {
+		parsed, err := strconv.ParseUint(idStr, 10, 64)
+		if err != nil || parsed == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "id 参数错误"})
+			return
+		}
+		id := uint(parsed)
+		imageID = &id
+	}
+
 	images, total, page, pageSize, err := service.ListUserImages(service.UserImageListParams{
 		PaginationQuery: service.PaginationQuery{Page: page, PageSize: pageSize},
 		UserID:          uid,
 		Filename:        filename,
-		ID:              id,
+		ID:              imageID,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取图片列表失败"})
@@ -96,14 +107,20 @@ func GetMyImages(c *gin.Context) {
 // DeleteMyImage 用户删除自己的图片
 func DeleteMyImage(c *gin.Context) {
 	userID, _ := c.Get("id")
-	id := c.Param("id")
+	idParam := c.Param("id")
 	uid, ok := userID.(uint)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的用户ID类型"})
 		return
 	}
 
-	image, err := service.GetUserOwnedImage(id, uid)
+	id, err := strconv.ParseUint(idParam, 10, 64)
+	if err != nil || id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id 参数错误"})
+		return
+	}
+
+	image, err := service.GetUserOwnedImage(uint(id), uid)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "图片不存在或无权删除"})
 		return

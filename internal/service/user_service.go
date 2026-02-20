@@ -13,8 +13,8 @@ import (
 	"path/filepath"
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
+	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/utils"
 	"strconv"
 	"sync"
@@ -342,9 +342,9 @@ func DeleteUserFiles(userID uint) error {
 	}
 
 	// 2. 查找并删除用户上传的所有图片
-	var images []model.Image
 	// Unscoped() 确保即使是软删除的图片也能被查出来删除文件
-	if err := db.DB.Unscoped().Where("user_id = ?", userID).Find(&images).Error; err != nil {
+	images, err := repository.Image.FindUnscopedByUserID(userID)
+	if err != nil {
 		return fmt.Errorf("failed to retrieve user images: %w", err)
 	}
 
@@ -383,22 +383,18 @@ func DeleteUserFiles(userID uint) error {
 // IsUsernameTaken 检查用户名是否已被占用。
 // excludeUserID 用于更新场景下排除当前用户；includeDeleted 为 true 时会包含软删除用户。
 func IsUsernameTaken(username string, excludeUserID *uint, includeDeleted bool) (bool, error) {
-	return isUserFieldTaken("username", username, excludeUserID, includeDeleted)
+	return repository.User.FieldExists(repository.UserFieldUsername, username, excludeUserID, includeDeleted)
 }
 
 // IsEmailTaken 检查邮箱是否已被占用。
 // excludeUserID 用于更新场景下排除当前用户；includeDeleted 为 true 时会包含软删除用户。
 func IsEmailTaken(email string, excludeUserID *uint, includeDeleted bool) (bool, error) {
-	return isUserFieldTaken("email", email, excludeUserID, includeDeleted)
+	return repository.User.FieldExists(repository.UserFieldEmail, email, excludeUserID, includeDeleted)
 }
 
 // GetUserByID 按用户 ID 获取用户模型。
 func GetUserByID(userID uint) (*model.User, error) {
-	var user model.User
-	if err := db.DB.First(&user, userID).Error; err != nil {
-		return nil, err
-	}
-	return &user, nil
+	return repository.User.FindByID(userID)
 }
 
 // GetUserProfile 获取用户个人资料。
@@ -434,7 +430,7 @@ func UpdateUsernameAndGenerateToken(userID uint, newUsername string, isAdmin boo
 		return "", "用户名已存在", nil
 	}
 
-	if err := db.DB.Model(&model.User{}).Where("id = ?", userID).Update("username", newUsername).Error; err != nil {
+	if err := repository.User.UpdateUsernameByID(userID, newUsername); err != nil {
 		return "", "", err
 	}
 
@@ -453,8 +449,8 @@ func UpdatePasswordByOldPassword(userID uint, oldPassword, newPassword string) (
 		return msg, nil
 	}
 
-	var user model.User
-	if err := db.DB.First(&user, userID).Error; err != nil {
+	user, err := repository.User.FindByID(userID)
+	if err != nil {
 		return "", err
 	}
 
@@ -467,7 +463,7 @@ func UpdatePasswordByOldPassword(userID uint, oldPassword, newPassword string) (
 		return "", err
 	}
 
-	if err := db.DB.Model(&user).Update("password", string(hashedPassword)).Error; err != nil {
+	if err := repository.User.UpdatePasswordByID(userID, string(hashedPassword)); err != nil {
 		return "", err
 	}
 
@@ -480,8 +476,8 @@ func RequestEmailChange(userID uint, password, newEmail string) (string, error) 
 		return msg, nil
 	}
 
-	var user model.User
-	if err := db.DB.First(&user, userID).Error; err != nil {
+	user, err := repository.User.FindByID(userID)
+	if err != nil {
 		return "", err
 	}
 
