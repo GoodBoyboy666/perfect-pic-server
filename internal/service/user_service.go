@@ -383,13 +383,13 @@ func DeleteUserFiles(userID uint) error {
 // IsUsernameTaken 检查用户名是否已被占用。
 // excludeUserID 用于更新场景下排除当前用户；includeDeleted 为 true 时会包含软删除用户。
 func IsUsernameTaken(username string, excludeUserID *uint, includeDeleted bool) (bool, error) {
-	return repository.User.FieldExists("username", username, excludeUserID, includeDeleted)
+	return repository.User.FieldExists(repository.UserFieldUsername, username, excludeUserID, includeDeleted)
 }
 
 // IsEmailTaken 检查邮箱是否已被占用。
 // excludeUserID 用于更新场景下排除当前用户；includeDeleted 为 true 时会包含软删除用户。
 func IsEmailTaken(email string, excludeUserID *uint, includeDeleted bool) (bool, error) {
-	return repository.User.FieldExists("email", email, excludeUserID, includeDeleted)
+	return repository.User.FieldExists(repository.UserFieldEmail, email, excludeUserID, includeDeleted)
 }
 
 // GetUserByID 按用户 ID 获取用户模型。

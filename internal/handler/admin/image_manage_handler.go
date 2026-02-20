@@ -43,6 +43,15 @@ func GetImageList(c *gin.Context) {
 		userID = &uid
 	}
 
+	if id != "" {
+		parsed, err := strconv.ParseUint(id, 10, 64)
+		if err != nil || parsed == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "id 参数错误"})
+			return
+		}
+		id = strconv.FormatUint(parsed, 10)
+	}
+
 	images, total, page, pageSize, err := service.AdminListImages(service.AdminImageListParams{
 		PaginationQuery: service.PaginationQuery{Page: page, PageSize: pageSize},
 		Username:        username,

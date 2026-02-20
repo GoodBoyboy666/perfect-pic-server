@@ -155,3 +155,18 @@ func TestGetImageListHandler_InvalidUserID(t *testing.T) {
 		t.Fatalf("期望 400，实际为 %d body=%s", w.Code, w.Body.String())
 	}
 }
+
+// 测试内容：验证管理员图片列表接口对非法 id 参数返回 400。
+func TestGetImageListHandler_InvalidID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupTestDB(t)
+
+	r := gin.New()
+	r.GET("/images", GetImageList)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/images?id=abc", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("期望 400，实际为 %d body=%s", w.Code, w.Body.String())
+	}
+}

@@ -11,6 +11,13 @@ import (
 
 type UserRepository struct{}
 
+type UserField string
+
+const (
+	UserFieldUsername UserField = "username"
+	UserFieldEmail    UserField = "email"
+)
+
 var User = &UserRepository{}
 
 func (r *UserRepository) FindByID(id uint) (*model.User, error) {
@@ -77,7 +84,7 @@ func (r *UserRepository) UpdateByID(userID uint, updates map[string]interface{})
 	return db.DB.Model(&user).Updates(updates).Error
 }
 
-func (r *UserRepository) FieldExists(field, value string, excludeUserID *uint, includeDeleted bool) (bool, error) {
+func (r *UserRepository) FieldExists(field UserField, value string, excludeUserID *uint, includeDeleted bool) (bool, error) {
 	query := db.DB.Model(&model.User{})
 	if includeDeleted {
 		query = query.Unscoped()
@@ -87,7 +94,7 @@ func (r *UserRepository) FieldExists(field, value string, excludeUserID *uint, i
 	}
 
 	var count int64
-	if err := query.Where(field+" = ?", value).Count(&count).Error; err != nil {
+	if err := query.Where(string(field)+" = ?", value).Count(&count).Error; err != nil {
 		return false, err
 	}
 	return count > 0, nil
