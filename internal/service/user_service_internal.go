@@ -3,16 +3,11 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/utils"
-	"strings"
-	"time"
 
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
 )
 
 // normalizeAdminPagination 归一化管理员分页参数。
@@ -24,19 +19,6 @@ func normalizeAdminPagination(page, pageSize int) (int, int) {
 		pageSize = 10
 	}
 	return page, pageSize
-}
-
-// buildAdminUserListQuery 构建管理员用户列表基础查询。
-func buildAdminUserListQuery(params AdminUserListParams) *gorm.DB {
-	query := db.DB.Model(&model.User{})
-	if params.ShowDeleted {
-		query = query.Unscoped()
-	}
-	keyword := strings.TrimSpace(params.Keyword)
-	if keyword != "" {
-		query = query.Where("username LIKE ?", "%"+keyword+"%")
-	}
-	return query
 }
 
 // resolveAdminUserSortOrder 解析管理员用户列表排序表达式。
@@ -218,57 +200,6 @@ func prepareAdminStatusUpdate(status *int, updates map[string]interface{}) strin
 	return "无效的用户状态"
 }
 
-// hardDeleteUserForAdmin 执行管理员硬删除，包含文件与关联记录清理。
-func hardDeleteUserForAdmin(userID uint) error {
-	if err := DeleteUserFiles(userID); err != nil {
-		return err
-	}
-
-	return db.DB.Transaction(func(tx *gorm.DB) error {
-		var user model.User
-		if err := tx.Unscoped().First(&user, userID).Error; err != nil {
-			return err
-		}
-		// 不依赖数据库外键级联（SQLite 需要 foreign_keys=ON 且旧表可能没有 CASCADE 约束），
-		// 这里显式清理关联图片记录，保证硬删除用户后不会残留 images。
-		if err := tx.Unscoped().Where("user_id = ?", userID).Delete(&model.Image{}).Error; err != nil {
-			return err
-		}
-		return tx.Unscoped().Delete(&user).Error
-	})
-}
-
-// softDeleteUserForAdmin 执行管理员软删除并重写唯一字段。
-func softDeleteUserForAdmin(userID uint) error {
-	return db.DB.Transaction(func(tx *gorm.DB) error {
-		var user model.User
-		if err := tx.First(&user, userID).Error; err != nil {
-			return err
-		}
-
-		newUsername, newEmail := buildSoftDeletedIdentity(user, time.Now().Unix())
-		if err := tx.Model(&user).Updates(map[string]interface{}{
-			"username": newUsername,
-			"email":    newEmail,
-			"status":   3,
-		}).Error; err != nil {
-			return err
-		}
-
-		return tx.Delete(&user).Error
-	})
-}
-
-// buildSoftDeletedIdentity 构造软删除后的用户名与邮箱占位值。
-func buildSoftDeletedIdentity(user model.User, timestamp int64) (string, string) {
-	newUsername := fmt.Sprintf("%s_del_%d", user.Username, timestamp)
-	newEmail := fmt.Sprintf("del_%d_%s", timestamp, user.Email)
-	if len(newEmail) > 255 {
-		newEmail = newEmail[:255]
-	}
-	return newUsername, newEmail
-}
-
 // verifyAndConsumeRedisTokenPair 使用 Redis WATCH/CAS 原子校验并消费 token 对。
 func verifyAndConsumeRedisTokenPair(
 	ctx context.Context,
@@ -322,21 +253,4 @@ func verifyAndConsumeRedisTokenPair(
 		return errRedisTokenCASMismatch
 	}
 	return watchErr
-}
-
-// isUserFieldTaken 按指定字段检查用户记录是否存在。
-func isUserFieldTaken(field string, value string, excludeUserID *uint, includeDeleted bool) (bool, error) {
-	query := db.DB.Model(&model.User{})
-	if includeDeleted {
-		query = query.Unscoped()
-	}
-	if excludeUserID != nil {
-		query = query.Where("id != ?", *excludeUserID)
-	}
-
-	var count int64
-	if err := query.Where(field+" = ?", value).Count(&count).Error; err != nil {
-		return false, err
-	}
-	return count > 0, nil
 }

@@ -1,8 +1,9 @@
 package service
 
 import (
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
+	"perfect-pic-server/internal/repository"
+	"time"
 )
 
 type AdminUserListParams struct {
@@ -34,30 +35,19 @@ type AdminCreateUserInput struct {
 // AdminListUsers 按分页与筛选条件查询用户列表。
 func AdminListUsers(params AdminUserListParams) ([]model.User, int64, error) {
 	page, pageSize := normalizeAdminPagination(params.Page, params.PageSize)
-
-	var users []model.User
-	var total int64
-
-	query := buildAdminUserListQuery(params)
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
 	sortOrder := resolveAdminUserSortOrder(params.Order)
-	if err := query.Offset((page - 1) * pageSize).Limit(pageSize).Order(sortOrder).Find(&users).Error; err != nil {
-		return nil, 0, err
-	}
-
-	return users, total, nil
+	return repository.User.AdminListUsers(
+		params.Keyword,
+		params.ShowDeleted,
+		sortOrder,
+		(page-1)*pageSize,
+		pageSize,
+	)
 }
 
 // AdminGetUserDetail 根据用户 ID 获取详情。
 func AdminGetUserDetail(id uint) (*model.User, error) {
-	var user model.User
-	if err := db.DB.Unscoped().First(&user, id).Error; err != nil {
-		return nil, err
-	}
-	return &user, nil
+	return repository.User.FindUnscopedByID(id)
 }
 
 // AdminCreateUser 创建后台普通用户。
@@ -82,7 +72,7 @@ func AdminCreateUser(input AdminCreateUserInput) (*model.User, string, error) {
 		return nil, msg, nil
 	}
 
-	if err := db.DB.Create(&user).Error; err != nil {
+	if err := repository.User.Create(&user); err != nil {
 		return nil, "", err
 	}
 
@@ -124,19 +114,17 @@ func AdminApplyUserUpdates(userID uint, updates map[string]interface{}) error {
 		return nil
 	}
 
-	var user model.User
-	if err := db.DB.First(&user, userID).Error; err != nil {
-		return err
-	}
-
-	return db.DB.Model(&user).Updates(updates).Error
+	return repository.User.UpdateByID(userID, updates)
 }
 
 // AdminDeleteUser 删除用户。
 // hardDelete=true 时执行彻底删除；否则执行软删除并清理唯一字段占用。
 func AdminDeleteUser(userID uint, hardDelete bool) error {
 	if hardDelete {
-		return hardDeleteUserForAdmin(userID)
+		if err := DeleteUserFiles(userID); err != nil {
+			return err
+		}
+		return repository.User.HardDeleteUserWithImages(userID)
 	}
-	return softDeleteUserForAdmin(userID)
+	return repository.User.AdminSoftDeleteUser(userID, time.Now().Unix())
 }

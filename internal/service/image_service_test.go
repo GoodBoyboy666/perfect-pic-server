@@ -361,8 +361,8 @@ func TestGetUserImageCountAndBatchGetters(t *testing.T) {
 	}
 }
 
-// 测试内容：验证管理员图片列表按用户名过滤并预加载用户信息。
-func TestListImagesForAdmin_FiltersByUsername(t *testing.T) {
+// 测试内容：验证管理员图片列表支持按用户名、文件名与用户 ID 过滤并预加载用户信息。
+func TestListImagesForAdmin_Filters(t *testing.T) {
 	setupTestDB(t)
 
 	u1 := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
@@ -386,8 +386,22 @@ func TestListImagesForAdmin_FiltersByUsername(t *testing.T) {
 	if images[0].User.Username != "alice" {
 		t.Fatalf("期望 preload user alice，实际为 %q", images[0].User.Username)
 	}
-}
 
+	images2, total2, _, _, err := AdminListImages(AdminImageListParams{
+		PaginationQuery: PaginationQuery{Page: 1, PageSize: 10},
+		Filename:        "a.",
+		UserID:          &u1.ID,
+	})
+	if err != nil {
+		t.Fatalf("AdminListImages(by filename/user_id): %v", err)
+	}
+	if total2 != 1 || len(images2) != 1 {
+		t.Fatalf("期望 1 image，实际为 total=%d len=%d", total2, len(images2))
+	}
+	if images2[0].UserID != u1.ID || images2[0].Filename != "a.png" {
+		t.Fatalf("非预期过滤结果: user_id=%d filename=%s", images2[0].UserID, images2[0].Filename)
+	}
+}
 
 func mustFileHeader(t *testing.T, filename string, content []byte) *multipart.FileHeader {
 	t.Helper()

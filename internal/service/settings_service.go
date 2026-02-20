@@ -2,8 +2,8 @@ package service
 
 import (
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
+	"perfect-pic-server/internal/repository"
 	"strconv"
 	"sync"
 )
@@ -69,20 +69,7 @@ func ClearCache() {
 
 // InitializeSettings 将默认设置写入数据库，并同步描述与分类信息。
 func InitializeSettings() {
-	for _, def := range DefaultSettings {
-		var count int64
-		db.DB.Model(&model.Setting{}).Where("key = ?", def.Key).Count(&count)
-		if count == 0 {
-			db.DB.Create(&def)
-		} else {
-			// 同步更新 Category 和 Desc
-			db.DB.Model(&model.Setting{}).Where("key = ?", def.Key).Updates(map[string]interface{}{
-				"category":  def.Category,
-				"desc":      def.Desc,
-				"sensitive": def.Sensitive,
-			})
-		}
-	}
+	repository.Setting.InitializeDefaults(DefaultSettings)
 }
 
 // GetString 读取字符串配置值（优先缓存，其次数据库，最后默认值）。
@@ -99,15 +86,15 @@ func GetString(key string) string {
 		}
 	}
 
-	var setting model.Setting
-	if err := db.DB.Where("key = ?", key).First(&setting).Error; err != nil {
+	setting, err := repository.Setting.FindByKey(key)
+	if err != nil {
 		// 数据库没查到，尝试查找默认配置
 		for _, def := range DefaultSettings {
 			if def.Key == key {
 				// 查到了默认值，写入数据库并写入缓存
 				newSetting := def
 				// 尝试写入数据库 (忽略错误，防止并发写入导致的主键冲突)
-				db.DB.Create(&newSetting)
+				_ = repository.Setting.Create(&newSetting)
 
 				settingsCache.Store(key, newSetting.Value)
 				return newSetting.Value

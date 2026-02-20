@@ -1,10 +1,8 @@
 package service
 
 import (
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
-
-	"gorm.io/gorm"
+	"perfect-pic-server/internal/repository"
 )
 
 type UpdateSettingPayload struct {
@@ -14,8 +12,8 @@ type UpdateSettingPayload struct {
 
 // AdminListSettings 获取全部系统设置。
 func AdminListSettings() ([]model.Setting, error) {
-	var settings []model.Setting
-	if err := db.DB.Find(&settings).Error; err != nil {
+	settings, err := repository.Setting.FindAll()
+	if err != nil {
 		return nil, err
 	}
 
@@ -25,23 +23,15 @@ func AdminListSettings() ([]model.Setting, error) {
 
 // AdminUpdateSettings 批量更新系统设置，并在成功后清理配置缓存。
 func AdminUpdateSettings(items []UpdateSettingPayload) error {
-	err := db.DB.Transaction(func(tx *gorm.DB) error {
-		for _, item := range items {
-			skip, err := shouldSkipMaskedSensitiveSettingUpdate(tx, item)
-			if err != nil {
-				return err
-			}
-			if skip {
-				continue
-			}
+	repoItems := make([]repository.UpdateSettingItem, 0, len(items))
+	for _, item := range items {
+		repoItems = append(repoItems, repository.UpdateSettingItem{
+			Key:   item.Key,
+			Value: item.Value,
+		})
+	}
 
-			if err := upsertSettingValue(tx, item); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
+	if err := repository.Setting.UpdateSettings(repoItems, maskedSettingValue); err != nil {
 		return err
 	}
 

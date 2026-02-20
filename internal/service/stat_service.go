@@ -1,8 +1,7 @@
 package service
 
 import (
-	"perfect-pic-server/internal/db"
-	"perfect-pic-server/internal/model"
+	"perfect-pic-server/internal/repository"
 	"runtime"
 )
 
@@ -23,19 +22,18 @@ type ServerStats struct {
 
 // AdminGetServerStats 获取后台仪表盘统计数据。
 func AdminGetServerStats() (*ServerStats, error) {
-	var imageCount int64
-	var totalSize int64
-	var userCount int64
-
-	if err := db.DB.Model(&model.Image{}).Count(&imageCount).Error; err != nil {
+	imageCount, err := repository.Image.CountAll()
+	if err != nil {
 		return nil, err
 	}
 
-	if err := db.DB.Model(&model.Image{}).Select("COALESCE(SUM(size), 0)").Scan(&totalSize).Error; err != nil {
+	totalSize, err := repository.Image.SumAllSize()
+	if err != nil {
 		return nil, err
 	}
 
-	if err := db.DB.Model(&model.User{}).Count(&userCount).Error; err != nil {
+	userCount, err := repository.User.CountAll()
+	if err != nil {
 		return nil, err
 	}
 

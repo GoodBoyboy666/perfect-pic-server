@@ -2,11 +2,10 @@ package service
 
 import (
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
+	"perfect-pic-server/internal/repository"
 
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
 )
 
 type InitPayload struct {
@@ -28,31 +27,18 @@ func InitializeSystem(payload InitPayload) error {
 		return err
 	}
 
-	err = db.DB.Transaction(func(tx *gorm.DB) error {
-		settingsToUpdate := map[string]string{
-			consts.ConfigSiteName:        payload.SiteName,
-			consts.ConfigSiteDescription: payload.SiteDescription,
-			consts.ConfigAllowInit:       "false",
-		}
-
-		for key, value := range settingsToUpdate {
-			if err := tx.Model(&model.Setting{}).Where("key = ?", key).Update("value", value).Error; err != nil {
-				return err
-			}
-		}
-
-		newUser := model.User{
-			Username: payload.Username,
-			Password: string(passwordHashed),
-			Avatar:   "",
-			Admin:    true,
-		}
-		if err := tx.Create(&newUser).Error; err != nil {
-			return err
-		}
-
-		return nil
-	})
+	settingsToUpdate := map[string]string{
+		consts.ConfigSiteName:        payload.SiteName,
+		consts.ConfigSiteDescription: payload.SiteDescription,
+		consts.ConfigAllowInit:       "false",
+	}
+	newUser := model.User{
+		Username: payload.Username,
+		Password: string(passwordHashed),
+		Avatar:   "",
+		Admin:    true,
+	}
+	err = repository.System.InitializeSystem(settingsToUpdate, &newUser)
 	if err != nil {
 		return err
 	}
