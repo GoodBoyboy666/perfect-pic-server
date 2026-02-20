@@ -18,26 +18,28 @@ type UpdateSettingItem struct {
 var Setting = &SettingRepository{}
 
 func (r *SettingRepository) InitializeDefaults(defaults []model.Setting) error {
-	for _, def := range defaults {
-		var count int64
-		if err := db.DB.Model(&model.Setting{}).Where("key = ?", def.Key).Count(&count).Error; err != nil {
-			return fmt.Errorf("count default setting %q failed: %w", def.Key, err)
-		}
-		if count == 0 {
-			if err := db.DB.Create(&def).Error; err != nil {
-				return fmt.Errorf("create default setting %q failed: %w", def.Key, err)
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		for _, def := range defaults {
+			var count int64
+			if err := tx.Model(&model.Setting{}).Where("key = ?", def.Key).Count(&count).Error; err != nil {
+				return fmt.Errorf("count default setting %q failed: %w", def.Key, err)
 			}
-		} else {
-			if err := db.DB.Model(&model.Setting{}).Where("key = ?", def.Key).Updates(map[string]interface{}{
-				"category":  def.Category,
-				"desc":      def.Desc,
-				"sensitive": def.Sensitive,
-			}).Error; err != nil {
-				return fmt.Errorf("update default setting metadata %q failed: %w", def.Key, err)
+			if count == 0 {
+				if err := tx.Create(&def).Error; err != nil {
+					return fmt.Errorf("create default setting %q failed: %w", def.Key, err)
+				}
+			} else {
+				if err := tx.Model(&model.Setting{}).Where("key = ?", def.Key).Updates(map[string]interface{}{
+					"category":  def.Category,
+					"desc":      def.Desc,
+					"sensitive": def.Sensitive,
+				}).Error; err != nil {
+					return fmt.Errorf("update default setting metadata %q failed: %w", def.Key, err)
+				}
 			}
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 func (r *SettingRepository) FindByKey(key string) (*model.Setting, error) {
