@@ -70,3 +70,60 @@ func TestGetFloat64_ParseAndFailure(t *testing.T) {
 		t.Fatalf("期望 0 on parse 错误，实际为 %v", got)
 	}
 }
+
+// 测试内容：验证管理员读取设置时敏感字段会被掩码。
+func TestListSettingsForAdmin_MasksSensitive(t *testing.T) {
+	setupTestDB(t)
+
+	_ = db.DB.Create(&model.Setting{Key: "k1", Value: "v1", Sensitive: false}).Error
+	_ = db.DB.Create(&model.Setting{Key: "k2", Value: "secret", Sensitive: true}).Error
+
+	settings, err := AdminListSettings()
+	if err != nil {
+		t.Fatalf("AdminListSettings: %v", err)
+	}
+
+	m := map[string]string{}
+	for _, s := range settings {
+		m[s.Key] = s.Value
+	}
+	if m["k1"] != "v1" {
+		t.Fatalf("期望 k1=v1，实际为 %q", m["k1"])
+	}
+	if m["k2"] != "**********" {
+		t.Fatalf("期望 sensitive masked，实际为 %q", m["k2"])
+	}
+}
+
+// 测试内容：验证更新设置时敏感掩码值不会覆盖真实敏感值。
+func TestUpdateSettingsForAdmin_MaskedSensitiveIsNotOverwritten(t *testing.T) {
+	setupTestDB(t)
+
+	_ = db.DB.Create(&model.Setting{Key: "s1", Value: "secret", Sensitive: true}).Error
+	_ = db.DB.Create(&model.Setting{Key: "n1", Value: "old", Sensitive: false}).Error
+
+	err := AdminUpdateSettings([]UpdateSettingPayload{
+		{Key: "s1", Value: "**********"}, // 应被忽略
+		{Key: "n1", Value: "**********"}, // 应覆盖（非敏感）
+		{Key: "new", Value: "val"},       // 更新或插入
+	})
+	if err != nil {
+		t.Fatalf("AdminUpdateSettings: %v", err)
+	}
+
+	var s1 model.Setting
+	_ = db.DB.Where("key = ?", "s1").First(&s1).Error
+	if s1.Value != "secret" {
+		t.Fatalf("期望 sensitive value preserved，实际为 %q", s1.Value)
+	}
+	var n1 model.Setting
+	_ = db.DB.Where("key = ?", "n1").First(&n1).Error
+	if n1.Value != "**********" {
+		t.Fatalf("期望 non-sensitive overwritten，实际为 %q", n1.Value)
+	}
+	var n model.Setting
+	_ = db.DB.Where("key = ?", "new").First(&n).Error
+	if n.Value != "val" {
+		t.Fatalf("期望 new=val，实际为 %q", n.Value)
+	}
+}

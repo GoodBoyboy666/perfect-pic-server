@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"log"
 	"strings"
 	"sync"
@@ -158,7 +159,8 @@ func initViper(customConfigDir string) *viper.Viper {
 
 	// 读取配置文件
 	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if errors.As(err, &configFileNotFoundError) {
 			log.Println("⚠️  未找到配置文件，将仅使用环境变量或默认值")
 		} else {
 			log.Fatalf("❌ 读取配置文件失败: %v", err)

@@ -30,7 +30,7 @@ func GetImageList(c *gin.Context) {
 		pageSize = 10
 	}
 
-	images, total, page, pageSize, err := service.ListImagesForAdmin(service.AdminImageListParams{
+	images, total, page, pageSize, err := service.AdminListImages(service.AdminImageListParams{
 		PaginationQuery: service.PaginationQuery{Page: page, PageSize: pageSize},
 		Username:        username,
 		ID:              id,
@@ -61,7 +61,7 @@ func GetImageList(c *gin.Context) {
 func DeleteImage(c *gin.Context) {
 	id := c.Param("id")
 
-	image, err := service.GetImageByIDForAdmin(id)
+	image, err := service.AdminGetImageByID(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "图片不存在"})
 		return
@@ -95,7 +95,7 @@ func BatchDeleteImages(c *gin.Context) {
 		return
 	}
 
-	images, err := service.GetImagesByIDsForAdmin(req.Ids)
+	images, err := service.AdminGetImagesByIDs(req.Ids)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查找图片失败"})
 		return

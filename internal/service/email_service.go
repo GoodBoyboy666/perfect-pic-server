@@ -343,14 +343,14 @@ func sendMailWithSSL(addr string, auth smtp.Auth, from string, to []string, msg 
 		log.Printf("[Email] TLS 连接失败: %v", err)
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	client, err := smtp.NewClient(conn, cfg.SMTP.Host)
 	if err != nil {
 		log.Printf("[Email] 创建 SMTP 客户端失败: %v", err)
 		return err
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// 认证
 	if auth != nil {

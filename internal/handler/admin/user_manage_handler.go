@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"perfect-pic-server/internal/middleware"
@@ -8,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // GetUserList 获取用户列表
@@ -27,7 +29,7 @@ func GetUserList(c *gin.Context) {
 		pageSize = 10
 	}
 
-	users, total, err := service.ListUsersForAdmin(service.AdminUserListParams{
+	users, total, err := service.AdminListUsers(service.AdminUserListParams{
 		Page:        page,
 		PageSize:    pageSize,
 		Keyword:     keyword,
@@ -56,7 +58,7 @@ func GetUserDetail(c *gin.Context) {
 		return
 	}
 
-	user, err := service.GetUserDetailForAdmin(uint(id))
+	user, err := service.AdminGetUserDetail(uint(id))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		return
@@ -83,7 +85,7 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	user, validateMsg, err := service.CreateUserForAdmin(service.AdminCreateUserInput{
+	user, validateMsg, err := service.AdminCreateUser(service.AdminCreateUserInput{
 		Username:      req.Username,
 		Password:      req.Password,
 		Email:         req.Email,
@@ -128,7 +130,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	updates, errMsg, err := service.PrepareUserUpdatesForAdmin(uint(id), service.AdminUserUpdateInput{
+	updates, errMsg, err := service.AdminPrepareUserUpdates(uint(id), service.AdminUserUpdateInput{
 		Username:      req.Username,
 		Password:      req.Password,
 		Email:         req.Email,
@@ -146,8 +148,8 @@ func UpdateUser(c *gin.Context) {
 	}
 
 	if len(updates) > 0 {
-		if err := service.ApplyUserUpdatesForAdmin(uint(id), updates); err != nil {
-			if service.IsRecordNotFound(err) {
+		if err := service.AdminApplyUserUpdates(uint(id), updates); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
 				c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 				return
 			}
@@ -183,7 +185,7 @@ func UpdateUserAvatar(c *gin.Context) {
 	}
 	_ = ext
 
-	user, err := service.GetUserDetailForAdmin(uint(id))
+	user, err := service.AdminGetUserDetail(uint(id))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		return
@@ -208,7 +210,7 @@ func RemoveUserAvatar(c *gin.Context) {
 		return
 	}
 
-	user, err := service.GetUserDetailForAdmin(uint(id))
+	user, err := service.AdminGetUserDetail(uint(id))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		return
@@ -234,7 +236,7 @@ func DeleteUser(c *gin.Context) {
 
 	hardDelete := c.DefaultQuery("hard_delete", "false")
 
-	if err := service.DeleteUserForAdmin(uint(id), hardDelete == "true"); err != nil {
+	if err := service.AdminDeleteUser(uint(id), hardDelete == "true"); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除用户失败"})
 		return
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -151,7 +152,7 @@ func startServer(r *gin.Engine) {
 	go func() {
 		// 服务连接
 		log.Printf("🚀 服务启动成功，运行在 :%s\n", config.Get().Server.Port)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("❌ 服务启动失败: %s\n", err)
 		}
 	}()
