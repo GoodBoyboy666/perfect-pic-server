@@ -34,7 +34,7 @@ func AdminGetServerStats() (*ServerStats, error) {
 
 	userCount, err := repository.User.CountAll()
 	if err != nil {
-		return nil, NewInternalError("统计图片数据失败")
+		return nil, NewInternalError("统计用户数据失败")
 	}
 
 	return &ServerStats{
