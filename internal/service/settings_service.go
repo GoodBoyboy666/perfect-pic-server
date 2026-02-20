@@ -68,8 +68,8 @@ func ClearCache() {
 }
 
 // InitializeSettings 将默认设置写入数据库，并同步描述与分类信息。
-func InitializeSettings() {
-	repository.Setting.InitializeDefaults(DefaultSettings)
+func InitializeSettings() error {
+	return repository.Setting.InitializeDefaults(DefaultSettings)
 }
 
 // GetString 读取字符串配置值（优先缓存，其次数据库，最后默认值）。

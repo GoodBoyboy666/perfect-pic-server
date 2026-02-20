@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 
@@ -16,20 +17,27 @@ type UpdateSettingItem struct {
 
 var Setting = &SettingRepository{}
 
-func (r *SettingRepository) InitializeDefaults(defaults []model.Setting) {
+func (r *SettingRepository) InitializeDefaults(defaults []model.Setting) error {
 	for _, def := range defaults {
 		var count int64
-		db.DB.Model(&model.Setting{}).Where("key = ?", def.Key).Count(&count)
+		if err := db.DB.Model(&model.Setting{}).Where("key = ?", def.Key).Count(&count).Error; err != nil {
+			return fmt.Errorf("count default setting %q failed: %w", def.Key, err)
+		}
 		if count == 0 {
-			db.DB.Create(&def)
+			if err := db.DB.Create(&def).Error; err != nil {
+				return fmt.Errorf("create default setting %q failed: %w", def.Key, err)
+			}
 		} else {
-			db.DB.Model(&model.Setting{}).Where("key = ?", def.Key).Updates(map[string]interface{}{
+			if err := db.DB.Model(&model.Setting{}).Where("key = ?", def.Key).Updates(map[string]interface{}{
 				"category":  def.Category,
 				"desc":      def.Desc,
 				"sensitive": def.Sensitive,
-			})
+			}).Error; err != nil {
+				return fmt.Errorf("update default setting metadata %q failed: %w", def.Key, err)
+			}
 		}
 	}
+	return nil
 }
 
 func (r *SettingRepository) FindByKey(key string) (*model.Setting, error) {
