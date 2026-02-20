@@ -150,11 +150,7 @@ func UpdateSelfAvatar(c *gin.Context) {
 
 	valid, ext, err := service.ValidateImageFile(file)
 	if !valid {
-		if err != nil {
-			writeServiceError(c, err, "头像文件校验失败")
-		} else {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "头像文件校验失败"})
-		}
+		writeServiceError(c, err, "头像文件校验失败")
 		return
 	}
 	_ = ext
