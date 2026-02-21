@@ -336,6 +336,7 @@ GeeTest 模式下，`captcha_token` 需传 JSON 字符串，包含：
 * `POST /api/user/passkeys/register/finish`: 完成 Passkey 绑定
   * 返回字段：`session_id`、`creation_options`
 * `GET /api/user/passkeys`: 获取当前用户已绑定 Passkey 列表
+* `PATCH /api/user/passkeys/:id/name`: 更新当前用户指定 Passkey 的名称
 * `DELETE /api/user/passkeys/:id`: 删除当前用户的指定 Passkey
 * 约束：单个用户最多可绑定 10 个 Passkey
 
