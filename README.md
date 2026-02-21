@@ -319,6 +319,9 @@ GeeTest 模式下，`captcha_token` 需传 JSON 字符串，包含：
 * `POST /api/init`: 初始化管理员账号
 * `POST /api/login`: 用户登录
 * `POST /api/register`: 用户注册
+* `POST /api/auth/passkey/login/start`: 发起 Passkey 登录挑战
+  * 返回字段：`session_id`、`assertion_options`
+* `POST /api/auth/passkey/login/finish`: 完成 Passkey 登录
 * `GET /api/captcha`: 获取验证码元信息（`provider` + `public_config`，当 provider 为空表示已关闭验证码）
 * `GET /api/webinfo`: 获取站点公开信息
 
@@ -329,6 +332,13 @@ GeeTest 模式下，`captcha_token` 需传 JSON 字符串，包含：
 * `DELETE /api/user/images/batch`: 批量删除图片
 * `GET /api/user/profile`: 获取个人信息
 * `PATCH /api/user/avatar`: 更新头像
+* `POST /api/user/passkeys/register/start`: 发起 Passkey 绑定挑战
+  * 返回字段：`session_id`、`creation_options`
+* `POST /api/user/passkeys/register/finish`: 完成 Passkey 绑定
+* `GET /api/user/passkeys`: 获取当前用户已绑定 Passkey 列表
+* `PATCH /api/user/passkeys/:id/name`: 更新当前用户指定 Passkey 的名称
+* `DELETE /api/user/passkeys/:id`: 删除当前用户的指定 Passkey
+* 约束：单个用户最多可绑定 10 个 Passkey
 
 ### 管理员接口 (需 Admin 权限)
 

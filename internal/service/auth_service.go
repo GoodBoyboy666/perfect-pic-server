@@ -24,26 +24,7 @@ func (s *AppService) LoginUser(username, password string) (string, error) {
 		return "", newAuthError(AuthErrorUnauthorized, "用户名或密码错误")
 	}
 
-	if user.Status == 2 {
-		return "", newAuthError(AuthErrorForbidden, "该账号已被封禁")
-	}
-	if user.Status == 3 {
-		return "", newAuthError(AuthErrorForbidden, "该账号已停用")
-	}
-
-	if s.GetBool(consts.ConfigBlockUnverifiedUsers) {
-		if user.Email != "" && !user.EmailVerified {
-			return "", newAuthError(AuthErrorForbidden, "请先验证邮箱后再登录")
-		}
-	}
-
-	cfg := config.Get()
-	token, err := utils.GenerateLoginToken(user.ID, user.Username, user.Admin, time.Hour*time.Duration(cfg.JWT.ExpirationHours))
-	if err != nil {
-		return "", newAuthError(AuthErrorInternal, "登录失败，请稍后重试")
-	}
-
-	return token, nil
+	return s.issueLoginToken(user)
 }
 
 // RegisterUser 执行用户注册并异步发送邮箱验证邮件。
@@ -274,4 +255,27 @@ func (s *AppService) ResetPassword(token, newPassword string) error {
 	}
 
 	return nil
+}
+
+func (s *AppService) issueLoginToken(user *model.User) (string, error) {
+	if user.Status == 2 {
+		return "", newAuthError(AuthErrorForbidden, "该账号已被封禁")
+	}
+	if user.Status == 3 {
+		return "", newAuthError(AuthErrorForbidden, "该账号已停用")
+	}
+
+	if s.GetBool(consts.ConfigBlockUnverifiedUsers) {
+		if user.Email != "" && !user.EmailVerified {
+			return "", newAuthError(AuthErrorForbidden, "请先验证邮箱后再登录")
+		}
+	}
+
+	cfg := config.Get()
+	token, err := utils.GenerateLoginToken(user.ID, user.Username, user.Admin, time.Hour*time.Duration(cfg.JWT.ExpirationHours))
+	if err != nil {
+		return "", newAuthError(AuthErrorInternal, "登录失败，请稍后重试")
+	}
+
+	return token, nil
 }

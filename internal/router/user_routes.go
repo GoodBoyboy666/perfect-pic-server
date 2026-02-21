@@ -23,6 +23,11 @@ func registerUserRoutes(api *gin.RouterGroup, h *handler.Handler, appService *se
 	uploadBodyLimit := middleware.UploadBodyLimitMiddleware(appService)
 
 	userGroup.GET("/profile", h.GetSelfInfo)
+	userGroup.GET("/passkeys", h.ListSelfPasskeys)
+	userGroup.DELETE("/passkeys/:id", h.DeleteSelfPasskey)
+	userGroup.PATCH("/passkeys/:id/name", h.UpdateSelfPasskeyName)
+	userGroup.POST("/passkeys/register/start", h.BeginPasskeyRegistration)
+	userGroup.POST("/passkeys/register/finish", h.FinishPasskeyRegistration)
 	userGroup.PATCH("/username", usernameLimiter, h.UpdateSelfUsername)
 	userGroup.PATCH("/password", h.UpdateSelfPassword)
 	userGroup.POST("/email", emailLimiter, h.RequestUpdateEmail)

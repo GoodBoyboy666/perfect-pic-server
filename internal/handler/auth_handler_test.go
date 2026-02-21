@@ -273,3 +273,41 @@ func TestGetRegisterStateHandler(t *testing.T) {
 		t.Fatalf("期望 200，实际为 %d body=%s", w.Code, w.Body.String())
 	}
 }
+
+// 测试内容：验证 Passkey 登录开始接口返回会话与挑战。
+func TestBeginPasskeyLoginHandler_OK(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupTestDB(t)
+
+	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
+	testService.ClearCache()
+
+	r := gin.New()
+	r.POST("/auth/passkey/login/start", testHandler.BeginPasskeyLogin)
+
+	body, _ := json.Marshal(gin.H{})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/auth/passkey/login/start", bytes.NewReader(body)))
+	if w.Code != http.StatusOK {
+		t.Fatalf("期望 200，实际为 %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+// 测试内容：验证 Passkey 登录完成接口在无效会话时返回 400。
+func TestFinishPasskeyLoginHandler_InvalidSession(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupTestDB(t)
+
+	r := gin.New()
+	r.POST("/auth/passkey/login/finish", testHandler.FinishPasskeyLogin)
+
+	body, _ := json.Marshal(gin.H{
+		"session_id": "bad-session",
+		"credential": gin.H{},
+	})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/auth/passkey/login/finish", bytes.NewReader(body)))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("期望 400，实际为 %d body=%s", w.Code, w.Body.String())
+	}
+}

@@ -447,7 +447,7 @@ func TestDeleteUserForAdmin_SoftDelete(t *testing.T) {
 	}
 }
 
-// 测试内容：验证管理员硬删除会移除用户记录并清理头像与图片文件。
+// 测试内容：验证管理员硬删除会移除用户记录，并显式清理头像、图片与 Passkey 凭据记录。
 func TestDeleteUserForAdmin_HardDeleteAlsoDeletesFiles(t *testing.T) {
 	setupTestDB(t)
 
@@ -482,6 +482,13 @@ func TestDeleteUserForAdmin_HardDeleteAlsoDeletesFiles(t *testing.T) {
 		UserID:     u.ID,
 	}).Error
 
+	// 创建一条 Passkey 凭据，验证硬删除时会被显式清理。
+	_ = db.DB.Create(&model.PasskeyCredential{
+		UserID:       u.ID,
+		CredentialID: "cred_hard_delete",
+		Credential:   `{"id":"cred_hard_delete"}`,
+	}).Error
+
 	if err := testService.AdminDeleteUser(u.ID, true); err != nil {
 		t.Fatalf("hard delete: %v", err)
 	}
@@ -495,6 +502,13 @@ func TestDeleteUserForAdmin_HardDeleteAlsoDeletesFiles(t *testing.T) {
 	}
 	if imgCount != 0 {
 		t.Fatalf("期望 images to be cascade-deleted，实际剩余 %d 条", imgCount)
+	}
+	var passkeyCount int64
+	if err := db.DB.Unscoped().Model(&model.PasskeyCredential{}).Where("user_id = ?", u.ID).Count(&passkeyCount).Error; err != nil {
+		t.Fatalf("count passkeys: %v", err)
+	}
+	if passkeyCount != 0 {
+		t.Fatalf("期望 passkeys to be deleted，实际剩余 %d 条", passkeyCount)
 	}
 	if _, err := os.Stat(realAvatarDir); !os.IsNotExist(err) {
 		t.Fatalf("期望 avatar dir deleted, err=%v", err)
@@ -681,4 +695,3 @@ func TestRequestEmailChange(t *testing.T) {
 		t.Fatalf("期望 success，实际为 err=%v", err)
 	}
 }
-

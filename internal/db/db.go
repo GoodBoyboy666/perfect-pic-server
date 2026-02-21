@@ -99,6 +99,7 @@ func InitDB() {
 		&model.User{},
 		&model.Setting{},
 		&model.Image{},
+		&model.PasskeyCredential{},
 	)
 
 	if err != nil {

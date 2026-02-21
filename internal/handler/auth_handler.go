@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"perfect-pic-server/internal/consts"
 
@@ -156,5 +157,57 @@ func (h *Handler) GetRegisterState(c *gin.Context) {
 	allowRegister := initialized && h.service.GetBool(consts.ConfigAllowRegister)
 	c.JSON(http.StatusOK, gin.H{
 		"allow_register": allowRegister,
+	})
+}
+
+// BeginPasskeyLogin 创建 Passkey 登录挑战并返回会话 ID。
+func (h *Handler) BeginPasskeyLogin(c *gin.Context) {
+	var req struct {
+		CaptchaID     string `json:"captcha_id"`
+		CaptchaAnswer string `json:"captcha_answer"`
+		CaptchaToken  string `json:"captcha_token"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	if verified, msg := h.service.VerifyCaptchaChallenge(req.CaptchaID, req.CaptchaAnswer, req.CaptchaToken, c.ClientIP()); !verified {
+		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
+		return
+	}
+
+	sessionID, assertion, err := h.service.BeginPasskeyLogin()
+	if err != nil {
+		WriteServiceError(c, err, "创建 Passkey 登录挑战失败")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"session_id":        sessionID,
+		"assertion_options": assertion,
+	})
+}
+
+// FinishPasskeyLogin 完成 Passkey 登录校验并返回 JWT。
+func (h *Handler) FinishPasskeyLogin(c *gin.Context) {
+	var req struct {
+		SessionID  string          `json:"session_id" binding:"required"`
+		Credential json.RawMessage `json:"credential" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	token, err := h.service.FinishPasskeyLogin(req.SessionID, req.Credential)
+	if err != nil {
+		WriteServiceError(c, err, "Passkey 登录失败")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"token":   token,
+		"message": "登录成功",
 	})
 }
