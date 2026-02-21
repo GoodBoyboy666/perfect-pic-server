@@ -39,7 +39,7 @@ func TestMain(m *testing.M) {
 		testutils.SetEnv("PERFECT_PIC_UPLOAD_AVATAR_URL_PREFIX", "/avatars/"),
 		testutils.SetEnv("PERFECT_PIC_REDIS_ENABLED", "false"),
 	}
-	config.InitConfigWithoutWatch(tmpDir)
+	config.InitConfig(tmpDir)
 
 	code := m.Run()
 
