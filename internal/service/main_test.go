@@ -21,7 +21,7 @@ func TestMain(m *testing.M) {
 		testutils.SetEnv("PERFECT_PIC_JWT_SECRET", "test_secret"),
 		testutils.SetEnv("PERFECT_PIC_REDIS_ENABLED", "false"),
 	}
-	config.InitConfigWithoutWatch(tmpDir)
+	config.InitConfig(tmpDir)
 
 	code := m.Run()
 

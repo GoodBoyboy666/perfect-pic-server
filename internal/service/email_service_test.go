@@ -121,7 +121,7 @@ func TestEmailSendFunctions_AttemptSendAndFailFast(t *testing.T) {
 	t.Setenv("PERFECT_PIC_SMTP_HOST", "127.0.0.1")
 	t.Setenv("PERFECT_PIC_SMTP_PORT", "1")
 	t.Setenv("PERFECT_PIC_SMTP_FROM", "Perfect Pic <from@example.com>")
-	config.InitConfigWithoutWatch(cfgDir)
+	config.InitConfig(cfgDir)
 
 	if err := testService.SendVerificationEmail("to@example.com", "alice", "http://example/verify"); err == nil {
 		t.Fatalf("期望发送失败")

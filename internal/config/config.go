@@ -7,11 +7,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
 )
 
-// 用于管理应用配置，支持热重载
+// 用于管理应用配置
 
 var (
 	// 使用 atomic.Value 存储 *Config，实现无锁读取
@@ -92,21 +91,6 @@ func GetConfigDir() string {
 }
 
 func InitConfig(customConfigDir string) {
-	v := initViper(customConfigDir)
-	loadAndStore(v)
-	enforceJWTSecretSafety()
-
-	v.WatchConfig()
-	v.OnConfigChange(func(e fsnotify.Event) {
-		log.Println("🔄 检测到配置文件变化:", e.Name)
-		loadAndStore(v)
-	})
-
-	log.Println("✅ 配置加载成功")
-}
-
-// InitConfigWithoutWatch 初始化配置但不启用热重载监听（用于测试场景）。
-func InitConfigWithoutWatch(customConfigDir string) {
 	v := initViper(customConfigDir)
 	loadAndStore(v)
 	enforceJWTSecretSafety()
