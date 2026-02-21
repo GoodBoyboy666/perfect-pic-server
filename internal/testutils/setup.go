@@ -45,7 +45,7 @@ func SetupDB(t *testing.T) *gorm.DB {
 		_ = sqlDB.Close()
 	})
 
-	if err := gdb.AutoMigrate(&model.User{}, &model.Setting{}, &model.Image{}); err != nil {
+	if err := gdb.AutoMigrate(&model.User{}, &model.Setting{}, &model.Image{}, &model.PasskeyCredential{}); err != nil {
 		t.Fatalf("automigrate: %v", err)
 	}
 

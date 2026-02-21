@@ -52,3 +52,10 @@ func resetEmailChangeStore() {
 		return true
 	})
 }
+
+func resetPasskeySessionStore() {
+	passkeySessionStore.Range(func(key, value any) bool {
+		passkeySessionStore.Delete(key)
+		return true
+	})
+}

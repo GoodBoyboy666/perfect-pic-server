@@ -12,6 +12,8 @@ import (
 func registerAuthRoutes(api *gin.RouterGroup, authLimiter gin.HandlerFunc, h *handler.Handler, appService *service.AppService) {
 	api.POST("/login", authLimiter, h.Login)
 	api.POST("/register", authLimiter, h.Register)
+	api.POST("/auth/passkey/login/start", authLimiter, h.BeginPasskeyLogin)
+	api.POST("/auth/passkey/login/finish", authLimiter, h.FinishPasskeyLogin)
 
 	api.POST("/auth/email-verify", h.EmailVerify)
 	api.POST("/auth/email-change-verify", h.EmailChangeVerify)

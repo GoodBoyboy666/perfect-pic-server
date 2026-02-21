@@ -143,6 +143,10 @@ func (s *AppService) AdminDeleteUser(userID uint, hardDelete bool) error {
 		if err := s.DeleteUserFiles(userID); err != nil {
 			return NewInternalError("删除用户失败")
 		}
+		// 显式删除该用户所有 Passkey 凭据，避免旧 SQLite 表外键缺失导致级联删除失效。
+		if err := s.repos.User.DeletePasskeyCredentialsByUserID(userID); err != nil {
+			return NewInternalError("删除用户失败")
+		}
 		if err := s.repos.User.HardDeleteUserWithImages(userID); err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return NewNotFoundError("用户不存在")

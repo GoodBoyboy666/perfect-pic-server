@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -197,4 +199,113 @@ func (h *Handler) GetSelfImagesCount(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"image_count": count,
 	})
+}
+
+// BeginPasskeyRegistration 为当前登录用户发起 Passkey 绑定挑战。
+func (h *Handler) BeginPasskeyRegistration(c *gin.Context) {
+	userID, exists := c.Get("id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
+		return
+	}
+
+	uid, ok := userID.(uint)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
+		return
+	}
+
+	sessionID, creation, err := h.service.BeginPasskeyRegistration(uid)
+	if err != nil {
+		WriteServiceError(c, err, "创建 Passkey 注册挑战失败")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"session_id":       sessionID,
+		"creation_options": creation,
+	})
+}
+
+// FinishPasskeyRegistration 完成当前用户的 Passkey 绑定流程。
+func (h *Handler) FinishPasskeyRegistration(c *gin.Context) {
+	userID, exists := c.Get("id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
+		return
+	}
+
+	uid, ok := userID.(uint)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
+		return
+	}
+
+	var req struct {
+		SessionID  string          `json:"session_id" binding:"required"`
+		Credential json.RawMessage `json:"credential" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	if err := h.service.FinishPasskeyRegistration(uid, req.SessionID, req.Credential); err != nil {
+		WriteServiceError(c, err, "Passkey 绑定失败")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Passkey 绑定成功"})
+}
+
+// ListSelfPasskeys 获取当前用户已绑定的 Passkey 列表。
+func (h *Handler) ListSelfPasskeys(c *gin.Context) {
+	userID, exists := c.Get("id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
+		return
+	}
+
+	uid, ok := userID.(uint)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
+		return
+	}
+
+	passkeys, err := h.service.ListUserPasskeys(uid)
+	if err != nil {
+		WriteServiceError(c, err, "获取 Passkey 列表失败")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"list": passkeys})
+}
+
+// DeleteSelfPasskey 删除当前用户指定 ID 的 Passkey。
+func (h *Handler) DeleteSelfPasskey(c *gin.Context) {
+	userID, exists := c.Get("id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
+		return
+	}
+
+	uid, ok := userID.(uint)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
+		return
+	}
+
+	idParam := c.Param("id")
+	passkeyID, err := strconv.ParseUint(idParam, 10, 64)
+	if err != nil || passkeyID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id 参数错误"})
+		return
+	}
+
+	if err := h.service.DeleteUserPasskey(uid, uint(passkeyID)); err != nil {
+		WriteServiceError(c, err, "删除 Passkey 失败")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Passkey 删除成功"})
 }
