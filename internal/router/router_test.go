@@ -39,9 +39,12 @@ func TestInitRouter_RegistersCoreRoutes(t *testing.T) {
 		{method: "POST", path: "/api/login"},
 		{method: "POST", path: "/api/register"},
 		{method: "POST", path: "/api/auth/passkey/login/start"},
+		{method: "POST", path: "/api/auth/passkey/login/finish"},
 		{method: "GET", path: "/api/user/passkeys"},
 		{method: "PATCH", path: "/api/user/passkeys/:id/name"},
+		{method: "DELETE", path: "/api/user/passkeys/:id"},
 		{method: "POST", path: "/api/user/passkeys/register/start"},
+		{method: "POST", path: "/api/user/passkeys/register/finish"},
 		{method: "GET", path: "/api/user/ping"},
 		{method: "GET", path: "/api/admin/stats"},
 	}
