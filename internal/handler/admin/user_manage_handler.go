@@ -11,7 +11,7 @@ import (
 )
 
 // GetUserList 获取用户列表
-func GetUserList(c *gin.Context) {
+func (h *Handler) GetUserList(c *gin.Context) {
 	pageStr := c.DefaultQuery("page", "1")
 	pageSizeStr := c.DefaultQuery("page_size", "10")
 	keyword := c.Query("keyword")
@@ -27,7 +27,7 @@ func GetUserList(c *gin.Context) {
 		pageSize = 10
 	}
 
-	users, total, err := service.AdminListUsers(service.AdminUserListParams{
+	users, total, err := h.service.AdminListUsers(service.AdminUserListParams{
 		Page:        page,
 		PageSize:    pageSize,
 		Keyword:     keyword,
@@ -48,7 +48,7 @@ func GetUserList(c *gin.Context) {
 }
 
 // GetUserDetail 获取指定用户信息
-func GetUserDetail(c *gin.Context) {
+func (h *Handler) GetUserDetail(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -56,7 +56,7 @@ func GetUserDetail(c *gin.Context) {
 		return
 	}
 
-	user, err := service.AdminGetUserDetail(uint(id))
+	user, err := h.service.AdminGetUserDetail(uint(id))
 	if err != nil {
 		writeServiceError(c, err, "获取用户失败")
 		return
@@ -76,14 +76,14 @@ type CreateUserRequest struct {
 }
 
 // CreateUser 创建用户
-func CreateUser(c *gin.Context) {
+func (h *Handler) CreateUser(c *gin.Context) {
 	var req CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数格式错误"})
 		return
 	}
 
-	user, err := service.AdminCreateUser(service.AdminCreateUserInput{
+	user, err := h.service.AdminCreateUser(service.AdminCreateUserInput{
 		Username:      req.Username,
 		Password:      req.Password,
 		Email:         req.Email,
@@ -110,7 +110,7 @@ type UpdateUserRequest struct {
 }
 
 // UpdateUser 修改用户信息
-func UpdateUser(c *gin.Context) {
+func (h *Handler) UpdateUser(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -124,7 +124,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	updates, err := service.AdminPrepareUserUpdates(uint(id), service.AdminUserUpdateInput{
+	updates, err := h.service.AdminPrepareUserUpdates(uint(id), service.AdminUserUpdateInput{
 		Username:      req.Username,
 		Password:      req.Password,
 		Email:         req.Email,
@@ -138,7 +138,7 @@ func UpdateUser(c *gin.Context) {
 	}
 
 	if len(updates) > 0 {
-		if err := service.AdminApplyUserUpdates(uint(id), updates); err != nil {
+		if err := h.service.AdminApplyUserUpdates(uint(id), updates); err != nil {
 			writeServiceError(c, err, "更新用户失败")
 			return
 		}
@@ -150,7 +150,7 @@ func UpdateUser(c *gin.Context) {
 }
 
 // UpdateUserAvatar 更新用户头像
-func UpdateUserAvatar(c *gin.Context) {
+func (h *Handler) UpdateUserAvatar(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -164,20 +164,20 @@ func UpdateUserAvatar(c *gin.Context) {
 		return
 	}
 
-	valid, ext, err := service.ValidateImageFile(file)
+	valid, ext, err := h.service.ValidateImageFile(file)
 	if !valid {
 		writeServiceError(c, err, "头像文件校验失败")
 		return
 	}
 	_ = ext
 
-	user, err := service.AdminGetUserDetail(uint(id))
+	user, err := h.service.AdminGetUserDetail(uint(id))
 	if err != nil {
 		writeServiceError(c, err, "获取用户失败")
 		return
 	}
 
-	newFilename, err := service.UpdateUserAvatar(user, file)
+	newFilename, err := h.service.UpdateUserAvatar(user, file)
 	if err != nil {
 		log.Printf("Admin UpdateUserAvatar error: %v", err)
 		writeServiceError(c, err, "头像更新失败")
@@ -188,7 +188,7 @@ func UpdateUserAvatar(c *gin.Context) {
 }
 
 // RemoveUserAvatar 移除用户头像
-func RemoveUserAvatar(c *gin.Context) {
+func (h *Handler) RemoveUserAvatar(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -196,13 +196,13 @@ func RemoveUserAvatar(c *gin.Context) {
 		return
 	}
 
-	user, err := service.AdminGetUserDetail(uint(id))
+	user, err := h.service.AdminGetUserDetail(uint(id))
 	if err != nil {
 		writeServiceError(c, err, "获取用户失败")
 		return
 	}
 
-	if err := service.RemoveUserAvatar(user); err != nil {
+	if err := h.service.RemoveUserAvatar(user); err != nil {
 		log.Printf("Admin RemoveUserAvatar error: %v", err)
 		writeServiceError(c, err, "头像移除失败")
 		return
@@ -212,7 +212,7 @@ func RemoveUserAvatar(c *gin.Context) {
 }
 
 // DeleteUser 删除用户
-func DeleteUser(c *gin.Context) {
+func (h *Handler) DeleteUser(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -222,7 +222,7 @@ func DeleteUser(c *gin.Context) {
 
 	hardDelete := c.DefaultQuery("hard_delete", "false")
 
-	if err := service.AdminDeleteUser(uint(id), hardDelete == "true"); err != nil {
+	if err := h.service.AdminDeleteUser(uint(id), hardDelete == "true"); err != nil {
 		writeServiceError(c, err, "删除用户失败")
 		return
 	}

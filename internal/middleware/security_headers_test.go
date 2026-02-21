@@ -93,11 +93,11 @@ func TestSecurityHeaders_DynamicCSP(t *testing.T) {
 			}
 
 			// 2. 清除 service 层的缓存，强制下一次读取从 DB 获取最新值
-			service.ClearCache()
+			testService.ClearCache()
 
 			// 3. 构建 Gin Engine 并应用中间件
 			r := gin.New()
-			r.Use(SecurityHeaders())
+			r.Use(SecurityHeaders(testService))
 			r.GET("/ping", func(c *gin.Context) {
 				c.Status(http.StatusOK)
 			})

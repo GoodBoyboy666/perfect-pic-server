@@ -43,3 +43,4 @@ func TestCloseRedisClient(t *testing.T) {
 	}
 	redisClient = nil
 }
+

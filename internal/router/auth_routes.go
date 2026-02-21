@@ -4,23 +4,24 @@ import (
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/handler"
 	"perfect-pic-server/internal/middleware"
+	"perfect-pic-server/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
-func registerAuthRoutes(api *gin.RouterGroup, authLimiter gin.HandlerFunc) {
-	api.POST("/login", authLimiter, handler.Login)
-	api.POST("/register", authLimiter, handler.Register)
+func registerAuthRoutes(api *gin.RouterGroup, authLimiter gin.HandlerFunc, h *handler.Handler, appService *service.AppService) {
+	api.POST("/login", authLimiter, h.Login)
+	api.POST("/register", authLimiter, h.Register)
 
-	api.POST("/auth/email-verify", handler.EmailVerify)
-	api.POST("/auth/email-change-verify", handler.EmailChangeVerify)
+	api.POST("/auth/email-verify", h.EmailVerify)
+	api.POST("/auth/email-change-verify", h.EmailChangeVerify)
 
 	// 重置密码请求间隔：读取配置（秒）
-	resetLimiter := middleware.IntervalRateMiddleware(consts.ConfigRateLimitPasswordResetIntervalSeconds)
-	api.POST("/auth/password/reset/request", resetLimiter, handler.RequestPasswordReset)
-	api.POST("/auth/password/reset", handler.ResetPassword)
+	resetLimiter := middleware.IntervalRateMiddleware(appService, consts.ConfigRateLimitPasswordResetIntervalSeconds)
+	api.POST("/auth/password/reset/request", resetLimiter, h.RequestPasswordReset)
+	api.POST("/auth/password/reset", h.ResetPassword)
 
-	api.GET("/register", handler.GetRegisterState)
-	api.GET("/captcha", handler.GetCaptcha)
-	api.GET("/captcha/image", authLimiter, handler.GetCaptchaImage)
+	api.GET("/register", h.GetRegisterState)
+	api.GET("/captcha", h.GetCaptcha)
+	api.GET("/captcha/image", authLimiter, h.GetCaptchaImage)
 }

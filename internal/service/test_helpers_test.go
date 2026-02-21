@@ -3,15 +3,32 @@ package service
 import (
 	"testing"
 
+	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/testutils"
 
 	"gorm.io/gorm"
 )
 
+var testService *AppService
+
 func setupTestDB(t *testing.T) *gorm.DB {
 	gdb := testutils.SetupDB(t)
-	ClearCache()
+	testService = NewAppService(repository.NewRepositories(
+		repository.NewUserRepository(gdb),
+		repository.NewImageRepository(gdb),
+		repository.NewSettingRepository(gdb),
+		repository.NewSystemRepository(gdb),
+	))
+	testService.ClearCache()
 	return gdb
+}
+
+func mustTestService(t *testing.T) *AppService {
+	t.Helper()
+	if testService == nil {
+		setupTestDB(t)
+	}
+	return testService
 }
 
 func resetPasswordResetStore() {

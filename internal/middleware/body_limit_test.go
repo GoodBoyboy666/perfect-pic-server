@@ -10,7 +10,6 @@ import (
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,10 +23,10 @@ func TestUploadBodyLimitMiddleware_RejectsTooLarge(t *testing.T) {
 	if err := db.DB.Save(&model.Setting{Key: consts.ConfigMaxUploadSize, Value: "1"}).Error; err != nil {
 		t.Fatalf("设置配置项失败: %v", err)
 	}
-	service.ClearCache()
+	testService.ClearCache()
 
 	r := gin.New()
-	r.POST("/upload", UploadBodyLimitMiddleware(), func(c *gin.Context) { c.Status(http.StatusOK) })
+	r.POST("/upload", UploadBodyLimitMiddleware(testService), func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	payload := bytes.Repeat([]byte("a"), 2*1024*1024)
 	req := httptest.NewRequest(http.MethodPost, "/upload", bytes.NewReader(payload))
@@ -47,10 +46,10 @@ func TestBodyLimitMiddleware_LimitsNonUploadRoutes(t *testing.T) {
 
 	// 1MB 限制
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigMaxRequestBodySize, Value: "1"}).Error
-	service.ClearCache()
+	testService.ClearCache()
 
 	r := gin.New()
-	r.POST("/x", BodyLimitMiddleware(), func(c *gin.Context) {
+	r.POST("/x", BodyLimitMiddleware(testService), func(c *gin.Context) {
 		_, err := io.ReadAll(c.Request.Body)
 		if err != nil {
 			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"err": err.Error()})

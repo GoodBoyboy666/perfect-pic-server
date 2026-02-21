@@ -10,7 +10,6 @@ import (
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -24,10 +23,10 @@ func TestRateLimitMiddleware_DisabledAllowsRequests(t *testing.T) {
 	if err := db.DB.Save(&model.Setting{Key: consts.ConfigRateLimitEnabled, Value: "false"}).Error; err != nil {
 		t.Fatalf("设置配置项失败: %v", err)
 	}
-	service.ClearCache()
+	testService.ClearCache()
 
 	r := gin.New()
-	r.Use(RateLimitMiddleware(consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst))
+	r.Use(RateLimitMiddleware(testService, consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst))
 	r.GET("/x", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	req1 := httptest.NewRequest(http.MethodGet, "/x", nil)
@@ -56,10 +55,10 @@ func TestRateLimitMiddleware_EnabledBlocksBurst(t *testing.T) {
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigRateLimitEnabled, Value: "true"}).Error
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigRateLimitAuthRPS, Value: "0"}).Error
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigRateLimitAuthBurst, Value: "1"}).Error
-	service.ClearCache()
+	testService.ClearCache()
 
 	r := gin.New()
-	r.Use(RateLimitMiddleware(consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst))
+	r.Use(RateLimitMiddleware(testService, consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst))
 	r.GET("/x", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	req1 := httptest.NewRequest(http.MethodGet, "/x", nil)
@@ -89,10 +88,10 @@ func TestIntervalRateMiddleware_BlocksSecondRequest(t *testing.T) {
 		Key:   consts.ConfigRateLimitPasswordResetIntervalSeconds,
 		Value: "10",
 	}).Error
-	service.ClearCache()
+	testService.ClearCache()
 
 	r := gin.New()
-	r.POST("/x", IntervalRateMiddleware(consts.ConfigRateLimitPasswordResetIntervalSeconds), func(c *gin.Context) {
+	r.POST("/x", IntervalRateMiddleware(testService, consts.ConfigRateLimitPasswordResetIntervalSeconds), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
 
@@ -123,10 +122,10 @@ func TestIntervalRateMiddleware_WithAnotherConfigKey_BlocksSecondRequest(t *test
 		Key:   consts.ConfigRateLimitUsernameUpdateIntervalSeconds,
 		Value: "10",
 	}).Error
-	service.ClearCache()
+	testService.ClearCache()
 
 	r := gin.New()
-	r.POST("/x", IntervalRateMiddleware(consts.ConfigRateLimitUsernameUpdateIntervalSeconds), func(c *gin.Context) {
+	r.POST("/x", IntervalRateMiddleware(testService, consts.ConfigRateLimitUsernameUpdateIntervalSeconds), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
 

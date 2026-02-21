@@ -3,14 +3,7 @@ package service
 import (
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/repository"
 	"strconv"
-	"sync"
-)
-
-var (
-	// 内存缓存
-	settingsCache sync.Map
 )
 
 const DefaultValueNotFound = "||__NOT_FOUND__||"
@@ -60,24 +53,24 @@ var DefaultSettings = []model.Setting{
 }
 
 // ClearCache 清空设置缓存。
-func ClearCache() {
-	settingsCache.Range(func(key, value interface{}) bool {
-		settingsCache.Delete(key)
+func (s *AppService) ClearCache() {
+	s.settingsCache.Range(func(key, value interface{}) bool {
+		s.settingsCache.Delete(key)
 		return true
 	})
 }
 
 // InitializeSettings 将默认设置写入数据库，并同步描述与分类信息。
-func InitializeSettings() error {
-	return repository.Setting.InitializeDefaults(DefaultSettings)
+func (s *AppService) InitializeSettings() error {
+	return s.repos.Setting.InitializeDefaults(DefaultSettings)
 }
 
 // GetString 读取字符串配置值（优先缓存，其次数据库，最后默认值）。
-func GetString(key string) string {
-	if val, ok := settingsCache.Load(key); ok {
+func (s *AppService) GetString(key string) string {
+	if val, ok := s.settingsCache.Load(key); ok {
 		strVal, ok := val.(string)
 		if !ok {
-			settingsCache.Delete(key)
+			s.settingsCache.Delete(key)
 		} else {
 			if strVal == DefaultValueNotFound {
 				return ""
@@ -86,7 +79,7 @@ func GetString(key string) string {
 		}
 	}
 
-	setting, err := repository.Setting.FindByKey(key)
+	setting, err := s.repos.Setting.FindByKey(key)
 	if err != nil {
 		// 数据库没查到，尝试查找默认配置
 		for _, def := range DefaultSettings {
@@ -94,26 +87,26 @@ func GetString(key string) string {
 				// 查到了默认值，写入数据库并写入缓存
 				newSetting := def
 				// 尝试写入数据库 (忽略错误，防止并发写入导致的主键冲突)
-				_ = repository.Setting.Create(&newSetting)
+				_ = s.repos.Setting.Create(&newSetting)
 
-				settingsCache.Store(key, newSetting.Value)
+				s.settingsCache.Store(key, newSetting.Value)
 				return newSetting.Value
 			}
 		}
 
 		// 没查到，往缓存里存 DefaultValueNotFound 标记
-		settingsCache.Store(key, DefaultValueNotFound)
+		s.settingsCache.Store(key, DefaultValueNotFound)
 		return ""
 	}
 	// 数据库查到，写入缓存
-	settingsCache.Store(key, setting.Value)
+	s.settingsCache.Store(key, setting.Value)
 
 	return setting.Value
 }
 
 // GetInt 读取整型配置值。
-func GetInt(key string) int {
-	valStr := GetString(key)
+func (s *AppService) GetInt(key string) int {
+	valStr := s.GetString(key)
 	if valStr == "" {
 		return 0
 	}
@@ -127,8 +120,8 @@ func GetInt(key string) int {
 }
 
 // GetInt64 读取 int64 配置值。
-func GetInt64(key string) int64 {
-	valStr := GetString(key)
+func (s *AppService) GetInt64(key string) int64 {
+	valStr := s.GetString(key)
 	if valStr == "" {
 		return 0
 	}
@@ -142,8 +135,8 @@ func GetInt64(key string) int64 {
 }
 
 // GetFloat64 读取浮点型配置值。
-func GetFloat64(key string) float64 {
-	valStr := GetString(key)
+func (s *AppService) GetFloat64(key string) float64 {
+	valStr := s.GetString(key)
 	if valStr == "" {
 		return 0
 	}
@@ -156,8 +149,8 @@ func GetFloat64(key string) float64 {
 }
 
 // GetBool 读取布尔配置值。
-func GetBool(key string) bool {
-	valStr := GetString(key)
+func (s *AppService) GetBool(key string) bool {
+	valStr := s.GetString(key)
 	if valStr == "" {
 		return false
 	}

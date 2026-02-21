@@ -29,7 +29,7 @@ func TestLoginUser_Success(t *testing.T) {
 		t.Fatalf("创建用户失败: %v", err)
 	}
 
-	token, err := LoginUser("alice", "abc12345")
+	token, err := testService.LoginUser("alice", "abc12345")
 	if err != nil {
 		t.Fatalf("LoginUser 错误: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestLoginUser_WrongPasswordUnauthorized(t *testing.T) {
 	}
 	_ = db.DB.Create(&u).Error
 
-	_, err := LoginUser("alice", "wrongpass1")
+	_, err := testService.LoginUser("alice", "wrongpass1")
 	if err == nil {
 		t.Fatalf("期望返回错误")
 	}
@@ -72,7 +72,7 @@ func TestLoginUser_BlockedUnverifiedForbidden(t *testing.T) {
 	if err := db.DB.Save(&model.Setting{Key: consts.ConfigBlockUnverifiedUsers, Value: "true"}).Error; err != nil {
 		t.Fatalf("设置配置项失败: %v", err)
 	}
-	ClearCache()
+	testService.ClearCache()
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{
@@ -86,7 +86,7 @@ func TestLoginUser_BlockedUnverifiedForbidden(t *testing.T) {
 		t.Fatalf("创建用户失败: %v", err)
 	}
 
-	_, err := LoginUser("alice", "abc12345")
+	_, err := testService.LoginUser("alice", "abc12345")
 	if err == nil {
 		t.Fatalf("期望返回错误")
 	}
@@ -100,9 +100,9 @@ func TestLoginUser_BlockedUnverifiedForbidden(t *testing.T) {
 func TestRegisterUser_ValidationError(t *testing.T) {
 	setupTestDB(t)
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigAllowInit, Value: "false"}).Error
-	ClearCache()
+	testService.ClearCache()
 
-	err := RegisterUser("ab", "short", "bad-email")
+	err := testService.RegisterUser("ab", "short", "bad-email")
 	if err == nil {
 		t.Fatalf("期望返回错误")
 	}
@@ -116,7 +116,7 @@ func TestRegisterUser_ValidationError(t *testing.T) {
 func TestRegisterUser_DuplicateUsernameConflict(t *testing.T) {
 	setupTestDB(t)
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigAllowInit, Value: "false"}).Error
-	ClearCache()
+	testService.ClearCache()
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a1@example.com"}
@@ -124,7 +124,7 @@ func TestRegisterUser_DuplicateUsernameConflict(t *testing.T) {
 		t.Fatalf("创建用户失败: %v", err)
 	}
 
-	err := RegisterUser("alice", "abc12345", "alice2@example.com")
+	err := testService.RegisterUser("alice", "abc12345", "alice2@example.com")
 	if err == nil {
 		t.Fatalf("期望返回错误")
 	}
@@ -149,7 +149,7 @@ func TestVerifyEmail_SetsVerified(t *testing.T) {
 		t.Fatalf("GenerateEmailToken: %v", err)
 	}
 
-	already, err := VerifyEmail(token)
+	already, err := testService.VerifyEmail(token)
 	if err != nil {
 		t.Fatalf("VerifyEmail 错误: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestVerifyEmail_SetsVerified(t *testing.T) {
 		t.Fatalf("期望 user to be verified")
 	}
 
-	already2, err := VerifyEmail(token)
+	already2, err := testService.VerifyEmail(token)
 	if err != nil {
 		t.Fatalf("VerifyEmail second call 错误: %v", err)
 	}
@@ -179,9 +179,9 @@ func TestRegisterUser_SuccessCreatesUser(t *testing.T) {
 	setupTestDB(t)
 
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigAllowInit, Value: "false"}).Error
-	ClearCache()
+	testService.ClearCache()
 
-	if err := RegisterUser("alice_1", "abc12345", "a1@example.com"); err != nil {
+	if err := testService.RegisterUser("alice_1", "abc12345", "a1@example.com"); err != nil {
 		t.Fatalf("RegisterUser: %v", err)
 	}
 
@@ -202,7 +202,7 @@ func TestRegisterUser_ForbiddenWhenSystemNotInitialized(t *testing.T) {
 	setupTestDB(t)
 
 	// 默认 allow_init=true；这里不写配置，确保走“未初始化”分支。
-	err := RegisterUser("alice_1", "abc12345", "a1@example.com")
+	err := testService.RegisterUser("alice_1", "abc12345", "a1@example.com")
 	if err == nil {
 		t.Fatalf("期望返回错误")
 	}
@@ -228,12 +228,12 @@ func TestVerifyEmailChange_UpdatesEmail(t *testing.T) {
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com", EmailVerified: true}
 	_ = db.DB.Create(&u).Error
 
-	token, err := GenerateEmailChangeToken(u.ID, "a@example.com", "new@example.com")
+	token, err := testService.GenerateEmailChangeToken(u.ID, "a@example.com", "new@example.com")
 	if err != nil {
 		t.Fatalf("GenerateEmailChangeToken: %v", err)
 	}
 
-	if err := VerifyEmailChange(token); err != nil {
+	if err := testService.VerifyEmailChange(token); err != nil {
 		t.Fatalf("VerifyEmailChange: %v", err)
 	}
 
@@ -253,20 +253,20 @@ func TestResetPassword_Flow(t *testing.T) {
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com", EmailVerified: false}
 	_ = db.DB.Create(&u).Error
 
-	token, err := GenerateForgetPasswordToken(u.ID)
+	token, err := testService.GenerateForgetPasswordToken(u.ID)
 	if err != nil {
 		t.Fatalf("GenerateForgetPasswordToken: %v", err)
 	}
 
 	// 无效的新密码
-	err = ResetPassword(token, "short")
+	err = testService.ResetPassword(token, "short")
 	if err == nil {
 		t.Fatalf("期望返回错误 for 无效 new password")
 	}
 
 	// 由于一次性令牌会被删除，需要重新生成
-	token, _ = GenerateForgetPasswordToken(u.ID)
-	if err := ResetPassword(token, "abc123456"); err != nil {
+	token, _ = testService.GenerateForgetPasswordToken(u.ID)
+	if err := testService.ResetPassword(token, "abc123456"); err != nil {
 		t.Fatalf("ResetPassword: %v", err)
 	}
 
@@ -286,7 +286,7 @@ func TestRequestPasswordReset_Behavior(t *testing.T) {
 	resetPasswordResetStore()
 
 	// 未知邮箱应返回 nil（避免用户枚举）。
-	if err := RequestPasswordReset("unknown@example.com"); err != nil {
+	if err := testService.RequestPasswordReset("unknown@example.com"); err != nil {
 		t.Fatalf("期望为 nil for unknown email，实际为 %v", err)
 	}
 
@@ -294,13 +294,13 @@ func TestRequestPasswordReset_Behavior(t *testing.T) {
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com", EmailVerified: true}
 	_ = db.DB.Create(&u).Error
 
-	if err := RequestPasswordReset("a@example.com"); err != nil {
+	if err := testService.RequestPasswordReset("a@example.com"); err != nil {
 		t.Fatalf("RequestPasswordReset: %v", err)
 	}
 
 	b := model.User{Username: "banned", Password: string(hashed), Status: 2, Email: "b@example.com"}
 	_ = db.DB.Create(&b).Error
-	err := RequestPasswordReset("b@example.com")
+	err := testService.RequestPasswordReset("b@example.com")
 	if err == nil {
 		t.Fatalf("期望 forbidden 错误")
 	}
@@ -308,3 +308,4 @@ func TestRequestPasswordReset_Behavior(t *testing.T) {
 		t.Fatalf("期望 forbidden AuthError，实际为 %v", err)
 	}
 }
+

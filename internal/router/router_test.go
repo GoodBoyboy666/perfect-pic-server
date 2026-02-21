@@ -3,15 +3,32 @@ package router
 import (
 	"testing"
 
+	"perfect-pic-server/internal/handler"
+	adminhandler "perfect-pic-server/internal/handler/admin"
+	"perfect-pic-server/internal/repository"
+	"perfect-pic-server/internal/service"
+	"perfect-pic-server/internal/testutils"
+
 	"github.com/gin-gonic/gin"
 )
 
 // 测试内容：验证核心 API 路由被正确注册。
 func TestInitRouter_RegistersCoreRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	gdb := testutils.SetupDB(t)
+	appService := service.NewAppService(repository.NewRepositories(
+		repository.NewUserRepository(gdb),
+		repository.NewImageRepository(gdb),
+		repository.NewSettingRepository(gdb),
+		repository.NewSystemRepository(gdb),
+	))
+	appService.ClearCache()
+	h := handler.NewHandler(appService)
+	ah := adminhandler.NewHandler(appService)
+	rt := NewRouter(h, ah, appService)
 
 	r := gin.New()
-	InitRouter(r)
+	rt.Init(r)
 
 	type wantRoute struct {
 		method string

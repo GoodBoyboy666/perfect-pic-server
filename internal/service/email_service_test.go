@@ -69,7 +69,7 @@ func TestBuildEmailMessage(t *testing.T) {
 // 测试内容：验证 SMTP 主机缺失时发送测试邮件返回错误。
 func TestSendTestEmail_MissingHost(t *testing.T) {
 	// TestMain 中的 config.InitConfig 设置了默认值；SMTP host 默认为空。
-	err := SendTestEmail("a@example.com")
+	err := testService.SendTestEmail("a@example.com")
 	if err == nil {
 		t.Fatalf("期望返回错误 when SMTP host is 缺少")
 	}
@@ -78,21 +78,21 @@ func TestSendTestEmail_MissingHost(t *testing.T) {
 // 测试内容：验证 SMTP 禁用时发送验证邮件为 no-op。
 func TestSendVerificationEmail_SMTPDisabledNoop(t *testing.T) {
 	// 默认设置 enable_smtp=false，因此这里应为 no-op。
-	if err := SendVerificationEmail("a@example.com", "alice", "http://example/verify"); err != nil {
+	if err := testService.SendVerificationEmail("a@example.com", "alice", "http://example/verify"); err != nil {
 		t.Fatalf("期望为 nil，实际为 %v", err)
 	}
 }
 
 // 测试内容：验证 SMTP 禁用时发送邮箱变更验证为 no-op。
 func TestSendEmailChangeVerification_SMTPDisabledNoop(t *testing.T) {
-	if err := SendEmailChangeVerification("a@example.com", "alice", "old@example.com", "new@example.com", "http://example/verify"); err != nil {
+	if err := testService.SendEmailChangeVerification("a@example.com", "alice", "old@example.com", "new@example.com", "http://example/verify"); err != nil {
 		t.Fatalf("期望为 nil，实际为 %v", err)
 	}
 }
 
 // 测试内容：验证 SMTP 禁用时发送密码重置邮件为 no-op。
 func TestSendPasswordResetEmail_SMTPDisabledNoop(t *testing.T) {
-	if err := SendPasswordResetEmail("a@example.com", "alice", "http://example/reset"); err != nil {
+	if err := testService.SendPasswordResetEmail("a@example.com", "alice", "http://example/reset"); err != nil {
 		t.Fatalf("期望为 nil，实际为 %v", err)
 	}
 }
@@ -112,7 +112,7 @@ func TestEmailSendFunctions_AttemptSendAndFailFast(t *testing.T) {
 
 	// 在设置中启用 SMTP。
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigEnableSMTP, Value: "true"}).Error
-	ClearCache()
+	testService.ClearCache()
 
 	// 重新初始化配置，使用不可达的 SMTP host/port 以便 SendMail 快速失败。
 	cfgDir := t.TempDir()
@@ -123,16 +123,17 @@ func TestEmailSendFunctions_AttemptSendAndFailFast(t *testing.T) {
 	t.Setenv("PERFECT_PIC_SMTP_FROM", "Perfect Pic <from@example.com>")
 	config.InitConfigWithoutWatch(cfgDir)
 
-	if err := SendVerificationEmail("to@example.com", "alice", "http://example/verify"); err == nil {
+	if err := testService.SendVerificationEmail("to@example.com", "alice", "http://example/verify"); err == nil {
 		t.Fatalf("期望发送失败")
 	}
-	if err := SendEmailChangeVerification("to@example.com", "alice", "old@example.com", "new@example.com", "http://example/verify"); err == nil {
+	if err := testService.SendEmailChangeVerification("to@example.com", "alice", "old@example.com", "new@example.com", "http://example/verify"); err == nil {
 		t.Fatalf("期望发送失败")
 	}
-	if err := SendPasswordResetEmail("to@example.com", "alice", "http://example/reset"); err == nil {
+	if err := testService.SendPasswordResetEmail("to@example.com", "alice", "http://example/reset"); err == nil {
 		t.Fatalf("期望发送失败")
 	}
-	if err := SendTestEmail("to@example.com"); err == nil {
+	if err := testService.SendTestEmail("to@example.com"); err == nil {
 		t.Fatalf("期望发送失败")
 	}
 }
+

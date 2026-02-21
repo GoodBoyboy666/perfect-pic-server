@@ -9,7 +9,7 @@ import (
 )
 
 // SecurityHeaders 添加安全相关的 HTTP 响应头
-func SecurityHeaders() gin.HandlerFunc {
+func SecurityHeaders(appService *service.AppService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 防止浏览器猜测内容类型
 		c.Header("X-Content-Type-Options", "nosniff")
@@ -27,7 +27,7 @@ func SecurityHeaders() gin.HandlerFunc {
 			frameSrc   = []string{"'self'"}
 		)
 
-		provider := strings.ToLower(service.GetString(consts.ConfigCaptchaProvider))
+		provider := strings.ToLower(appService.GetString(consts.ConfigCaptchaProvider))
 
 		switch provider {
 		case service.CaptchaProviderGeetest:

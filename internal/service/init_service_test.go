@@ -15,12 +15,12 @@ func TestInitializeSystemAndIsSystemInitialized(t *testing.T) {
 	setupTestDB(t)
 
 	// 创建默认设置行，使 InitializeSystem 的 Update() 命中真实行。
-	if err := InitializeSettings(); err != nil {
+	if err := testService.InitializeSettings(); err != nil {
 		t.Fatalf("InitializeSettings: %v", err)
 	}
-	ClearCache()
+	testService.ClearCache()
 
-	if IsSystemInitialized() {
+	if testService.IsSystemInitialized() {
 		t.Fatalf("期望 system to be uninitialized when allow_init is true")
 	}
 
@@ -30,11 +30,11 @@ func TestInitializeSystemAndIsSystemInitialized(t *testing.T) {
 		SiteName:        "MySite",
 		SiteDescription: "Desc",
 	}
-	if err := InitializeSystem(payload); err != nil {
+	if err := testService.InitializeSystem(payload); err != nil {
 		t.Fatalf("InitializeSystem: %v", err)
 	}
 
-	if !IsSystemInitialized() {
+	if !testService.IsSystemInitialized() {
 		t.Fatalf("期望 system to be initialized after InitializeSystem")
 	}
 
@@ -55,3 +55,4 @@ func TestInitializeSystemAndIsSystemInitialized(t *testing.T) {
 		t.Fatalf("期望 password to be hashed and match")
 	}
 }
+

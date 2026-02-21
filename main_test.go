@@ -14,6 +14,7 @@ import (
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
+	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/testutils"
 
@@ -183,9 +184,10 @@ func TestApplyTrustedProxies_UsesSettingValue(t *testing.T) {
 	if err := db.DB.Save(&model.Setting{Key: "trusted_proxies", Value: ""}).Error; err != nil {
 		t.Fatalf("保存 trusted_proxies 失败: %v", err)
 	}
-	service.ClearCache()
+	appService := buildTestAppServiceForMain()
+	appService.ClearCache()
 	r := gin.New()
-	applyTrustedProxies(r)
+	applyTrustedProxies(r, appService)
 	if got := getClientIP(r, remoteAddr, xff); got != "10.0.0.1" {
 		t.Fatalf("禁用可信代理时 ClientIP 应为 RemoteAddr，实际为 %q", got)
 	}
@@ -194,9 +196,10 @@ func TestApplyTrustedProxies_UsesSettingValue(t *testing.T) {
 	if err := db.DB.Save(&model.Setting{Key: "trusted_proxies", Value: "127.0.0.1,10.0.0.0/8"}).Error; err != nil {
 		t.Fatalf("保存 trusted_proxies 失败: %v", err)
 	}
-	service.ClearCache()
+	appService = buildTestAppServiceForMain()
+	appService.ClearCache()
 	r2 := gin.New()
-	applyTrustedProxies(r2)
+	applyTrustedProxies(r2, appService)
 	if got := getClientIP(r2, remoteAddr, xff); got != "203.0.113.10" {
 		t.Fatalf("启用可信代理时 ClientIP 应取 X-Forwarded-For，实际为 %q", got)
 	}
@@ -205,9 +208,10 @@ func TestApplyTrustedProxies_UsesSettingValue(t *testing.T) {
 	if err := db.DB.Save(&model.Setting{Key: "trusted_proxies", Value: "not-a-cidr"}).Error; err != nil {
 		t.Fatalf("保存 trusted_proxies 失败: %v", err)
 	}
-	service.ClearCache()
+	appService = buildTestAppServiceForMain()
+	appService.ClearCache()
 	r3 := gin.New()
-	applyTrustedProxies(r3)
+	applyTrustedProxies(r3, appService)
 	if got := getClientIP(r3, remoteAddr, xff); got != "10.0.0.1" {
 		t.Fatalf("无效可信代理时 ClientIP 应为 RemoteAddr，实际为 %q", got)
 	}
@@ -247,7 +251,7 @@ func TestSetupStaticFiles_ServesUploadsAndAvatars(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(avatarPath, "b.txt"), []byte("a"), 0644)
 
 	r := gin.New()
-	setupStaticFiles(r, uploadPath, avatarPath)
+	setupStaticFiles(r, buildTestAppServiceForMain(), uploadPath, avatarPath)
 
 	w1 := httptest.NewRecorder()
 	r.ServeHTTP(w1, httptest.NewRequest(http.MethodGet, "/imgs/a.txt", nil))
@@ -264,8 +268,17 @@ func TestSetupStaticFiles_ServesUploadsAndAvatars(t *testing.T) {
 
 func setupTestDBForMain(t *testing.T) *gorm.DB {
 	gdb := testutils.SetupDB(t)
-	service.ClearCache()
+	buildTestAppServiceForMain().ClearCache()
 	return gdb
 }
 
 var _ fs.FS = fstest.MapFS{}
+
+func buildTestAppServiceForMain() *service.AppService {
+	return service.NewAppService(repository.NewRepositories(
+		repository.NewUserRepository(db.DB),
+		repository.NewImageRepository(db.DB),
+		repository.NewSettingRepository(db.DB),
+		repository.NewSystemRepository(db.DB),
+	))
+}

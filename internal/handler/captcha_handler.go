@@ -9,8 +9,8 @@ import (
 )
 
 // GetCaptcha 获取验证码
-func GetCaptcha(c *gin.Context) {
-	providerInfo := service.GetCaptchaProviderInfo()
+func (h *Handler) GetCaptcha(c *gin.Context) {
+	providerInfo := h.service.GetCaptchaProviderInfo()
 	if providerInfo.Provider == service.CaptchaProviderDisabled {
 		c.JSON(http.StatusOK, gin.H{
 			"provider": providerInfo.Provider,
@@ -56,8 +56,8 @@ func GetCaptcha(c *gin.Context) {
 }
 
 // GetCaptchaImage 获取图形验证码图片
-func GetCaptchaImage(c *gin.Context) {
-	providerInfo := service.GetCaptchaProviderInfo()
+func (h *Handler) GetCaptchaImage(c *gin.Context) {
+	providerInfo := h.service.GetCaptchaProviderInfo()
 	if providerInfo.Provider != service.CaptchaProviderImage {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "当前验证码模式非图形验证码"})
 		return

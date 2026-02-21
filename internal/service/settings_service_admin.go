@@ -12,8 +12,8 @@ type UpdateSettingPayload struct {
 }
 
 // AdminListSettings 获取全部系统设置。
-func AdminListSettings() ([]model.Setting, error) {
-	settings, err := repository.Setting.FindAll()
+func (s *AppService) AdminListSettings() ([]model.Setting, error) {
+	settings, err := s.repos.Setting.FindAll()
 	if err != nil {
 		return nil, NewInternalError("获取配置失败")
 	}
@@ -23,7 +23,7 @@ func AdminListSettings() ([]model.Setting, error) {
 }
 
 // AdminUpdateSettings 批量更新系统设置，并在成功后清理配置缓存。
-func AdminUpdateSettings(items []UpdateSettingPayload) error {
+func (s *AppService) AdminUpdateSettings(items []UpdateSettingPayload) error {
 	for _, item := range items {
 		if item.Key == "" {
 			return NewValidationError("配置键不能为空")
@@ -38,21 +38,21 @@ func AdminUpdateSettings(items []UpdateSettingPayload) error {
 		})
 	}
 
-	if err := repository.Setting.UpdateSettings(repoItems, maskedSettingValue); err != nil {
+	if err := s.repos.Setting.UpdateSettings(repoItems, maskedSettingValue); err != nil {
 		return NewInternalError("更新失败")
 	}
 
-	ClearCache()
+	s.ClearCache()
 	return nil
 }
 
 // AdminSendTestEmail 发送管理员测试邮件。
-func AdminSendTestEmail(toEmail string) error {
+func (s *AppService) AdminSendTestEmail(toEmail string) error {
 	if ok, msg := utils.ValidateEmail(toEmail); !ok {
 		return NewValidationError(msg)
 	}
 
-	if err := SendTestEmail(toEmail); err != nil {
+	if err := s.SendTestEmail(toEmail); err != nil {
 		return NewInternalError("发送失败")
 	}
 

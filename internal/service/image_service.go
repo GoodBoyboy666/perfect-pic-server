@@ -11,7 +11,6 @@ import (
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/utils"
 	"strings"
 	"time"
@@ -45,15 +44,15 @@ type AdminImageListParams struct {
 //   - bool: 是否合法
 //   - string: 文件扩展名 (小写, 如 .jpg)
 //   - error: 错误信息或原因
-func ValidateImageFile(file *multipart.FileHeader) (bool, string, error) {
+func (s *AppService) ValidateImageFile(file *multipart.FileHeader) (bool, string, error) {
 	// 检查文件大小
-	maxSizeMB := GetInt(consts.ConfigMaxUploadSize) // 默认 10MB
+	maxSizeMB := s.GetInt(consts.ConfigMaxUploadSize) // 默认 10MB
 	if file.Size > int64(maxSizeMB*1024*1024) {
 		return false, "", NewValidationError(fmt.Sprintf("文件大小不能超过 %dMB", maxSizeMB))
 	}
 
 	// 检查文件扩展名
-	allowExtsStr := GetString(consts.ConfigAllowFileExtensions)
+	allowExtsStr := s.GetString(consts.ConfigAllowFileExtensions)
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	if ext == "" {
 		return false, "", NewValidationError("无法识别文件类型")
@@ -88,15 +87,15 @@ func ValidateImageFile(file *multipart.FileHeader) (bool, string, error) {
 // 包括：配额检查、文件保存、数据库记录
 //
 //nolint:gocyclo
-func ProcessImageUpload(file *multipart.FileHeader, uid uint) (*model.Image, string, error) {
+func (s *AppService) ProcessImageUpload(file *multipart.FileHeader, uid uint) (*model.Image, string, error) {
 	// 验证文件
-	valid, ext, err := ValidateImageFile(file)
+	valid, ext, err := s.ValidateImageFile(file)
 	if !valid {
 		return nil, "", err
 	}
 
 	// 检查配额 (使用 StorageUsed 字段)
-	user, err := repository.User.FindByID(uid)
+	user, err := s.repos.User.FindByID(uid)
 	if err != nil {
 		log.Printf("Get user error: %v\n", err)
 		return nil, "", NewInternalError("查询用户信息失败")
@@ -109,7 +108,7 @@ func ProcessImageUpload(file *multipart.FileHeader, uid uint) (*model.Image, str
 	if user.StorageQuota != nil {
 		quota = *user.StorageQuota
 	} else {
-		quota = GetInt64(consts.ConfigDefaultStorageQuota)
+		quota = s.GetInt64(consts.ConfigDefaultStorageQuota)
 		if quota == 0 {
 			quota = 1073741824 // 1GB
 		}
@@ -193,7 +192,7 @@ func ProcessImageUpload(file *multipart.FileHeader, uid uint) (*model.Image, str
 		MimeType:   ext,
 	}
 
-	if err := repository.Image.CreateAndIncreaseUserStorage(&imageRecord, uid, file.Size); err != nil {
+	if err := s.repos.Image.CreateAndIncreaseUserStorage(&imageRecord, uid, file.Size); err != nil {
 		_ = os.Remove(dst) // 回滚文件
 		log.Printf("Process upload DB error: %v\n", err)
 		return nil, "", NewInternalError("系统错误: 数据库记录失败")
@@ -203,7 +202,7 @@ func ProcessImageUpload(file *multipart.FileHeader, uid uint) (*model.Image, str
 }
 
 // DeleteImage 删除图片文件和数据库记录
-func DeleteImage(image *model.Image) error {
+func (s *AppService) DeleteImage(image *model.Image) error {
 	cfg := config.Get()
 	uploadRoot := cfg.Upload.Path
 	if uploadRoot == "" {
@@ -227,7 +226,7 @@ func DeleteImage(image *model.Image) error {
 	}
 
 	// 使用事务确保数据库操作原子性
-	if err := repository.Image.DeleteAndDecreaseUserStorage(image); err != nil {
+	if err := s.repos.Image.DeleteAndDecreaseUserStorage(image); err != nil {
 		return err
 	}
 
@@ -242,7 +241,7 @@ func DeleteImage(image *model.Image) error {
 }
 
 // BatchDeleteImages 批量删除图片
-func BatchDeleteImages(images []model.Image) error {
+func (s *AppService) BatchDeleteImages(images []model.Image) error {
 	if len(images) == 0 {
 		return nil
 	}
@@ -280,7 +279,7 @@ func BatchDeleteImages(images []model.Image) error {
 	}
 
 	// 开启单一事务处理所有数据库变更
-	if err := repository.Image.BatchDeleteAndDecreaseUserStorage(imageIDs, userSizeMap); err != nil {
+	if err := s.repos.Image.BatchDeleteAndDecreaseUserStorage(imageIDs, userSizeMap); err != nil {
 		return err
 	}
 
@@ -297,7 +296,7 @@ func BatchDeleteImages(images []model.Image) error {
 }
 
 // UpdateUserAvatar 更新用户头像
-func UpdateUserAvatar(user *model.User, file *multipart.FileHeader) (string, error) {
+func (s *AppService) UpdateUserAvatar(user *model.User, file *multipart.FileHeader) (string, error) {
 	cfg := config.Get()
 	avatarRoot := cfg.Upload.AvatarPath
 	if avatarRoot == "" {
@@ -367,7 +366,7 @@ func UpdateUserAvatar(user *model.User, file *multipart.FileHeader) (string, err
 	oldAvatar := user.Avatar
 
 	// 更新数据库
-	if err := repository.User.UpdateAvatar(user, newFilename); err != nil {
+	if err := s.repos.User.UpdateAvatar(user, newFilename); err != nil {
 		_ = os.Remove(dstPath) // 回滚文件
 		log.Printf("DB Update avatar error: %v\n", err)
 		return "", NewInternalError("系统错误: 数据库更新失败")
@@ -387,7 +386,7 @@ func UpdateUserAvatar(user *model.User, file *multipart.FileHeader) (string, err
 }
 
 // RemoveUserAvatar 移除用户头像
-func RemoveUserAvatar(user *model.User) error {
+func (s *AppService) RemoveUserAvatar(user *model.User) error {
 	// 如果用户没有头像，直接返回
 	if user.Avatar == "" {
 		return nil
@@ -421,7 +420,7 @@ func RemoveUserAvatar(user *model.User) error {
 	}
 
 	// 更新数据库
-	if err := repository.User.ClearAvatar(user); err != nil {
+	if err := s.repos.User.ClearAvatar(user); err != nil {
 		log.Printf("DB Remove avatar error: %v\n", err)
 		return NewInternalError("系统错误: 移除头像失败")
 	}
@@ -435,10 +434,10 @@ func RemoveUserAvatar(user *model.User) error {
 }
 
 // ListUserImages 分页查询用户自己的图片列表。
-func ListUserImages(params UserImageListParams) ([]model.Image, int64, int, int, error) {
+func (s *AppService) ListUserImages(params UserImageListParams) ([]model.Image, int64, int, int, error) {
 	page, pageSize := normalizePagination(params.Page, params.PageSize)
 
-	images, total, err := repository.Image.ListUserImages(
+	images, total, err := s.repos.Image.ListUserImages(
 		params.UserID,
 		params.Filename,
 		params.ID,
@@ -453,8 +452,8 @@ func ListUserImages(params UserImageListParams) ([]model.Image, int64, int, int,
 }
 
 // GetUserImageCount 获取用户图片总数。
-func GetUserImageCount(userID uint) (int64, error) {
-	count, err := repository.Image.CountByUserID(userID)
+func (s *AppService) GetUserImageCount(userID uint) (int64, error) {
+	count, err := s.repos.Image.CountByUserID(userID)
 	if err != nil {
 		return 0, NewInternalError("获取图片数量失败")
 	}
@@ -462,8 +461,8 @@ func GetUserImageCount(userID uint) (int64, error) {
 }
 
 // GetUserOwnedImage 获取用户名下的指定图片，用于鉴权后的删除/查看。
-func GetUserOwnedImage(imageID uint, userID uint) (*model.Image, error) {
-	image, err := repository.Image.FindByIDAndUserID(imageID, userID)
+func (s *AppService) GetUserOwnedImage(imageID uint, userID uint) (*model.Image, error) {
+	image, err := s.repos.Image.FindByIDAndUserID(imageID, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, NewNotFoundError("图片不存在或无权删除")
@@ -474,8 +473,8 @@ func GetUserOwnedImage(imageID uint, userID uint) (*model.Image, error) {
 }
 
 // GetImagesByIDsForUser 按 ID 列表获取用户名下图片（批量场景）。
-func GetImagesByIDsForUser(ids []uint, userID uint) ([]model.Image, error) {
-	images, err := repository.Image.FindByIDsAndUserID(ids, userID)
+func (s *AppService) GetImagesByIDsForUser(ids []uint, userID uint) ([]model.Image, error) {
+	images, err := s.repos.Image.FindByIDsAndUserID(ids, userID)
 	if err != nil {
 		return nil, NewInternalError("查找图片失败")
 	}

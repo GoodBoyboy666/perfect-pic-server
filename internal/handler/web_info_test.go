@@ -9,7 +9,6 @@ import (
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,10 +22,10 @@ func TestGetWebInfo_ReturnsAllowedKeys(t *testing.T) {
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigSiteDescription, Value: "Desc"}).Error
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigSiteLogo, Value: "logo.png"}).Error
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigSiteFavicon, Value: "favicon.ico"}).Error
-	service.ClearCache()
+	testService.ClearCache()
 
 	r := gin.New()
-	r.GET("/webinfo", GetWebInfo)
+	r.GET("/webinfo", testHandler.GetWebInfo)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/webinfo", nil))
@@ -52,9 +51,9 @@ func TestWebInfoPrefixHandlers(t *testing.T) {
 	setupTestDB(t)
 
 	r := gin.New()
-	r.GET("/image_prefix", GetImagePrefix)
-	r.GET("/avatar_prefix", GetAvatarPrefix)
-	r.GET("/default_storage_quota", GetDefaultStorageQuota)
+	r.GET("/image_prefix", testHandler.GetImagePrefix)
+	r.GET("/avatar_prefix", testHandler.GetAvatarPrefix)
+	r.GET("/default_storage_quota", testHandler.GetDefaultStorageQuota)
 
 	w1 := httptest.NewRecorder()
 	r.ServeHTTP(w1, httptest.NewRequest(http.MethodGet, "/image_prefix", nil))

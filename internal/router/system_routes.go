@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func registerSystemRoutes(api *gin.RouterGroup, authLimiter gin.HandlerFunc) {
-	api.GET("/init", handler.GetInitState)
-	api.POST("/init", authLimiter, handler.Init)
+func registerSystemRoutes(api *gin.RouterGroup, authLimiter gin.HandlerFunc, h *handler.Handler) {
+	api.GET("/init", h.GetInitState)
+	api.POST("/init", authLimiter, h.Init)
 }

@@ -7,27 +7,27 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func registerAdminRoutes(api *gin.RouterGroup) {
+func registerAdminRoutes(api *gin.RouterGroup, h *adminhandler.Handler) {
 	adminGroup := api.Group("/admin")
 	adminGroup.Use(middleware.JWTAuth())
 	adminGroup.Use(middleware.UserStatusCheck())
 	adminGroup.Use(middleware.AdminCheck())
 
-	adminGroup.GET("/stats", adminhandler.GetServerStats)
+	adminGroup.GET("/stats", h.GetServerStats)
 
-	adminGroup.GET("/settings", adminhandler.GetSettings)
-	adminGroup.PATCH("/settings", adminhandler.UpdateSettings)
-	adminGroup.POST("/email/test", adminhandler.SendTestEmail)
+	adminGroup.GET("/settings", h.GetSettings)
+	adminGroup.PATCH("/settings", h.UpdateSettings)
+	adminGroup.POST("/email/test", h.SendTestEmail)
 
-	adminGroup.GET("/users", adminhandler.GetUserList)
-	adminGroup.GET("/users/:id", adminhandler.GetUserDetail)
-	adminGroup.POST("/users", adminhandler.CreateUser)
-	adminGroup.PATCH("/users/:id", adminhandler.UpdateUser)
-	adminGroup.POST("/users/:id/avatar", adminhandler.UpdateUserAvatar)
-	adminGroup.DELETE("/users/:id/avatar", adminhandler.RemoveUserAvatar)
-	adminGroup.DELETE("/users/:id", adminhandler.DeleteUser)
+	adminGroup.GET("/users", h.GetUserList)
+	adminGroup.GET("/users/:id", h.GetUserDetail)
+	adminGroup.POST("/users", h.CreateUser)
+	adminGroup.PATCH("/users/:id", h.UpdateUser)
+	adminGroup.POST("/users/:id/avatar", h.UpdateUserAvatar)
+	adminGroup.DELETE("/users/:id/avatar", h.RemoveUserAvatar)
+	adminGroup.DELETE("/users/:id", h.DeleteUser)
 
-	adminGroup.GET("/images", adminhandler.GetImageList)
-	adminGroup.DELETE("/images/batch", adminhandler.BatchDeleteImages)
-	adminGroup.DELETE("/images/:id", adminhandler.DeleteImage)
+	adminGroup.GET("/images", h.GetImageList)
+	adminGroup.DELETE("/images/batch", h.BatchDeleteImages)
+	adminGroup.DELETE("/images/:id", h.DeleteImage)
 }

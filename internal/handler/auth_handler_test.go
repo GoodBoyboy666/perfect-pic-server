@@ -11,7 +11,6 @@ import (
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/utils"
 
 	"github.com/gin-gonic/gin"
@@ -25,14 +24,14 @@ func TestLoginHandler_SuccessAndUnauthorized(t *testing.T) {
 
 	// 测试中禁用验证码。
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
-	service.ClearCache()
+	testService.ClearCache()
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com", EmailVerified: true}
 	_ = db.DB.Create(&u).Error
 
 	r := gin.New()
-	r.POST("/login", Login)
+	r.POST("/login", testHandler.Login)
 
 	body, _ := json.Marshal(gin.H{"username": "alice", "password": "abc12345"})
 	w := httptest.NewRecorder()
@@ -66,7 +65,7 @@ func TestLoginHandler_BindError(t *testing.T) {
 	setupTestDB(t)
 
 	r := gin.New()
-	r.POST("/login", Login)
+	r.POST("/login", testHandler.Login)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/login", bytes.NewReader([]byte("{bad"))))
@@ -83,10 +82,10 @@ func TestRegisterHandler_ForbiddenWhenDisabled(t *testing.T) {
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigAllowInit, Value: "false"}).Error
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigAllowRegister, Value: "false"}).Error
-	service.ClearCache()
+	testService.ClearCache()
 
 	r := gin.New()
-	r.POST("/register", Register)
+	r.POST("/register", testHandler.Register)
 
 	body, _ := json.Marshal(gin.H{"username": "alice", "password": "abc12345", "email": "a@example.com"})
 	w := httptest.NewRecorder()
@@ -111,7 +110,7 @@ func TestEmailVerifyHandler_OK(t *testing.T) {
 	}
 
 	r := gin.New()
-	r.POST("/auth/email-verify", EmailVerify)
+	r.POST("/auth/email-verify", testHandler.EmailVerify)
 
 	body, _ := json.Marshal(gin.H{"token": token})
 	w := httptest.NewRecorder()
@@ -129,10 +128,10 @@ func TestRegisterHandler_Success(t *testing.T) {
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigAllowInit, Value: "false"}).Error
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigAllowRegister, Value: "true"}).Error
-	service.ClearCache()
+	testService.ClearCache()
 
 	r := gin.New()
-	r.POST("/register", Register)
+	r.POST("/register", testHandler.Register)
 
 	body, _ := json.Marshal(gin.H{"username": "alice_1", "password": "abc12345", "email": "a1@example.com"})
 	w := httptest.NewRecorder()
@@ -148,10 +147,10 @@ func TestRequestPasswordResetHandler_Always200ForUnknownEmail(t *testing.T) {
 	setupTestDB(t)
 
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
-	service.ClearCache()
+	testService.ClearCache()
 
 	r := gin.New()
-	r.POST("/auth/password/reset/request", RequestPasswordReset)
+	r.POST("/auth/password/reset/request", testHandler.RequestPasswordReset)
 
 	body, _ := json.Marshal(gin.H{"email": "unknown@example.com"})
 	w := httptest.NewRecorder()
@@ -167,7 +166,7 @@ func TestRequestPasswordResetHandler_BindError(t *testing.T) {
 	setupTestDB(t)
 
 	r := gin.New()
-	r.POST("/auth/password/reset/request", RequestPasswordReset)
+	r.POST("/auth/password/reset/request", testHandler.RequestPasswordReset)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/auth/password/reset/request", bytes.NewReader([]byte("{bad"))))
@@ -185,13 +184,13 @@ func TestResetPasswordHandler_OK(t *testing.T) {
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
 	_ = db.DB.Create(&u).Error
 
-	token, err := service.GenerateForgetPasswordToken(u.ID)
+	token, err := testService.GenerateForgetPasswordToken(u.ID)
 	if err != nil {
 		t.Fatalf("GenerateForgetPasswordToken: %v", err)
 	}
 
 	r := gin.New()
-	r.POST("/auth/password/reset", ResetPassword)
+	r.POST("/auth/password/reset", testHandler.ResetPassword)
 
 	body, _ := json.Marshal(gin.H{"token": token, "new_password": "abc123456"})
 	w := httptest.NewRecorder()
@@ -207,7 +206,7 @@ func TestResetPasswordHandler_InvalidToken(t *testing.T) {
 	setupTestDB(t)
 
 	r := gin.New()
-	r.POST("/auth/password/reset", ResetPassword)
+	r.POST("/auth/password/reset", testHandler.ResetPassword)
 
 	body, _ := json.Marshal(gin.H{"token": "bad", "new_password": "abc123456"})
 	w := httptest.NewRecorder()
@@ -226,13 +225,13 @@ func TestEmailChangeVerifyHandler_OK(t *testing.T) {
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "old@example.com", EmailVerified: true}
 	_ = db.DB.Create(&u).Error
 
-	token, err := service.GenerateEmailChangeToken(u.ID, "old@example.com", "new@example.com")
+	token, err := testService.GenerateEmailChangeToken(u.ID, "old@example.com", "new@example.com")
 	if err != nil {
 		t.Fatalf("GenerateEmailChangeToken: %v", err)
 	}
 
 	r := gin.New()
-	r.POST("/auth/email-change-verify", EmailChangeVerify)
+	r.POST("/auth/email-change-verify", testHandler.EmailChangeVerify)
 
 	body, _ := json.Marshal(gin.H{"token": token})
 	w := httptest.NewRecorder()
@@ -248,7 +247,7 @@ func TestEmailChangeVerifyHandler_BindError(t *testing.T) {
 	setupTestDB(t)
 
 	r := gin.New()
-	r.POST("/auth/email-change-verify", EmailChangeVerify)
+	r.POST("/auth/email-change-verify", testHandler.EmailChangeVerify)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/auth/email-change-verify", bytes.NewReader([]byte("{bad"))))
@@ -263,10 +262,10 @@ func TestGetRegisterStateHandler(t *testing.T) {
 	setupTestDB(t)
 
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigAllowRegister, Value: "false"}).Error
-	service.ClearCache()
+	testService.ClearCache()
 
 	r := gin.New()
-	r.GET("/register", GetRegisterState)
+	r.GET("/register", testHandler.GetRegisterState)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/register", nil))

@@ -3,13 +3,12 @@ package handler
 import (
 	"log"
 	"net/http"
-	"perfect-pic-server/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
 // GetSelfInfo 获取当前用户信息
-func GetSelfInfo(c *gin.Context) {
+func (h *Handler) GetSelfInfo(c *gin.Context) {
 	userId, exists := c.Get("id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
@@ -22,7 +21,7 @@ func GetSelfInfo(c *gin.Context) {
 		return
 	}
 
-	profile, err := service.GetUserProfile(uid)
+	profile, err := h.service.GetUserProfile(uid)
 	if err != nil {
 		WriteServiceError(c, err, "获取用户信息失败")
 		return
@@ -32,7 +31,7 @@ func GetSelfInfo(c *gin.Context) {
 }
 
 // UpdateSelfUsername 修改自己的用户名
-func UpdateSelfUsername(c *gin.Context) {
+func (h *Handler) UpdateSelfUsername(c *gin.Context) {
 	userId, exists := c.Get("id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
@@ -60,7 +59,7 @@ func UpdateSelfUsername(c *gin.Context) {
 		isAdmin = val
 	}
 
-	token, err := service.UpdateUsernameAndGenerateToken(uid, req.Username, isAdmin)
+	token, err := h.service.UpdateUsernameAndGenerateToken(uid, req.Username, isAdmin)
 	if err != nil {
 		WriteServiceError(c, err, "更新失败")
 		return
@@ -73,7 +72,7 @@ func UpdateSelfUsername(c *gin.Context) {
 }
 
 // UpdateSelfPassword 修改自己的密码
-func UpdateSelfPassword(c *gin.Context) {
+func (h *Handler) UpdateSelfPassword(c *gin.Context) {
 	userId, exists := c.Get("id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
@@ -95,7 +94,7 @@ func UpdateSelfPassword(c *gin.Context) {
 		return
 	}
 
-	err := service.UpdatePasswordByOldPassword(uid, req.OldPassword, req.NewPassword)
+	err := h.service.UpdatePasswordByOldPassword(uid, req.OldPassword, req.NewPassword)
 	if err != nil {
 		WriteServiceError(c, err, "更新失败")
 		return
@@ -104,7 +103,7 @@ func UpdateSelfPassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "密码修改成功"})
 }
 
-func RequestUpdateEmail(c *gin.Context) {
+func (h *Handler) RequestUpdateEmail(c *gin.Context) {
 	id, _ := c.Get("id")
 	if id == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "用户不存在"})
@@ -126,7 +125,7 @@ func RequestUpdateEmail(c *gin.Context) {
 		return
 	}
 
-	err := service.RequestEmailChange(uid, req.Password, req.NewEmail)
+	err := h.service.RequestEmailChange(uid, req.Password, req.NewEmail)
 	if err != nil {
 		WriteServiceError(c, err, "生成验证链接失败")
 		return
@@ -135,7 +134,7 @@ func RequestUpdateEmail(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "验证邮件已发送至新邮箱，请查收并确认"})
 }
 
-func UpdateSelfAvatar(c *gin.Context) {
+func (h *Handler) UpdateSelfAvatar(c *gin.Context) {
 	userId, exists := c.Get("id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
@@ -148,7 +147,7 @@ func UpdateSelfAvatar(c *gin.Context) {
 		return
 	}
 
-	valid, ext, err := service.ValidateImageFile(file)
+	valid, ext, err := h.service.ValidateImageFile(file)
 	if !valid {
 		WriteServiceError(c, err, "头像文件校验失败")
 		return
@@ -160,13 +159,13 @@ func UpdateSelfAvatar(c *gin.Context) {
 		return
 	}
 
-	user, err := service.GetUserByID(uid)
+	user, err := h.service.GetUserByID(uid)
 	if err != nil {
 		WriteServiceError(c, err, "获取用户失败")
 		return
 	}
 
-	newFilename, err := service.UpdateUserAvatar(user, file)
+	newFilename, err := h.service.UpdateUserAvatar(user, file)
 	if err != nil {
 		log.Printf("UpdateUserAvatar error: %v", err)
 		WriteServiceError(c, err, "头像更新失败")
@@ -176,7 +175,7 @@ func UpdateSelfAvatar(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "头像更新成功", "avatar": newFilename})
 }
 
-func GetSelfImagesCount(c *gin.Context) {
+func (h *Handler) GetSelfImagesCount(c *gin.Context) {
 	userId, exists := c.Get("id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
@@ -189,7 +188,7 @@ func GetSelfImagesCount(c *gin.Context) {
 		return
 	}
 
-	count, err := service.GetUserImageCount(uid)
+	count, err := h.service.GetUserImageCount(uid)
 	if err != nil {
 		WriteServiceError(c, err, "获取图片数量失败")
 		return

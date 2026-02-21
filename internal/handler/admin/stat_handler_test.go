@@ -33,7 +33,7 @@ func TestGetServerStats_ReturnsCounts(t *testing.T) {
 	}).Error
 
 	r := gin.New()
-	r.GET("/stats", GetServerStats)
+	r.GET("/stats", testHandler.GetServerStats)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/stats", nil))
