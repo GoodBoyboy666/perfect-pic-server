@@ -25,6 +25,7 @@ func registerUserRoutes(api *gin.RouterGroup, h *handler.Handler, appService *se
 	userGroup.GET("/profile", h.GetSelfInfo)
 	userGroup.GET("/passkeys", h.ListSelfPasskeys)
 	userGroup.DELETE("/passkeys/:id", h.DeleteSelfPasskey)
+	userGroup.PATCH("/passkeys/:id/name", h.UpdateSelfPasskeyName)
 	userGroup.POST("/passkeys/register/start", h.BeginPasskeyRegistration)
 	userGroup.POST("/passkeys/register/finish", h.FinishPasskeyRegistration)
 	userGroup.PATCH("/username", usernameLimiter, h.UpdateSelfUsername)

@@ -1,7 +1,6 @@
 package service
 
 import (
-	"encoding/json"
 	"errors"
 	"perfect-pic-server/internal/model"
 
@@ -12,16 +11,10 @@ import (
 
 // UserPasskey 是返回给前端的用户 Passkey 列表项。
 type UserPasskey struct {
-	ID             uint     `json:"id"`
-	CredentialID   string   `json:"credential_id"`
-	CreatedAt      int64    `json:"created_at"`
-	UpdatedAt      int64    `json:"updated_at"`
-	SignCount      uint32   `json:"sign_count"`
-	Attachment     string   `json:"attachment"`
-	Transports     []string `json:"transports"`
-	BackupEligible bool     `json:"backup_eligible"`
-	BackupState    bool     `json:"backup_state"`
-	UserVerified   bool     `json:"user_verified"`
+	ID           uint   `json:"id"`
+	CredentialID string `json:"credential_id"`
+	Name         string `json:"name"`
+	CreatedAt    int64  `json:"created_at"`
 }
 
 // BeginPasskeyRegistration 为当前用户创建 Passkey 注册挑战并返回会话 ID。
@@ -43,6 +36,8 @@ func (s *AppService) BeginPasskeyRegistration(userID uint) (string, *protocol.Cr
 
 	creation, sessionData, err := webauthnClient.BeginRegistration(
 		passkeyUser,
+		// 限制可接受的公钥算法集合，只允许较安全的推荐算法。
+		webauthn.WithCredentialParameters(passkeyRecommendedCredentialParameters()),
 		// 要求创建可发现凭据（Resident Key），用于“无需用户名”的 Passkey 登录。
 		webauthn.WithResidentKeyRequirement(protocol.ResidentKeyRequirementRequired),
 		// 将已绑定凭据放入排除列表，阻止同一凭据重复注册。
@@ -91,6 +86,10 @@ func (s *AppService) FinishPasskeyRegistration(userID uint, sessionID string, cr
 	if err != nil {
 		return NewValidationError("Passkey 注册校验失败，请重试")
 	}
+	// 注册阶段显式拒绝不在白名单内的签名算法。
+	if !isAllowedPasskeyAlgorithm(credential.Attestation.PublicKeyAlgorithm) {
+		return NewValidationError("Passkey 签名算法不被允许")
+	}
 
 	credentialID := encodePasskeyCredentialID(credential.ID)
 	// 先按 credential_id 查重，区分“同账号重复绑定”和“被其他账号占用”。
@@ -119,6 +118,7 @@ func (s *AppService) FinishPasskeyRegistration(userID uint, sessionID string, cr
 	if err := s.repos.User.CreatePasskeyCredential(&model.PasskeyCredential{
 		UserID:       userID,
 		CredentialID: credentialID,
+		Name:         buildDefaultPasskeyName(credentialID),
 		Credential:   serialized,
 	}); err != nil {
 		if isPasskeyUniqueConflict(err) {
@@ -143,25 +143,12 @@ func (s *AppService) ListUserPasskeys(userID uint) ([]UserPasskey, error) {
 
 	items := make([]UserPasskey, 0, len(records))
 	for _, record := range records {
-		item := UserPasskey{
+		items = append(items, UserPasskey{
 			ID:           record.ID,
 			CredentialID: record.CredentialID,
+			Name:         record.Name,
 			CreatedAt:    record.CreatedAt.Unix(),
-			UpdatedAt:    record.UpdatedAt.Unix(),
-		}
-
-		var credential webauthn.Credential
-		// 列表查询采用“尽力解析”策略：单条损坏不影响整体列表返回。
-		if err := json.Unmarshal([]byte(record.Credential), &credential); err == nil {
-			item.SignCount = credential.Authenticator.SignCount
-			item.Attachment = string(credential.Authenticator.Attachment)
-			item.Transports = convertPasskeyTransports(credential.Transport)
-			item.BackupEligible = credential.Flags.BackupEligible
-			item.BackupState = credential.Flags.BackupState
-			item.UserVerified = credential.Flags.UserVerified
-		}
-
-		items = append(items, item)
+		})
 	}
 
 	return items, nil
@@ -178,6 +165,26 @@ func (s *AppService) DeleteUserPasskey(userID uint, passkeyID uint) error {
 			return NewNotFoundError("Passkey 不存在")
 		}
 		return NewInternalError("删除 Passkey 失败")
+	}
+	return nil
+}
+
+// UpdateUserPasskeyName 更新指定用户名下某个 Passkey 的显示名称。
+func (s *AppService) UpdateUserPasskeyName(userID uint, passkeyID uint, name string) error {
+	if passkeyID == 0 {
+		return NewValidationError("无效的 Passkey ID")
+	}
+
+	normalizedName, err := normalizePasskeyName(name)
+	if err != nil {
+		return err
+	}
+
+	if err := s.repos.User.UpdatePasskeyCredentialNameByID(userID, passkeyID, normalizedName); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return NewNotFoundError("Passkey 不存在")
+		}
+		return NewInternalError("更新 Passkey 名称失败")
 	}
 	return nil
 }
@@ -207,6 +214,8 @@ func (s *AppService) BeginPasskeyLogin() (string, *protocol.CredentialAssertion,
 }
 
 // FinishPasskeyLogin 完成 Passkey 登录校验并签发 JWT。
+//
+//nolint:gocyclo
 func (s *AppService) FinishPasskeyLogin(sessionID string, credentialJSON []byte) (string, error) {
 	// 登录挑战一次性消费，防止 assertion 重放攻击。
 	sessionData, err := takePasskeySession(sessionID, passkeySessionLogin)
@@ -256,6 +265,10 @@ func (s *AppService) FinishPasskeyLogin(sessionID string, credentialJSON []byte)
 			return "", NewInternalError("Passkey 登录失败")
 		}
 		passkeyUser = resolvedUser
+	}
+	// 登录阶段同样校验算法白名单，阻断不符合策略的历史凭据。
+	if !isAllowedPasskeyAlgorithm(validatedCredential.Attestation.PublicKeyAlgorithm) {
+		return "", NewUnauthorizedError("Passkey 签名算法不被允许")
 	}
 
 	// 将本次验证后更新过的 credential 写回库（尤其 signCount），用于后续反重放校验。

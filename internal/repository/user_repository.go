@@ -28,6 +28,7 @@ type UserStore interface {
 	CreatePasskeyCredential(credential *model.PasskeyCredential) error
 	UpdatePasskeyCredentialData(userID uint, credentialID string, credentialJSON string) error
 	DeletePasskeyCredentialByID(userID uint, passkeyID uint) error
+	UpdatePasskeyCredentialNameByID(userID uint, passkeyID uint, name string) error
 	DeletePasskeyCredentialsByUserID(userID uint) error
 	AdminListUsers(keyword string, showDeleted bool, order string, offset int, limit int) ([]model.User, int64, error)
 	HardDeleteUserWithImages(userID uint) error

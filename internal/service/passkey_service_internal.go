@@ -13,8 +13,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"gorm.io/gorm"
 )
@@ -26,6 +28,7 @@ const (
 	passkeySessionLogin        passkeySessionType = "login"
 	passkeySessionTTL                             = 5 * time.Minute
 	maxUserPasskeyCount                           = 10
+	passkeyNameMaxRunes                           = 64
 )
 
 type passkeySessionEntry struct {
@@ -43,6 +46,12 @@ type passkeyWebAuthnUser struct {
 }
 
 var passkeySessionStore sync.Map
+
+var passkeyAllowedCOSEAlgorithms = map[webauthncose.COSEAlgorithmIdentifier]struct{}{
+	webauthncose.AlgEdDSA: {},
+	webauthncose.AlgES256: {},
+	webauthncose.AlgRS256: {},
+}
 
 func (u *passkeyWebAuthnUser) WebAuthnID() []byte {
 	return u.id
@@ -279,6 +288,38 @@ func encodePasskeyCredentialID(credentialID []byte) string {
 	return base64.RawURLEncoding.EncodeToString(credentialID)
 }
 
+// passkeyRecommendedCredentialParameters 返回注册阶段允许的签名算法列表。
+func passkeyRecommendedCredentialParameters() []protocol.CredentialParameter {
+	return webauthn.CredentialParametersRecommendedL3()
+}
+
+// isAllowedPasskeyAlgorithm 判断凭据算法是否在系统允许的安全白名单中。
+func isAllowedPasskeyAlgorithm(algorithm int64) bool {
+	_, ok := passkeyAllowedCOSEAlgorithms[webauthncose.COSEAlgorithmIdentifier(algorithm)]
+	return ok
+}
+
+// buildDefaultPasskeyName 根据凭据 ID 构造默认名称，便于用户首次识别。
+func buildDefaultPasskeyName(credentialID string) string {
+	short := credentialID
+	if len(short) > 8 {
+		short = short[:8]
+	}
+	return "Passkey-" + short
+}
+
+// normalizePasskeyName 清洗并校验用户输入的 Passkey 名称。
+func normalizePasskeyName(name string) (string, error) {
+	normalized := strings.TrimSpace(name)
+	if normalized == "" {
+		return "", NewValidationError("Passkey 名称不能为空")
+	}
+	if utf8.RuneCountInString(normalized) > passkeyNameMaxRunes {
+		return "", NewValidationError("Passkey 名称长度不能超过 64 个字符")
+	}
+	return normalized, nil
+}
+
 // marshalPasskeyCredential 将凭据对象序列化为 JSON 字符串。
 func marshalPasskeyCredential(credential *webauthn.Credential) (string, error) {
 	raw, err := json.Marshal(credential)
@@ -295,18 +336,6 @@ func isPasskeyUniqueConflict(err error) bool {
 	}
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "unique") || strings.Contains(msg, "duplicate")
-}
-
-// convertPasskeyTransports 将传输枚举转换为字符串切片用于接口返回。
-func convertPasskeyTransports(transports []protocol.AuthenticatorTransport) []string {
-	if len(transports) == 0 {
-		return nil
-	}
-	result := make([]string, 0, len(transports))
-	for _, transport := range transports {
-		result = append(result, string(transport))
-	}
-	return result
 }
 
 // ensureUserPasskeyCapacity 检查用户 Passkey 是否达到上限。

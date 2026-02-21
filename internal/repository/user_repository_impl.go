@@ -150,6 +150,20 @@ func (r *UserRepository) DeletePasskeyCredentialByID(userID uint, passkeyID uint
 	return nil
 }
 
+// UpdatePasskeyCredentialNameByID 更新指定用户下某条 Passkey 凭据的人类可读名称。
+func (r *UserRepository) UpdatePasskeyCredentialNameByID(userID uint, passkeyID uint, name string) error {
+	tx := r.db.Model(&model.PasskeyCredential{}).
+		Where("user_id = ? AND id = ?", userID, passkeyID).
+		Update("name", name)
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
 // DeletePasskeyCredentialsByUserID 删除指定用户下的全部 Passkey 凭据记录。
 func (r *UserRepository) DeletePasskeyCredentialsByUserID(userID uint) error {
 	return r.db.Where("user_id = ?", userID).Delete(&model.PasskeyCredential{}).Error

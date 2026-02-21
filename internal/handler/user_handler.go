@@ -309,3 +309,40 @@ func (h *Handler) DeleteSelfPasskey(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Passkey 删除成功"})
 }
+
+// UpdateSelfPasskeyName 修改当前用户指定 Passkey 的显示名称。
+func (h *Handler) UpdateSelfPasskeyName(c *gin.Context) {
+	userID, exists := c.Get("id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
+		return
+	}
+
+	uid, ok := userID.(uint)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
+		return
+	}
+
+	idParam := c.Param("id")
+	passkeyID, err := strconv.ParseUint(idParam, 10, 64)
+	if err != nil || passkeyID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id 参数错误"})
+		return
+	}
+
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	if err := h.service.UpdateUserPasskeyName(uid, uint(passkeyID), req.Name); err != nil {
+		WriteServiceError(c, err, "更新 Passkey 名称失败")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Passkey 名称更新成功"})
+}

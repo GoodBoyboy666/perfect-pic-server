@@ -7,7 +7,6 @@ import (
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 
-	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
@@ -101,23 +100,11 @@ func TestListUserPasskeys_Success(t *testing.T) {
 		t.Fatalf("创建用户失败: %v", err)
 	}
 
-	credentialJSON := mustMarshalPasskeyCredentialForTest(t, webauthn.Credential{
-		ID:        []byte{1, 2, 3},
-		Transport: []protocol.AuthenticatorTransport{protocol.Internal},
-		Flags: webauthn.CredentialFlags{
-			UserVerified:   true,
-			BackupEligible: true,
-			BackupState:    false,
-		},
-		Authenticator: webauthn.Authenticator{
-			SignCount:  8,
-			Attachment: protocol.Platform,
-		},
-	})
 	record := model.PasskeyCredential{
 		UserID:       u.ID,
 		CredentialID: "cred_1",
-		Credential:   credentialJSON,
+		Name:         "MacBook Pro",
+		Credential:   mustMarshalPasskeyCredentialForTest(t, webauthn.Credential{ID: []byte{1, 2, 3}}),
 	}
 	if err := db.DB.Create(&record).Error; err != nil {
 		t.Fatalf("创建 Passkey 失败: %v", err)
@@ -130,11 +117,11 @@ func TestListUserPasskeys_Success(t *testing.T) {
 	if len(list) != 1 {
 		t.Fatalf("期望 1 条 Passkey，实际为 %d", len(list))
 	}
-	if list[0].ID != record.ID || list[0].CredentialID != "cred_1" {
+	if list[0].ID != record.ID || list[0].CredentialID != "cred_1" || list[0].Name != "MacBook Pro" {
 		t.Fatalf("非预期 Passkey 记录: %+v", list[0])
 	}
-	if list[0].SignCount != 8 || !list[0].UserVerified || !list[0].BackupEligible {
-		t.Fatalf("非预期 Passkey 元数据: %+v", list[0])
+	if list[0].CreatedAt == 0 {
+		t.Fatalf("期望 created_at 非 0，实际为 %+v", list[0])
 	}
 }
 
@@ -174,6 +161,68 @@ func TestDeleteUserPasskey_NotFound(t *testing.T) {
 	setupTestDB(t)
 
 	err := testService.DeleteUserPasskey(1, 999)
+	if err == nil {
+		t.Fatalf("期望返回错误")
+	}
+
+	serviceErr, ok := AsServiceError(err)
+	if !ok || serviceErr.Code != ErrorCodeNotFound {
+		t.Fatalf("期望 not_found 错误，实际为: %#v (%v)", serviceErr, err)
+	}
+}
+
+// 测试内容：验证用户可更新自己的 Passkey 名称。
+func TestUpdateUserPasskeyName_Success(t *testing.T) {
+	setupTestDB(t)
+
+	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
+	if err := db.DB.Create(&u).Error; err != nil {
+		t.Fatalf("创建用户失败: %v", err)
+	}
+
+	record := model.PasskeyCredential{
+		UserID:       u.ID,
+		CredentialID: "cred_name_1",
+		Name:         "旧名称",
+		Credential:   mustMarshalPasskeyCredentialForTest(t, webauthn.Credential{ID: []byte{1, 9, 9}}),
+	}
+	if err := db.DB.Create(&record).Error; err != nil {
+		t.Fatalf("创建 Passkey 失败: %v", err)
+	}
+
+	if err := testService.UpdateUserPasskeyName(u.ID, record.ID, "  iPhone  "); err != nil {
+		t.Fatalf("UpdateUserPasskeyName 返回错误: %v", err)
+	}
+
+	var got model.PasskeyCredential
+	if err := db.DB.First(&got, record.ID).Error; err != nil {
+		t.Fatalf("查询 Passkey 失败: %v", err)
+	}
+	if got.Name != "iPhone" {
+		t.Fatalf("期望名称为 iPhone，实际为 %q", got.Name)
+	}
+}
+
+// 测试内容：验证更新 Passkey 名称时名称为空返回校验错误。
+func TestUpdateUserPasskeyName_Validation(t *testing.T) {
+	setupTestDB(t)
+
+	err := testService.UpdateUserPasskeyName(1, 1, "   ")
+	if err == nil {
+		t.Fatalf("期望返回错误")
+	}
+
+	serviceErr, ok := AsServiceError(err)
+	if !ok || serviceErr.Code != ErrorCodeValidation {
+		t.Fatalf("期望 validation 错误，实际为: %#v (%v)", serviceErr, err)
+	}
+}
+
+// 测试内容：验证更新不存在的 Passkey 名称返回 not_found。
+func TestUpdateUserPasskeyName_NotFound(t *testing.T) {
+	setupTestDB(t)
+
+	err := testService.UpdateUserPasskeyName(1, 999, "My Passkey")
 	if err == nil {
 		t.Fatalf("期望返回错误")
 	}
