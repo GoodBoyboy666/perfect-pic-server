@@ -86,8 +86,10 @@ func (s *AppService) FinishPasskeyRegistration(userID uint, sessionID string, cr
 	if err != nil {
 		return NewValidationError("Passkey 注册校验失败，请重试")
 	}
+
 	// 注册阶段显式拒绝不在白名单内的签名算法。
-	if !isAllowedPasskeyAlgorithm(credential.Attestation.PublicKeyAlgorithm) {
+	credentialAlgorithm, err := passkeyCredentialAlgorithm(credential)
+	if err != nil || !isAllowedPasskeyAlgorithm(int64(credentialAlgorithm)) {
 		return NewValidationError("Passkey 签名算法不被允许")
 	}
 
@@ -267,7 +269,8 @@ func (s *AppService) FinishPasskeyLogin(sessionID string, credentialJSON []byte)
 		passkeyUser = resolvedUser
 	}
 	// 登录阶段同样校验算法白名单，阻断不符合策略的历史凭据。
-	if !isAllowedPasskeyAlgorithm(validatedCredential.Attestation.PublicKeyAlgorithm) {
+	credentialAlgorithm, err := passkeyCredentialAlgorithm(validatedCredential)
+	if err != nil || !isAllowedPasskeyAlgorithm(int64(credentialAlgorithm)) {
 		return "", NewUnauthorizedError("Passkey 签名算法不被允许")
 	}
 

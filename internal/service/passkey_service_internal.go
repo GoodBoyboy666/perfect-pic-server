@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol/webauthncbor"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"gorm.io/gorm"
@@ -297,6 +298,24 @@ func passkeyRecommendedCredentialParameters() []protocol.CredentialParameter {
 func isAllowedPasskeyAlgorithm(algorithm int64) bool {
 	_, ok := passkeyAllowedCOSEAlgorithms[webauthncose.COSEAlgorithmIdentifier(algorithm)]
 	return ok
+}
+
+// passkeyCredentialAlgorithm 从凭据中提取 COSE 算法标识。
+// 部分浏览器不会回填 Attestation.PublicKeyAlgorithm，因此需要回退解析 credential.PublicKey。
+func passkeyCredentialAlgorithm(credential *webauthn.Credential) (webauthncose.COSEAlgorithmIdentifier, error) {
+	if credential == nil {
+		return 0, errors.New("credential is nil")
+	}
+
+	if credential.Attestation.PublicKeyAlgorithm != 0 {
+		return webauthncose.COSEAlgorithmIdentifier(credential.Attestation.PublicKeyAlgorithm), nil
+	}
+
+	var publicKey webauthncose.PublicKeyData
+	if err := webauthncbor.Unmarshal(credential.PublicKey, &publicKey); err != nil {
+		return 0, err
+	}
+	return webauthncose.COSEAlgorithmIdentifier(publicKey.Algorithm), nil
 }
 
 // buildDefaultPasskeyName 根据凭据 ID 构造默认名称，便于用户首次识别。
