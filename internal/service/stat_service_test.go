@@ -24,7 +24,7 @@ func TestGetServerStatsForAdmin(t *testing.T) {
 		UserID:     u.ID,
 	}).Error
 
-	stats, err := AdminGetServerStats()
+	stats, err := testService.AdminGetServerStats()
 	if err != nil {
 		t.Fatalf("AdminGetServerStats: %v", err)
 	}
@@ -32,3 +32,4 @@ func TestGetServerStatsForAdmin(t *testing.T) {
 		t.Fatalf("非预期 stats: %+v", stats)
 	}
 }
+

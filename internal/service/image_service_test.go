@@ -20,7 +20,7 @@ func TestValidateImageFile_OK(t *testing.T) {
 	setupTestDB(t)
 
 	fh := mustFileHeader(t, "a.png", testutils.MinimalPNG())
-	ok, ext, err := ValidateImageFile(fh)
+	ok, ext, err := testService.ValidateImageFile(fh)
 	if !ok || err != nil {
 		t.Fatalf("期望 ok，实际为 ok=%v ext=%q err=%v", ok, ext, err)
 	}
@@ -34,7 +34,7 @@ func TestValidateImageFile_RejectsUnsupportedExt(t *testing.T) {
 	setupTestDB(t)
 
 	fh := mustFileHeader(t, "a.exe", testutils.MinimalPNG())
-	ok, ext, err := ValidateImageFile(fh)
+	ok, ext, err := testService.ValidateImageFile(fh)
 	if ok || err == nil {
 		t.Fatalf("期望 failure，实际为 ok=%v ext=%q err=%v", ok, ext, err)
 	}
@@ -65,7 +65,7 @@ func TestProcessImageUpload_SavesFileAndCreatesRecord(t *testing.T) {
 	}
 
 	fh := mustFileHeader(t, "a.png", testutils.MinimalPNG())
-	img, url, err := ProcessImageUpload(fh, u.ID)
+	img, url, err := testService.ProcessImageUpload(fh, u.ID)
 	if err != nil {
 		t.Fatalf("ProcessImageUpload 错误: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestProcessImageUpload_QuotaExceeded(t *testing.T) {
 	_ = db.DB.Create(&u).Error
 
 	fh := mustFileHeader(t, "a.png", testutils.MinimalPNG())
-	_, _, err := ProcessImageUpload(fh, u.ID)
+	_, _, err := testService.ProcessImageUpload(fh, u.ID)
 	if err == nil || !strings.Contains(err.Error(), "存储空间不足") {
 		t.Fatalf("期望 quota 错误, got: %v", err)
 	}
@@ -144,7 +144,7 @@ func TestDeleteImage_RemovesFileAndUpdatesStorage(t *testing.T) {
 	img := model.Image{Filename: "a.png", Path: imgRel, Size: 4, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
 	_ = db.DB.Create(&img).Error
 
-	if err := DeleteImage(&img); err != nil {
+	if err := testService.DeleteImage(&img); err != nil {
 		t.Fatalf("DeleteImage: %v", err)
 	}
 	if _, err := os.Stat(full); !os.IsNotExist(err) {
@@ -187,7 +187,7 @@ func TestBatchDeleteImages_RemovesFilesAndUpdatesStorage(t *testing.T) {
 	_ = os.WriteFile(full1, []byte{0x89, 0x50, 0x4E, 0x47}, 0644)
 	_ = os.WriteFile(full2, []byte{0x89, 0x50, 0x4E, 0x47}, 0644)
 
-	if err := BatchDeleteImages([]model.Image{img1, img2}); err != nil {
+	if err := testService.BatchDeleteImages([]model.Image{img1, img2}); err != nil {
 		t.Fatalf("BatchDeleteImages: %v", err)
 	}
 	if _, err := os.Stat(full1); !os.IsNotExist(err) {
@@ -222,7 +222,7 @@ func TestUpdateAndRemoveUserAvatar(t *testing.T) {
 	_ = os.WriteFile(oldPath, []byte("x"), 0644)
 
 	fh := mustFileHeader(t, "a.png", testutils.MinimalPNG())
-	newName, err := UpdateUserAvatar(&u, fh)
+	newName, err := testService.UpdateUserAvatar(&u, fh)
 	if err != nil {
 		t.Fatalf("UpdateUserAvatar: %v", err)
 	}
@@ -244,7 +244,7 @@ func TestUpdateAndRemoveUserAvatar(t *testing.T) {
 		t.Fatalf("期望 new avatar file exists: %v", err)
 	}
 
-	if err := RemoveUserAvatar(&got); err != nil {
+	if err := testService.RemoveUserAvatar(&got); err != nil {
 		t.Fatalf("RemoveUserAvatar: %v", err)
 	}
 	var got2 model.User
@@ -283,7 +283,7 @@ func TestListUserImages_FiltersAndPaging(t *testing.T) {
 	_ = db.DB.Create(&img1).Error
 	_ = db.DB.Create(&img2).Error
 
-	list, total, page, pageSize, err := ListUserImages(UserImageListParams{
+	list, total, page, pageSize, err := testService.ListUserImages(UserImageListParams{
 		PaginationQuery: PaginationQuery{Page: 1, PageSize: 10},
 		UserID:          u.ID,
 		Filename:        "cat",
@@ -308,7 +308,7 @@ func TestGetUserOwnedImage(t *testing.T) {
 	img := model.Image{Filename: "a.png", Path: "2026/02/13/a.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
 	_ = db.DB.Create(&img).Error
 
-	got, err := GetUserOwnedImage(img.ID, u.ID)
+	got, err := testService.GetUserOwnedImage(img.ID, u.ID)
 	if err != nil {
 		t.Fatalf("GetUserOwnedImage: %v", err)
 	}
@@ -316,7 +316,7 @@ func TestGetUserOwnedImage(t *testing.T) {
 		t.Fatalf("期望 image id %d，实际为 %d", img.ID, got.ID)
 	}
 
-	_, err = GetUserOwnedImage(img.ID, u.ID+1)
+	_, err = testService.GetUserOwnedImage(img.ID, u.ID+1)
 	if err == nil {
 		t.Fatalf("期望返回错误 for non-owned image")
 	}
@@ -334,7 +334,7 @@ func TestGetUserImageCountAndBatchGetters(t *testing.T) {
 	_ = db.DB.Create(&img1).Error
 	_ = db.DB.Create(&img2).Error
 
-	cnt, err := GetUserImageCount(u.ID)
+	cnt, err := testService.GetUserImageCount(u.ID)
 	if err != nil {
 		t.Fatalf("GetUserImageCount: %v", err)
 	}
@@ -342,12 +342,12 @@ func TestGetUserImageCountAndBatchGetters(t *testing.T) {
 		t.Fatalf("期望 2，实际为 %d", cnt)
 	}
 
-	images, err := GetImagesByIDsForUser([]uint{img1.ID, img2.ID}, u.ID)
+	images, err := testService.GetImagesByIDsForUser([]uint{img1.ID, img2.ID}, u.ID)
 	if err != nil || len(images) != 2 {
 		t.Fatalf("GetImagesByIDsForUser: err=%v len=%d", err, len(images))
 	}
 
-	got, err := AdminGetImageByID(img1.ID)
+	got, err := testService.AdminGetImageByID(img1.ID)
 	if err != nil {
 		t.Fatalf("AdminGetImageByID: %v", err)
 	}
@@ -355,7 +355,7 @@ func TestGetUserImageCountAndBatchGetters(t *testing.T) {
 		t.Fatalf("非预期 image id")
 	}
 
-	images2, err := AdminGetImagesByIDs([]uint{img1.ID, img2.ID})
+	images2, err := testService.AdminGetImagesByIDs([]uint{img1.ID, img2.ID})
 	if err != nil || len(images2) != 2 {
 		t.Fatalf("AdminGetImagesByIDs: err=%v len=%d", err, len(images2))
 	}
@@ -373,7 +373,7 @@ func TestListImagesForAdmin_Filters(t *testing.T) {
 	_ = db.DB.Create(&model.Image{Filename: "a.png", Path: "2026/02/13/a.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u1.ID}).Error
 	_ = db.DB.Create(&model.Image{Filename: "b.png", Path: "2026/02/13/b.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u2.ID}).Error
 
-	images, total, _, _, err := AdminListImages(AdminImageListParams{
+	images, total, _, _, err := testService.AdminListImages(AdminImageListParams{
 		PaginationQuery: PaginationQuery{Page: 1, PageSize: 10},
 		Username:        "ali",
 	})
@@ -387,13 +387,13 @@ func TestListImagesForAdmin_Filters(t *testing.T) {
 		t.Fatalf("期望 preload user alice，实际为 %q", images[0].User.Username)
 	}
 
-	images2, total2, _, _, err := AdminListImages(AdminImageListParams{
+	images2, total2, _, _, err := testService.AdminListImages(AdminImageListParams{
 		PaginationQuery: PaginationQuery{Page: 1, PageSize: 10},
 		Filename:        "a.",
 		UserID:          &u1.ID,
 	})
 	if err != nil {
-		t.Fatalf("AdminListImages(by filename/user_id): %v", err)
+		t.Fatalf("testService.AdminListImages(by filename/user_id): %v", err)
 	}
 	if total2 != 1 || len(images2) != 1 {
 		t.Fatalf("期望 1 image，实际为 total=%d len=%d", total2, len(images2))
@@ -431,3 +431,4 @@ func mustFileHeader(t *testing.T, filename string, content []byte) *multipart.Fi
 	}
 	return fhs[0]
 }
+

@@ -32,9 +32,9 @@ func TestUploadAndListAndDeleteImagesHandlers(t *testing.T) {
 	_ = db.DB.Create(&u).Error
 
 	r := gin.New()
-	r.POST("/upload", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, UploadImage)
-	r.GET("/images", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, GetMyImages)
-	r.DELETE("/images/:id", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, DeleteMyImage)
+	r.POST("/upload", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.UploadImage)
+	r.GET("/images", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.GetMyImages)
+	r.DELETE("/images/:id", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.DeleteMyImage)
 
 	// 上传一张图片。
 	var body bytes.Buffer
@@ -102,8 +102,8 @@ func TestBatchDeleteMyImagesHandler(t *testing.T) {
 	_ = db.DB.Create(&u).Error
 
 	r := gin.New()
-	r.POST("/upload", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, UploadImage)
-	r.DELETE("/images/batch", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, BatchDeleteMyImages)
+	r.POST("/upload", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.UploadImage)
+	r.DELETE("/images/batch", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.BatchDeleteMyImages)
 
 	upload := func() uint {
 		var body bytes.Buffer
@@ -145,7 +145,7 @@ func TestUploadImageHandler_MissingFile(t *testing.T) {
 	_ = db.DB.Create(&u).Error
 
 	r := gin.New()
-	r.POST("/upload", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, UploadImage)
+	r.POST("/upload", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.UploadImage)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/upload", nil))
@@ -163,7 +163,7 @@ func TestBatchDeleteMyImagesHandler_TooManyIDs(t *testing.T) {
 	_ = db.DB.Create(&u).Error
 
 	r := gin.New()
-	r.DELETE("/images/batch", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, BatchDeleteMyImages)
+	r.DELETE("/images/batch", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.BatchDeleteMyImages)
 
 	ids := make([]uint, 51)
 	for i := range ids {
@@ -193,7 +193,7 @@ func TestUploadImageHandler_QuotaExceededReturns403(t *testing.T) {
 	_ = db.DB.Create(&u).Error
 
 	r := gin.New()
-	r.POST("/upload", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, UploadImage)
+	r.POST("/upload", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.UploadImage)
 
 	req := newUploadRequest(t, "/upload", "a.png", testutils.MinimalPNG())
 	w := httptest.NewRecorder()
@@ -212,7 +212,7 @@ func TestUploadImageHandler_UnsupportedExtReturns400(t *testing.T) {
 	_ = db.DB.Create(&u).Error
 
 	r := gin.New()
-	r.POST("/upload", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, UploadImage)
+	r.POST("/upload", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.UploadImage)
 
 	req := newUploadRequest(t, "/upload", "a.exe", testutils.MinimalPNG())
 	w := httptest.NewRecorder()
@@ -231,7 +231,7 @@ func TestBatchDeleteMyImagesHandler_Errors(t *testing.T) {
 	_ = db.DB.Create(&u).Error
 
 	r := gin.New()
-	r.DELETE("/images/batch", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, BatchDeleteMyImages)
+	r.DELETE("/images/batch", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.BatchDeleteMyImages)
 
 	// 绑定错误
 	w1 := httptest.NewRecorder()
@@ -266,7 +266,7 @@ func TestGetMyImagesHandler_InvalidID(t *testing.T) {
 	_ = db.DB.Create(&u).Error
 
 	r := gin.New()
-	r.GET("/images", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, GetMyImages)
+	r.GET("/images", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.GetMyImages)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/images?id=abc", nil))
@@ -284,7 +284,7 @@ func TestDeleteMyImageHandler_InvalidID(t *testing.T) {
 	_ = db.DB.Create(&u).Error
 
 	r := gin.New()
-	r.DELETE("/images/:id", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, DeleteMyImage)
+	r.DELETE("/images/:id", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.DeleteMyImage)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/images/abc", nil))

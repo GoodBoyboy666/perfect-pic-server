@@ -73,7 +73,7 @@ var (
 var errRedisTokenCASMismatch = errors.New("redis token cas mismatch")
 
 // GenerateForgetPasswordToken 生成忘记密码 Token，有效期 15 分钟
-func GenerateForgetPasswordToken(userID uint) (string, error) {
+func (s *AppService) GenerateForgetPasswordToken(userID uint) (string, error) {
 	// 使用 crypto/rand 生成 32 字节的高熵随机字符串 (64字符Hex)
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -120,7 +120,7 @@ func GenerateForgetPasswordToken(userID uint) (string, error) {
 }
 
 // VerifyForgetPasswordToken 验证忘记密码 Token
-func VerifyForgetPasswordToken(token string) (uint, bool) {
+func (s *AppService) VerifyForgetPasswordToken(token string) (uint, bool) {
 	if redisClient := GetRedisClient(); redisClient != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
@@ -179,7 +179,7 @@ func VerifyForgetPasswordToken(token string) (uint, bool) {
 }
 
 // GenerateEmailChangeToken 生成修改邮箱 Token，有效期 30 分钟。
-func GenerateEmailChangeToken(userID uint, oldEmail, newEmail string) (string, error) {
+func (s *AppService) GenerateEmailChangeToken(userID uint, oldEmail, newEmail string) (string, error) {
 	// 使用 crypto/rand 生成 32 字节的高熵随机字符串 (64字符Hex)
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -237,7 +237,7 @@ func GenerateEmailChangeToken(userID uint, oldEmail, newEmail string) (string, e
 }
 
 // VerifyEmailChangeToken 验证并消费修改邮箱 Token。
-func VerifyEmailChangeToken(token string) (*EmailChangeToken, bool) {
+func (s *AppService) VerifyEmailChangeToken(token string) (*EmailChangeToken, bool) {
 	if token == "" {
 		return nil, false
 	}
@@ -299,8 +299,8 @@ func VerifyEmailChangeToken(token string) (*EmailChangeToken, bool) {
 }
 
 // GetSystemDefaultStorageQuota 获取系统默认存储配额
-func GetSystemDefaultStorageQuota() int64 {
-	quota := GetInt64(consts.ConfigDefaultStorageQuota)
+func (s *AppService) GetSystemDefaultStorageQuota() int64 {
+	quota := s.GetInt64(consts.ConfigDefaultStorageQuota)
 	if quota == 0 {
 		return 1073741824 // 兜底 1GB
 	}
@@ -309,7 +309,7 @@ func GetSystemDefaultStorageQuota() int64 {
 
 // DeleteUserFiles 删除指定用户的所有关联文件（头像、上传的照片）
 // 此函数只负责删除物理文件，不处理数据库记录的清理
-func DeleteUserFiles(userID uint) error {
+func (s *AppService) DeleteUserFiles(userID uint) error {
 	cfg := config.Get()
 
 	// 1. 删除头像目录
@@ -344,7 +344,7 @@ func DeleteUserFiles(userID uint) error {
 
 	// 2. 查找并删除用户上传的所有图片
 	// Unscoped() 确保即使是软删除的图片也能被查出来删除文件
-	images, err := repository.Image.FindUnscopedByUserID(userID)
+	images, err := s.repos.Image.FindUnscopedByUserID(userID)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve user images: %w", err)
 	}
@@ -383,19 +383,19 @@ func DeleteUserFiles(userID uint) error {
 
 // IsUsernameTaken 检查用户名是否已被占用。
 // excludeUserID 用于更新场景下排除当前用户；includeDeleted 为 true 时会包含软删除用户。
-func IsUsernameTaken(username string, excludeUserID *uint, includeDeleted bool) (bool, error) {
-	return repository.User.FieldExists(repository.UserFieldUsername, username, excludeUserID, includeDeleted)
+func (s *AppService) IsUsernameTaken(username string, excludeUserID *uint, includeDeleted bool) (bool, error) {
+	return s.repos.User.FieldExists(repository.UserFieldUsername, username, excludeUserID, includeDeleted)
 }
 
 // IsEmailTaken 检查邮箱是否已被占用。
 // excludeUserID 用于更新场景下排除当前用户；includeDeleted 为 true 时会包含软删除用户。
-func IsEmailTaken(email string, excludeUserID *uint, includeDeleted bool) (bool, error) {
-	return repository.User.FieldExists(repository.UserFieldEmail, email, excludeUserID, includeDeleted)
+func (s *AppService) IsEmailTaken(email string, excludeUserID *uint, includeDeleted bool) (bool, error) {
+	return s.repos.User.FieldExists(repository.UserFieldEmail, email, excludeUserID, includeDeleted)
 }
 
 // GetUserByID 按用户 ID 获取用户模型。
-func GetUserByID(userID uint) (*model.User, error) {
-	user, err := repository.User.FindByID(userID)
+func (s *AppService) GetUserByID(userID uint) (*model.User, error) {
+	user, err := s.repos.User.FindByID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, NewNotFoundError("用户不存在")
@@ -406,8 +406,8 @@ func GetUserByID(userID uint) (*model.User, error) {
 }
 
 // GetUserProfile 获取用户个人资料。
-func GetUserProfile(userID uint) (*UserProfile, error) {
-	user, err := GetUserByID(userID)
+func (s *AppService) GetUserProfile(userID uint) (*UserProfile, error) {
+	user, err := s.GetUserByID(userID)
 	if err != nil {
 		return nil, NewNotFoundError("用户不存在")
 	}
@@ -424,13 +424,13 @@ func GetUserProfile(userID uint) (*UserProfile, error) {
 }
 
 // UpdateUsernameAndGenerateToken 更新用户名并签发新登录令牌。
-func UpdateUsernameAndGenerateToken(userID uint, newUsername string, isAdmin bool) (string, error) {
+func (s *AppService) UpdateUsernameAndGenerateToken(userID uint, newUsername string, isAdmin bool) (string, error) {
 	if ok, msg := utils.ValidateUsername(newUsername); !ok {
 		return "", NewValidationError(msg)
 	}
 
 	excludeID := userID
-	usernameTaken, err := IsUsernameTaken(newUsername, &excludeID, true)
+	usernameTaken, err := s.IsUsernameTaken(newUsername, &excludeID, true)
 	if err != nil {
 		return "", NewInternalError("更新失败")
 	}
@@ -438,7 +438,7 @@ func UpdateUsernameAndGenerateToken(userID uint, newUsername string, isAdmin boo
 		return "", NewConflictError("用户名已存在")
 	}
 
-	if err := repository.User.UpdateUsernameByID(userID, newUsername); err != nil {
+	if err := s.repos.User.UpdateUsernameByID(userID, newUsername); err != nil {
 		return "", NewInternalError("更新失败")
 	}
 
@@ -452,12 +452,12 @@ func UpdateUsernameAndGenerateToken(userID uint, newUsername string, isAdmin boo
 }
 
 // UpdatePasswordByOldPassword 使用旧密码校验后更新新密码。
-func UpdatePasswordByOldPassword(userID uint, oldPassword, newPassword string) error {
+func (s *AppService) UpdatePasswordByOldPassword(userID uint, oldPassword, newPassword string) error {
 	if ok, msg := utils.ValidatePassword(newPassword); !ok {
 		return NewValidationError(msg)
 	}
 
-	user, err := repository.User.FindByID(userID)
+	user, err := s.repos.User.FindByID(userID)
 	if err != nil {
 		return NewNotFoundError("用户不存在")
 	}
@@ -471,7 +471,7 @@ func UpdatePasswordByOldPassword(userID uint, oldPassword, newPassword string) e
 		return NewInternalError("更新失败")
 	}
 
-	if err := repository.User.UpdatePasswordByID(userID, string(hashedPassword)); err != nil {
+	if err := s.repos.User.UpdatePasswordByID(userID, string(hashedPassword)); err != nil {
 		return NewInternalError("更新失败")
 	}
 
@@ -479,12 +479,12 @@ func UpdatePasswordByOldPassword(userID uint, oldPassword, newPassword string) e
 }
 
 // RequestEmailChange 发起邮箱修改流程并异步发送验证邮件。
-func RequestEmailChange(userID uint, password, newEmail string) error {
+func (s *AppService) RequestEmailChange(userID uint, password, newEmail string) error {
 	if ok, msg := utils.ValidateEmail(newEmail); !ok {
 		return NewValidationError(msg)
 	}
 
-	user, err := repository.User.FindByID(userID)
+	user, err := s.repos.User.FindByID(userID)
 	if err != nil {
 		return NewNotFoundError("用户不存在")
 	}
@@ -497,7 +497,7 @@ func RequestEmailChange(userID uint, password, newEmail string) error {
 		return NewValidationError("新邮箱不能与当前邮箱相同")
 	}
 
-	emailTaken, err := IsEmailTaken(newEmail, nil, true)
+	emailTaken, err := s.IsEmailTaken(newEmail, nil, true)
 	if err != nil {
 		return NewInternalError("生成验证链接失败")
 	}
@@ -505,12 +505,12 @@ func RequestEmailChange(userID uint, password, newEmail string) error {
 		return NewConflictError("该邮箱已被使用")
 	}
 
-	token, err := GenerateEmailChangeToken(user.ID, user.Email, newEmail)
+	token, err := s.GenerateEmailChangeToken(user.ID, user.Email, newEmail)
 	if err != nil {
 		return NewInternalError("生成验证链接失败")
 	}
 
-	baseURL := GetString(consts.ConfigBaseURL)
+	baseURL := s.GetString(consts.ConfigBaseURL)
 	if baseURL == "" {
 		baseURL = "http://localhost"
 	}
@@ -519,9 +519,9 @@ func RequestEmailChange(userID uint, password, newEmail string) error {
 	}
 	verifyURL := fmt.Sprintf("%s/auth/email-change-verify?token=%s", baseURL, token)
 
-	if shouldSendEmail() {
+	if s.shouldSendEmail() {
 		go func() {
-			_ = SendEmailChangeVerification(newEmail, user.Username, user.Email, newEmail, verifyURL)
+			_ = s.SendEmailChangeVerification(newEmail, user.Username, user.Email, newEmail, verifyURL)
 		}()
 	}
 

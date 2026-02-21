@@ -15,7 +15,7 @@ type ImageResponse struct {
 }
 
 // GetImageList 获取图片列表
-func GetImageList(c *gin.Context) {
+func (h *Handler) GetImageList(c *gin.Context) {
 	pageStr := c.DefaultQuery("page", "1")
 	pageSizeStr := c.DefaultQuery("page_size", "10")
 	username := c.Query("username")
@@ -54,7 +54,7 @@ func GetImageList(c *gin.Context) {
 		imageID = &id
 	}
 
-	images, total, page, pageSize, err := service.AdminListImages(service.AdminImageListParams{
+	images, total, page, pageSize, err := h.service.AdminListImages(service.AdminImageListParams{
 		PaginationQuery: service.PaginationQuery{Page: page, PageSize: pageSize},
 		Username:        username,
 		Filename:        filename,
@@ -84,7 +84,7 @@ func GetImageList(c *gin.Context) {
 }
 
 // DeleteImage 删除图片
-func DeleteImage(c *gin.Context) {
+func (h *Handler) DeleteImage(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 64)
 	if err != nil || id == 0 {
@@ -92,13 +92,13 @@ func DeleteImage(c *gin.Context) {
 		return
 	}
 
-	image, err := service.AdminGetImageByID(uint(id))
+	image, err := h.service.AdminGetImageByID(uint(id))
 	if err != nil {
 		writeServiceError(c, err, "图片不存在")
 		return
 	}
 
-	if err := service.DeleteImage(image); err != nil {
+	if err := h.service.DeleteImage(image); err != nil {
 		writeServiceError(c, err, "删除失败")
 		return
 	}
@@ -107,7 +107,7 @@ func DeleteImage(c *gin.Context) {
 }
 
 // BatchDeleteImages 批量删除图片
-func BatchDeleteImages(c *gin.Context) {
+func (h *Handler) BatchDeleteImages(c *gin.Context) {
 	var req struct {
 		Ids []uint `json:"ids" binding:"required"`
 	}
@@ -126,7 +126,7 @@ func BatchDeleteImages(c *gin.Context) {
 		return
 	}
 
-	images, err := service.AdminGetImagesByIDs(req.Ids)
+	images, err := h.service.AdminGetImagesByIDs(req.Ids)
 	if err != nil {
 		writeServiceError(c, err, "查找图片失败")
 		return
@@ -137,7 +137,7 @@ func BatchDeleteImages(c *gin.Context) {
 		return
 	}
 
-	if err := service.BatchDeleteImages(images); err != nil {
+	if err := h.service.BatchDeleteImages(images); err != nil {
 		writeServiceError(c, err, "删除失败")
 		return
 	}

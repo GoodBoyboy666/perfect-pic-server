@@ -9,9 +9,9 @@ import (
 
 // StaticCacheMiddleware 为静态资源添加 Cache-Control 头
 // 缓存策略由 ConfigStaticCacheControl 配置决定
-func StaticCacheMiddleware() gin.HandlerFunc {
+func StaticCacheMiddleware(appService *service.AppService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		cc := service.GetString(consts.ConfigStaticCacheControl)
+		cc := appService.GetString(consts.ConfigStaticCacheControl)
 		if cc != "" {
 			c.Header("Cache-Control", cc)
 		}

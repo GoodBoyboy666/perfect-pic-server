@@ -43,9 +43,9 @@ func TestImageManageHandlers_ListAndDelete(t *testing.T) {
 	_ = db.DB.Create(&imgOther).Error
 
 	r := gin.New()
-	r.GET("/images", GetImageList)
-	r.DELETE("/images/:id", DeleteImage)
-	r.DELETE("/images/batch", BatchDeleteImages)
+	r.GET("/images", testHandler.GetImageList)
+	r.DELETE("/images/:id", testHandler.DeleteImage)
+	r.DELETE("/images/batch", testHandler.BatchDeleteImages)
 
 	// 列表
 	w1 := httptest.NewRecorder()
@@ -103,7 +103,7 @@ func TestBatchDeleteImagesHandler_Errors(t *testing.T) {
 	setupTestDB(t)
 
 	r := gin.New()
-	r.DELETE("/images/batch", BatchDeleteImages)
+	r.DELETE("/images/batch", testHandler.BatchDeleteImages)
 
 	// 绑定错误
 	w1 := httptest.NewRecorder()
@@ -147,7 +147,7 @@ func TestGetImageListHandler_InvalidUserID(t *testing.T) {
 	setupTestDB(t)
 
 	r := gin.New()
-	r.GET("/images", GetImageList)
+	r.GET("/images", testHandler.GetImageList)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/images?user_id=abc", nil))
@@ -162,7 +162,7 @@ func TestGetImageListHandler_InvalidID(t *testing.T) {
 	setupTestDB(t)
 
 	r := gin.New()
-	r.GET("/images", GetImageList)
+	r.GET("/images", testHandler.GetImageList)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/images?id=abc", nil))
@@ -177,7 +177,7 @@ func TestDeleteImageHandler_InvalidID(t *testing.T) {
 	setupTestDB(t)
 
 	r := gin.New()
-	r.DELETE("/images/:id", DeleteImage)
+	r.DELETE("/images/:id", testHandler.DeleteImage)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/images/abc", nil))

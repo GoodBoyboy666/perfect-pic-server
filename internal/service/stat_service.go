@@ -1,7 +1,6 @@
 package service
 
 import (
-	"perfect-pic-server/internal/repository"
 	"runtime"
 )
 
@@ -21,18 +20,18 @@ type ServerStats struct {
 }
 
 // AdminGetServerStats 获取后台仪表盘统计数据。
-func AdminGetServerStats() (*ServerStats, error) {
-	imageCount, err := repository.Image.CountAll()
+func (s *AppService) AdminGetServerStats() (*ServerStats, error) {
+	imageCount, err := s.repos.Image.CountAll()
 	if err != nil {
 		return nil, NewInternalError("统计图片数据失败")
 	}
 
-	totalSize, err := repository.Image.SumAllSize()
+	totalSize, err := s.repos.Image.SumAllSize()
 	if err != nil {
 		return nil, NewInternalError("统计图片数据失败")
 	}
 
-	userCount, err := repository.User.CountAll()
+	userCount, err := s.repos.User.CountAll()
 	if err != nil {
 		return nil, NewInternalError("统计用户数据失败")
 	}

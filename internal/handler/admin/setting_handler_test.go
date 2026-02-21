@@ -9,7 +9,6 @@ import (
 
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,11 +19,11 @@ func TestGetAndUpdateSettingsHandlers(t *testing.T) {
 	setupTestDB(t)
 
 	_ = db.DB.Create(&model.Setting{Key: "k1", Value: "v1"}).Error
-	service.ClearCache()
+	testService.ClearCache()
 
 	r := gin.New()
-	r.GET("/settings", GetSettings)
-	r.PATCH("/settings", UpdateSettings)
+	r.GET("/settings", testHandler.GetSettings)
+	r.PATCH("/settings", testHandler.UpdateSettings)
 
 	w1 := httptest.NewRecorder()
 	r.ServeHTTP(w1, httptest.NewRequest(http.MethodGet, "/settings", nil))
@@ -52,7 +51,7 @@ func TestSendTestEmailHandler_InvalidEmail(t *testing.T) {
 	setupTestDB(t)
 
 	r := gin.New()
-	r.POST("/email/test", SendTestEmail)
+	r.POST("/email/test", testHandler.SendTestEmail)
 
 	body, _ := json.Marshal(gin.H{"to_email": "bad-email"})
 	w := httptest.NewRecorder()
@@ -68,7 +67,7 @@ func TestSendTestEmailHandler_SMTPMissingHostReturns500(t *testing.T) {
 	setupTestDB(t)
 
 	r := gin.New()
-	r.POST("/email/test", SendTestEmail)
+	r.POST("/email/test", testHandler.SendTestEmail)
 
 	body, _ := json.Marshal(gin.H{"to_email": "a@example.com"})
 	w := httptest.NewRecorder()
@@ -84,7 +83,7 @@ func TestUpdateSettingsHandler_BindError(t *testing.T) {
 	setupTestDB(t)
 
 	r := gin.New()
-	r.PATCH("/settings", UpdateSettings)
+	r.PATCH("/settings", testHandler.UpdateSettings)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodPatch, "/settings", bytes.NewReader([]byte("{bad"))))
@@ -99,7 +98,7 @@ func TestUpdateSettingHandler_EmptyValue(t *testing.T) {
 	setupTestDB(t)
 
 	r := gin.New()
-	r.PATCH("/settings", UpdateSettings)
+	r.PATCH("/settings", testHandler.UpdateSettings)
 
 	// 发送包含空字符串值的请求
 	body, _ := json.Marshal([]UpdateSettingRequest{{Key: "k3", Value: ""}})

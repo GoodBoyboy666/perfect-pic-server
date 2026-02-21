@@ -31,13 +31,13 @@ func TestUserManageHandlers_CRUD(t *testing.T) {
 	_ = db.DB.Create(&u).Error
 
 	r := gin.New()
-	r.GET("/users", GetUserList)
-	r.GET("/users/:id", GetUserDetail)
-	r.POST("/users", CreateUser)
-	r.PATCH("/users/:id", UpdateUser)
-	r.DELETE("/users/:id", DeleteUser)
-	r.POST("/users/:id/avatar", UpdateUserAvatar)
-	r.DELETE("/users/:id/avatar", RemoveUserAvatar)
+	r.GET("/users", testHandler.GetUserList)
+	r.GET("/users/:id", testHandler.GetUserDetail)
+	r.POST("/users", testHandler.CreateUser)
+	r.PATCH("/users/:id", testHandler.UpdateUser)
+	r.DELETE("/users/:id", testHandler.DeleteUser)
+	r.POST("/users/:id/avatar", testHandler.UpdateUserAvatar)
+	r.DELETE("/users/:id/avatar", testHandler.RemoveUserAvatar)
 
 	// 列表
 	w1 := httptest.NewRecorder()
@@ -104,12 +104,12 @@ func TestUserManageHandlers_ErrorBranches(t *testing.T) {
 	setupTestDB(t)
 
 	r := gin.New()
-	r.GET("/users/:id", GetUserDetail)
-	r.POST("/users", CreateUser)
-	r.PATCH("/users/:id", UpdateUser)
-	r.DELETE("/users/:id", DeleteUser)
-	r.POST("/users/:id/avatar", UpdateUserAvatar)
-	r.DELETE("/users/:id/avatar", RemoveUserAvatar)
+	r.GET("/users/:id", testHandler.GetUserDetail)
+	r.POST("/users", testHandler.CreateUser)
+	r.PATCH("/users/:id", testHandler.UpdateUser)
+	r.DELETE("/users/:id", testHandler.DeleteUser)
+	r.POST("/users/:id/avatar", testHandler.UpdateUserAvatar)
+	r.DELETE("/users/:id/avatar", testHandler.RemoveUserAvatar)
 
 	// 无效 id
 	w1 := httptest.NewRecorder()

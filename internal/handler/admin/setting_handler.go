@@ -12,8 +12,8 @@ type UpdateSettingRequest struct {
 	Value string `json:"value"`
 }
 
-func GetSettings(c *gin.Context) {
-	settings, err := service.AdminListSettings()
+func (h *Handler) GetSettings(c *gin.Context) {
+	settings, err := h.service.AdminListSettings()
 	if err != nil {
 		writeServiceError(c, err, "获取配置失败")
 		return
@@ -22,7 +22,7 @@ func GetSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, settings)
 }
 
-func UpdateSettings(c *gin.Context) {
+func (h *Handler) UpdateSettings(c *gin.Context) {
 	var reqs []UpdateSettingRequest
 	if err := c.ShouldBindJSON(&reqs); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数格式错误"})
@@ -34,7 +34,7 @@ func UpdateSettings(c *gin.Context) {
 		items = append(items, service.UpdateSettingPayload{Key: item.Key, Value: item.Value})
 	}
 
-	err := service.AdminUpdateSettings(items)
+	err := h.service.AdminUpdateSettings(items)
 	if err != nil {
 		writeServiceError(c, err, "更新失败")
 		return
@@ -46,7 +46,7 @@ func UpdateSettings(c *gin.Context) {
 	})
 }
 
-func SendTestEmail(c *gin.Context) {
+func (h *Handler) SendTestEmail(c *gin.Context) {
 	var req struct {
 		ToEmail string `json:"to_email" binding:"required,email"`
 	}
@@ -55,7 +55,7 @@ func SendTestEmail(c *gin.Context) {
 		return
 	}
 
-	if err := service.AdminSendTestEmail(req.ToEmail); err != nil {
+	if err := h.service.AdminSendTestEmail(req.ToEmail); err != nil {
 		writeServiceError(c, err, "发送失败")
 		return
 	}

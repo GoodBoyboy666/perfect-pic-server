@@ -15,8 +15,8 @@ import (
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/db"
+	"perfect-pic-server/internal/di"
 	"perfect-pic-server/internal/middleware"
-	"perfect-pic-server/internal/router"
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/utils"
 	"strings"
@@ -44,7 +44,11 @@ func main() {
 	_ = service.GetRedisClient()
 	defer func() { _ = service.CloseRedisClient() }()
 	db.InitDB()
-	if err := service.InitializeSettings(); err != nil {
+	app, err := di.InitializeApplication(db.DB)
+	if err != nil {
+		log.Fatal("❌ 依赖注入初始化失败: ", err)
+	}
+	if err := app.Service.InitializeSettings(); err != nil {
 		log.Fatal("❌ 初始化默认系统设置失败: ", err)
 	}
 
@@ -53,10 +57,10 @@ func main() {
 	gin.SetMode(config.Get().Server.Mode)
 
 	r := gin.Default()
-	applyTrustedProxies(r)
-	router.InitRouter(r)
+	applyTrustedProxies(r, app.Service)
+	app.Router.Init(r)
 
-	setupStaticFiles(r, uploadPath, avatarPath)
+	setupStaticFiles(r, app.Service, uploadPath, avatarPath)
 
 	distFS := GetFrontendAssets()
 	indexData := setupFrontend(r, distFS)
@@ -90,12 +94,12 @@ func ensureDirectories() (string, string) {
 	return uploadPath, avatarPath
 }
 
-func setupStaticFiles(r *gin.Engine, uploadPath, avatarPath string) {
+func setupStaticFiles(r *gin.Engine, appService *service.AppService, uploadPath, avatarPath string) {
 	// 使用带缓存控制的静态文件服务
-	r.Group(config.Get().Upload.URLPrefix, middleware.StaticCacheMiddleware()).
+	r.Group(config.Get().Upload.URLPrefix, middleware.StaticCacheMiddleware(appService)).
 		StaticFS("", gin.Dir(uploadPath, false))
 
-	r.Group(config.Get().Upload.AvatarURLPrefix, middleware.StaticCacheMiddleware()).
+	r.Group(config.Get().Upload.AvatarURLPrefix, middleware.StaticCacheMiddleware(appService)).
 		StaticFS("", gin.Dir(avatarPath, false))
 }
 
@@ -269,8 +273,8 @@ func checkSecurePath(path string) {
 	}
 }
 
-func applyTrustedProxies(r *gin.Engine) {
-	raw := strings.TrimSpace(service.GetString(consts.ConfigTrustedProxies))
+func applyTrustedProxies(r *gin.Engine, appService *service.AppService) {
+	raw := strings.TrimSpace(appService.GetString(consts.ConfigTrustedProxies))
 	if raw == "" {
 		if err := r.SetTrustedProxies(nil); err != nil {
 			log.Printf("⚠️ 设置可信代理失败: %v", err)

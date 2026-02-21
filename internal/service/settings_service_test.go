@@ -12,8 +12,8 @@ import (
 func TestGetString_DefaultSettingInserted(t *testing.T) {
 	setupTestDB(t)
 
-	ClearCache()
-	val := GetString(consts.ConfigSiteName)
+	testService.ClearCache()
+	val := testService.GetString(consts.ConfigSiteName)
 	if val == "" {
 		t.Fatalf("期望 default site_name to be non-empty")
 	}
@@ -31,13 +31,13 @@ func TestGetString_DefaultSettingInserted(t *testing.T) {
 func TestGetString_UnknownKeyReturnsEmpty(t *testing.T) {
 	setupTestDB(t)
 
-	ClearCache()
-	val := GetString("unknown_key_not_exists")
+	testService.ClearCache()
+	val := testService.GetString("unknown_key_not_exists")
 	if val != "" {
 		t.Fatalf("期望 empty for unknown key，实际为 %q", val)
 	}
 	// 第二次调用仍应返回空值（缓存了未找到标记）。
-	val2 := GetString("unknown_key_not_exists")
+	val2 := testService.GetString("unknown_key_not_exists")
 	if val2 != "" {
 		t.Fatalf("期望 empty for unknown key，实际为 %q", val2)
 	}
@@ -48,9 +48,9 @@ func TestGetInt_ParseFailureReturnsZero(t *testing.T) {
 	db := setupTestDB(t)
 
 	_ = db.Create(&model.Setting{Key: "k", Value: "not-int"}).Error
-	ClearCache()
+	testService.ClearCache()
 
-	if got := GetInt("k"); got != 0 {
+	if got := testService.GetInt("k"); got != 0 {
 		t.Fatalf("期望 0 for parse failure，实际为 %d", got)
 	}
 }
@@ -61,12 +61,12 @@ func TestGetFloat64_ParseAndFailure(t *testing.T) {
 
 	_ = db.Create(&model.Setting{Key: "f1", Value: "0.5"}).Error
 	_ = db.Create(&model.Setting{Key: "f2", Value: "bad"}).Error
-	ClearCache()
+	testService.ClearCache()
 
-	if got := GetFloat64("f1"); got != 0.5 {
+	if got := testService.GetFloat64("f1"); got != 0.5 {
 		t.Fatalf("期望 0.5，实际为 %v", got)
 	}
-	if got := GetFloat64("f2"); got != 0 {
+	if got := testService.GetFloat64("f2"); got != 0 {
 		t.Fatalf("期望 0 on parse 错误，实际为 %v", got)
 	}
 }
@@ -78,7 +78,7 @@ func TestListSettingsForAdmin_MasksSensitive(t *testing.T) {
 	_ = db.DB.Create(&model.Setting{Key: "k1", Value: "v1", Sensitive: false}).Error
 	_ = db.DB.Create(&model.Setting{Key: "k2", Value: "secret", Sensitive: true}).Error
 
-	settings, err := AdminListSettings()
+	settings, err := testService.AdminListSettings()
 	if err != nil {
 		t.Fatalf("AdminListSettings: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestUpdateSettingsForAdmin_MaskedSensitiveIsNotOverwritten(t *testing.T) {
 	_ = db.DB.Create(&model.Setting{Key: "s1", Value: "secret", Sensitive: true}).Error
 	_ = db.DB.Create(&model.Setting{Key: "n1", Value: "old", Sensitive: false}).Error
 
-	err := AdminUpdateSettings([]UpdateSettingPayload{
+	err := testService.AdminUpdateSettings([]UpdateSettingPayload{
 		{Key: "s1", Value: "**********"}, // 应被忽略
 		{Key: "n1", Value: "**********"}, // 应覆盖（非敏感）
 		{Key: "new", Value: "val"},       // 更新或插入
@@ -127,3 +127,4 @@ func TestUpdateSettingsForAdmin_MaskedSensitiveIsNotOverwritten(t *testing.T) {
 		t.Fatalf("期望 new=val，实际为 %q", n.Value)
 	}
 }
+

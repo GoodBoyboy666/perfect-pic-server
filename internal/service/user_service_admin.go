@@ -3,7 +3,6 @@ package service
 import (
 	"errors"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/repository"
 	"time"
 
 	"gorm.io/gorm"
@@ -36,10 +35,10 @@ type AdminCreateUserInput struct {
 }
 
 // AdminListUsers 按分页与筛选条件查询用户列表。
-func AdminListUsers(params AdminUserListParams) ([]model.User, int64, error) {
+func (s *AppService) AdminListUsers(params AdminUserListParams) ([]model.User, int64, error) {
 	page, pageSize := normalizeAdminPagination(params.Page, params.PageSize)
 	sortOrder := resolveAdminUserSortOrder(params.Order)
-	users, total, err := repository.User.AdminListUsers(
+	users, total, err := s.repos.User.AdminListUsers(
 		params.Keyword,
 		params.ShowDeleted,
 		sortOrder,
@@ -53,8 +52,8 @@ func AdminListUsers(params AdminUserListParams) ([]model.User, int64, error) {
 }
 
 // AdminGetUserDetail 根据用户 ID 获取详情。
-func AdminGetUserDetail(id uint) (*model.User, error) {
-	user, err := repository.User.FindUnscopedByID(id)
+func (s *AppService) AdminGetUserDetail(id uint) (*model.User, error) {
+	user, err := s.repos.User.FindUnscopedByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, NewNotFoundError("用户不存在")
@@ -65,8 +64,8 @@ func AdminGetUserDetail(id uint) (*model.User, error) {
 }
 
 // AdminCreateUser 创建后台普通用户。
-func AdminCreateUser(input AdminCreateUserInput) (*model.User, error) {
-	if err := validateAdminCreateUserInput(input); err != nil {
+func (s *AppService) AdminCreateUser(input AdminCreateUserInput) (*model.User, error) {
+	if err := s.validateAdminCreateUserInput(input); err != nil {
 		return nil, err
 	}
 
@@ -82,11 +81,11 @@ func AdminCreateUser(input AdminCreateUserInput) (*model.User, error) {
 		Status:   1,
 	}
 
-	if err := applyAdminCreateUserOptionals(&user, input); err != nil {
+	if err := s.applyAdminCreateUserOptionals(&user, input); err != nil {
 		return nil, err
 	}
 
-	if err := repository.User.Create(&user); err != nil {
+	if err := s.repos.User.Create(&user); err != nil {
 		return nil, NewInternalError("创建用户失败")
 	}
 
@@ -94,28 +93,28 @@ func AdminCreateUser(input AdminCreateUserInput) (*model.User, error) {
 }
 
 // AdminPrepareUserUpdates 校验后台用户更新输入并构建可持久化的 updates。
-func AdminPrepareUserUpdates(userID uint, req AdminUserUpdateInput) (map[string]interface{}, error) {
+func (s *AppService) AdminPrepareUserUpdates(userID uint, req AdminUserUpdateInput) (map[string]interface{}, error) {
 	updates := make(map[string]interface{})
 
-	if err := prepareAdminUsernameUpdate(userID, req.Username, updates); err != nil {
+	if err := s.prepareAdminUsernameUpdate(userID, req.Username, updates); err != nil {
 		return nil, err
 	}
 
-	if err := prepareAdminPasswordUpdate(req.Password, updates); err != nil {
+	if err := s.prepareAdminPasswordUpdate(req.Password, updates); err != nil {
 		return nil, err
 	}
 
-	if err := prepareAdminEmailUpdate(userID, req.Email, updates); err != nil {
+	if err := s.prepareAdminEmailUpdate(userID, req.Email, updates); err != nil {
 		return nil, err
 	}
 
-	prepareAdminEmailVerifiedUpdate(req.EmailVerified, updates)
+	s.prepareAdminEmailVerifiedUpdate(req.EmailVerified, updates)
 
-	if err := prepareAdminStorageQuotaUpdate(req.StorageQuota, updates); err != nil {
+	if err := s.prepareAdminStorageQuotaUpdate(req.StorageQuota, updates); err != nil {
 		return nil, err
 	}
 
-	if err := prepareAdminStatusUpdate(req.Status, updates); err != nil {
+	if err := s.prepareAdminStatusUpdate(req.Status, updates); err != nil {
 		return nil, err
 	}
 
@@ -123,12 +122,12 @@ func AdminPrepareUserUpdates(userID uint, req AdminUserUpdateInput) (map[string]
 }
 
 // AdminApplyUserUpdates 将更新字段应用到指定用户。
-func AdminApplyUserUpdates(userID uint, updates map[string]interface{}) error {
+func (s *AppService) AdminApplyUserUpdates(userID uint, updates map[string]interface{}) error {
 	if len(updates) == 0 {
 		return nil
 	}
 
-	if err := repository.User.UpdateByID(userID, updates); err != nil {
+	if err := s.repos.User.UpdateByID(userID, updates); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return NewNotFoundError("用户不存在")
 		}
@@ -139,12 +138,12 @@ func AdminApplyUserUpdates(userID uint, updates map[string]interface{}) error {
 
 // AdminDeleteUser 删除用户。
 // hardDelete=true 时执行彻底删除；否则执行软删除并清理唯一字段占用。
-func AdminDeleteUser(userID uint, hardDelete bool) error {
+func (s *AppService) AdminDeleteUser(userID uint, hardDelete bool) error {
 	if hardDelete {
-		if err := DeleteUserFiles(userID); err != nil {
+		if err := s.DeleteUserFiles(userID); err != nil {
 			return NewInternalError("删除用户失败")
 		}
-		if err := repository.User.HardDeleteUserWithImages(userID); err != nil {
+		if err := s.repos.User.HardDeleteUserWithImages(userID); err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return NewNotFoundError("用户不存在")
 			}
@@ -153,7 +152,7 @@ func AdminDeleteUser(userID uint, hardDelete bool) error {
 		return nil
 	}
 
-	if err := repository.User.AdminSoftDeleteUser(userID, time.Now().Unix()); err != nil {
+	if err := s.repos.User.AdminSoftDeleteUser(userID, time.Now().Unix()); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return NewNotFoundError("用户不存在")
 		}

@@ -30,7 +30,7 @@ func resolveAdminUserSortOrder(order string) string {
 }
 
 // validateAdminCreateUserInput 校验管理员创建用户输入是否合法。
-func validateAdminCreateUserInput(input AdminCreateUserInput) error {
+func (s *AppService) validateAdminCreateUserInput(input AdminCreateUserInput) error {
 	if ok, msg := utils.ValidatePassword(input.Password); !ok {
 		return NewValidationError(msg)
 	}
@@ -38,7 +38,7 @@ func validateAdminCreateUserInput(input AdminCreateUserInput) error {
 		return NewValidationError(msg)
 	}
 
-	usernameTaken, err := IsUsernameTaken(input.Username, nil, true)
+	usernameTaken, err := s.IsUsernameTaken(input.Username, nil, true)
 	if err != nil {
 		return NewInternalError("创建用户失败")
 	}
@@ -50,7 +50,7 @@ func validateAdminCreateUserInput(input AdminCreateUserInput) error {
 		if ok, msg := utils.ValidateEmail(*input.Email); !ok {
 			return NewValidationError(msg)
 		}
-		emailTaken, err := IsEmailTaken(*input.Email, nil, true)
+		emailTaken, err := s.IsEmailTaken(*input.Email, nil, true)
 		if err != nil {
 			return NewInternalError("创建用户失败")
 		}
@@ -72,7 +72,7 @@ func hashPassword(password string) (string, error) {
 }
 
 // applyAdminCreateUserOptionals 将管理员创建用户的可选字段应用到模型。
-func applyAdminCreateUserOptionals(user *model.User, input AdminCreateUserInput) error {
+func (s *AppService) applyAdminCreateUserOptionals(user *model.User, input AdminCreateUserInput) error {
 	if input.Email != nil {
 		user.Email = *input.Email
 	}
@@ -104,7 +104,7 @@ func applyAdminCreateUserOptionals(user *model.User, input AdminCreateUserInput)
 }
 
 // prepareAdminUsernameUpdate 校验并准备用户名更新字段。
-func prepareAdminUsernameUpdate(userID uint, username *string, updates map[string]interface{}) error {
+func (s *AppService) prepareAdminUsernameUpdate(userID uint, username *string, updates map[string]interface{}) error {
 	if username == nil || *username == "" {
 		return nil
 	}
@@ -113,7 +113,7 @@ func prepareAdminUsernameUpdate(userID uint, username *string, updates map[strin
 	}
 
 	excludeID := userID
-	usernameTaken, err := IsUsernameTaken(*username, &excludeID, true)
+	usernameTaken, err := s.IsUsernameTaken(*username, &excludeID, true)
 	if err != nil {
 		return NewInternalError("更新用户失败")
 	}
@@ -126,7 +126,7 @@ func prepareAdminUsernameUpdate(userID uint, username *string, updates map[strin
 }
 
 // prepareAdminPasswordUpdate 校验并准备密码更新字段。
-func prepareAdminPasswordUpdate(password *string, updates map[string]interface{}) error {
+func (s *AppService) prepareAdminPasswordUpdate(password *string, updates map[string]interface{}) error {
 	if password == nil || *password == "" {
 		return nil
 	}
@@ -144,7 +144,7 @@ func prepareAdminPasswordUpdate(password *string, updates map[string]interface{}
 }
 
 // prepareAdminEmailUpdate 校验并准备邮箱更新字段。
-func prepareAdminEmailUpdate(userID uint, email *string, updates map[string]interface{}) error {
+func (s *AppService) prepareAdminEmailUpdate(userID uint, email *string, updates map[string]interface{}) error {
 	if email == nil || *email == "" {
 		return nil
 	}
@@ -153,7 +153,7 @@ func prepareAdminEmailUpdate(userID uint, email *string, updates map[string]inte
 	}
 
 	excludeID := userID
-	emailTaken, err := IsEmailTaken(*email, &excludeID, true)
+	emailTaken, err := s.IsEmailTaken(*email, &excludeID, true)
 	if err != nil {
 		return NewInternalError("更新用户失败")
 	}
@@ -166,14 +166,14 @@ func prepareAdminEmailUpdate(userID uint, email *string, updates map[string]inte
 }
 
 // prepareAdminEmailVerifiedUpdate 准备邮箱验证状态更新字段。
-func prepareAdminEmailVerifiedUpdate(emailVerified *bool, updates map[string]interface{}) {
+func (s *AppService) prepareAdminEmailVerifiedUpdate(emailVerified *bool, updates map[string]interface{}) {
 	if emailVerified != nil {
 		updates["email_verified"] = *emailVerified
 	}
 }
 
 // prepareAdminStorageQuotaUpdate 校验并准备存储配额更新字段。
-func prepareAdminStorageQuotaUpdate(storageQuota *int64, updates map[string]interface{}) error {
+func (s *AppService) prepareAdminStorageQuotaUpdate(storageQuota *int64, updates map[string]interface{}) error {
 	if storageQuota == nil {
 		return nil
 	}
@@ -189,7 +189,7 @@ func prepareAdminStorageQuotaUpdate(storageQuota *int64, updates map[string]inte
 }
 
 // prepareAdminStatusUpdate 校验并准备用户状态更新字段。
-func prepareAdminStatusUpdate(status *int, updates map[string]interface{}) error {
+func (s *AppService) prepareAdminStatusUpdate(status *int, updates map[string]interface{}) error {
 	if status == nil {
 		return nil
 	}

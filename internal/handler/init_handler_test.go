@@ -7,8 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"perfect-pic-server/internal/service"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,13 +16,13 @@ func TestInitHandlers_StateAndInit(t *testing.T) {
 	setupTestDB(t)
 
 	// 确保默认设置存在，使 InitializeSystem 能更新到实际行。
-	if err := service.InitializeSettings(); err != nil {
+	if err := testService.InitializeSettings(); err != nil {
 		t.Fatalf("InitializeSettings: %v", err)
 	}
 
 	r := gin.New()
-	r.GET("/init", GetInitState)
-	r.POST("/init", Init)
+	r.GET("/init", testHandler.GetInitState)
+	r.POST("/init", testHandler.Init)
 
 	// 初始未初始化。
 	w1 := httptest.NewRecorder()

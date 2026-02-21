@@ -28,7 +28,7 @@ func TestGetSelfInfo_OK(t *testing.T) {
 	_ = db.DB.Create(&u).Error
 
 	r := gin.New()
-	r.GET("/me", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, GetSelfInfo)
+	r.GET("/me", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.GetSelfInfo)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/me", nil))
@@ -47,7 +47,7 @@ func TestUpdateSelfUsername_ValidAndInvalid(t *testing.T) {
 	_ = db.DB.Create(&u).Error
 
 	r := gin.New()
-	r.PATCH("/username", func(c *gin.Context) { c.Set("id", u.ID); c.Set("admin", true); c.Next() }, UpdateSelfUsername)
+	r.PATCH("/username", func(c *gin.Context) { c.Set("id", u.ID); c.Set("admin", true); c.Next() }, testHandler.UpdateSelfUsername)
 
 	bodyBad, _ := json.Marshal(gin.H{"username": "ab"})
 	w1 := httptest.NewRecorder()
@@ -74,7 +74,7 @@ func TestUpdateSelfPassword(t *testing.T) {
 	_ = db.DB.Create(&u).Error
 
 	r := gin.New()
-	r.PATCH("/password", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, UpdateSelfPassword)
+	r.PATCH("/password", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.UpdateSelfPassword)
 
 	bodyBad, _ := json.Marshal(gin.H{"old_password": "wrong", "new_password": "abc123456"})
 	w1 := httptest.NewRecorder()
@@ -112,7 +112,7 @@ func TestUpdateSelfAvatar_OK(t *testing.T) {
 	_ = w.Close()
 
 	r := gin.New()
-	r.PATCH("/avatar", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, UpdateSelfAvatar)
+	r.PATCH("/avatar", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.UpdateSelfAvatar)
 
 	req := httptest.NewRequest(http.MethodPatch, "/avatar", &body)
 	req.Header.Set("Content-Type", w.FormDataContentType())
@@ -140,7 +140,7 @@ func TestRequestUpdateEmailHandler_ForbiddenOnWrongPassword(t *testing.T) {
 	_ = db.DB.Create(&u).Error
 
 	r := gin.New()
-	r.POST("/email", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, RequestUpdateEmail)
+	r.POST("/email", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.RequestUpdateEmail)
 
 	body, _ := json.Marshal(gin.H{"password": "wrong", "new_email": "new@example.com"})
 	w := httptest.NewRecorder()
@@ -160,7 +160,7 @@ func TestGetSelfImagesCountHandler_OK(t *testing.T) {
 	_ = db.DB.Create(&model.Image{Filename: "a.png", Path: "2026/02/13/a.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}).Error
 
 	r := gin.New()
-	r.GET("/count", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, GetSelfImagesCount)
+	r.GET("/count", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.GetSelfImagesCount)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/count", nil))

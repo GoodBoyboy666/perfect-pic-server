@@ -34,7 +34,7 @@ func TestGenerateAndVerifyForgetPasswordToken_OneTimeUse(t *testing.T) {
 	setupTestDB(t)
 	resetPasswordResetStore()
 
-	token, err := GenerateForgetPasswordToken(42)
+	token, err := testService.GenerateForgetPasswordToken(42)
 	if err != nil {
 		t.Fatalf("GenerateForgetPasswordToken: %v", err)
 	}
@@ -42,12 +42,12 @@ func TestGenerateAndVerifyForgetPasswordToken_OneTimeUse(t *testing.T) {
 		t.Fatalf("期望 64-char hex token，实际为 len=%d token=%q", len(token), token)
 	}
 
-	uid, ok := VerifyForgetPasswordToken(token)
+	uid, ok := testService.VerifyForgetPasswordToken(token)
 	if !ok || uid != 42 {
 		t.Fatalf("期望 valid token for uid=42，实际为 uid=%d ok=%v", uid, ok)
 	}
 
-	uid2, ok2 := VerifyForgetPasswordToken(token)
+	uid2, ok2 := testService.VerifyForgetPasswordToken(token)
 	if ok2 || uid2 != 0 {
 		t.Fatalf("期望 one-time use token to be 无效 on second use，实际为 uid=%d ok=%v", uid2, ok2)
 	}
@@ -58,7 +58,7 @@ func TestVerifyForgetPasswordToken_ConcurrentOneTime(t *testing.T) {
 	setupTestDB(t)
 	resetPasswordResetStore()
 
-	token, err := GenerateForgetPasswordToken(99)
+	token, err := testService.GenerateForgetPasswordToken(99)
 	if err != nil {
 		t.Fatalf("GenerateForgetPasswordToken: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestVerifyForgetPasswordToken_ConcurrentOneTime(t *testing.T) {
 	for i := 0; i < workers; i++ {
 		go func() {
 			defer wg.Done()
-			if _, ok := VerifyForgetPasswordToken(token); ok {
+			if _, ok := testService.VerifyForgetPasswordToken(token); ok {
 				atomic.AddInt32(&success, 1)
 			}
 		}()
@@ -134,7 +134,7 @@ func TestDeleteUserFiles_RemovesAvatarDirAndImages(t *testing.T) {
 		t.Fatalf("create image record: %v", err)
 	}
 
-	if err := DeleteUserFiles(userID); err != nil {
+	if err := testService.DeleteUserFiles(userID); err != nil {
 		t.Fatalf("DeleteUserFiles: %v", err)
 	}
 
@@ -152,29 +152,29 @@ func TestEmailChangeToken_OneTimeAndReplaced(t *testing.T) {
 	resetEmailChangeStore()
 	t.Cleanup(resetEmailChangeStore)
 
-	tok1, err := GenerateEmailChangeToken(1, "old@example.com", "new1@example.com")
+	tok1, err := testService.GenerateEmailChangeToken(1, "old@example.com", "new1@example.com")
 	if err != nil {
 		t.Fatalf("GenerateEmailChangeToken: %v", err)
 	}
-	if _, ok := VerifyEmailChangeToken(tok1); !ok {
+	if _, ok := testService.VerifyEmailChangeToken(tok1); !ok {
 		t.Fatalf("expected token to be valid on first consume")
 	}
-	if _, ok := VerifyEmailChangeToken(tok1); ok {
+	if _, ok := testService.VerifyEmailChangeToken(tok1); ok {
 		t.Fatalf("expected token to be one-time use")
 	}
 
-	tok2, err := GenerateEmailChangeToken(2, "old@example.com", "new2@example.com")
+	tok2, err := testService.GenerateEmailChangeToken(2, "old@example.com", "new2@example.com")
 	if err != nil {
 		t.Fatalf("GenerateEmailChangeToken: %v", err)
 	}
-	tok3, err := GenerateEmailChangeToken(2, "old@example.com", "new3@example.com")
+	tok3, err := testService.GenerateEmailChangeToken(2, "old@example.com", "new3@example.com")
 	if err != nil {
 		t.Fatalf("GenerateEmailChangeToken: %v", err)
 	}
-	if _, ok := VerifyEmailChangeToken(tok2); ok {
+	if _, ok := testService.VerifyEmailChangeToken(tok2); ok {
 		t.Fatalf("expected older token to be invalid after replaced by a new one")
 	}
-	item, ok := VerifyEmailChangeToken(tok3)
+	item, ok := testService.VerifyEmailChangeToken(tok3)
 	if !ok || item == nil || item.NewEmail != "new3@example.com" {
 		t.Fatalf("expected newest token to be valid, got item=%+v ok=%v", item, ok)
 	}
@@ -197,7 +197,7 @@ func TestEmailChangeToken_ExpiredRejected(t *testing.T) {
 	emailChangeStore.Store(uint(1001), expiredToken)
 	emailChangeTokenStore.Store(expiredToken, expired)
 
-	item, ok := VerifyEmailChangeToken(expiredToken)
+	item, ok := testService.VerifyEmailChangeToken(expiredToken)
 	if ok || item != nil {
 		t.Fatalf("expected expired token to be rejected, got item=%+v ok=%v", item, ok)
 	}
@@ -208,7 +208,7 @@ func TestVerifyEmailChangeToken_ConcurrentOneTime(t *testing.T) {
 	setupTestDB(t)
 	resetEmailChangeStore()
 
-	token, err := GenerateEmailChangeToken(101, "old@example.com", "new@example.com")
+	token, err := testService.GenerateEmailChangeToken(101, "old@example.com", "new@example.com")
 	if err != nil {
 		t.Fatalf("GenerateEmailChangeToken: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestVerifyEmailChangeToken_ConcurrentOneTime(t *testing.T) {
 	for i := 0; i < workers; i++ {
 		go func() {
 			defer wg.Done()
-			if _, ok := VerifyEmailChangeToken(token); ok {
+			if _, ok := testService.VerifyEmailChangeToken(token); ok {
 				atomic.AddInt32(&success, 1)
 			}
 		}()
@@ -237,14 +237,14 @@ func TestGetSystemDefaultStorageQuota(t *testing.T) {
 	setupTestDB(t)
 
 	// 当设置缺失时应回退到 DefaultSettings 的默认值。
-	if got := GetSystemDefaultStorageQuota(); got <= 0 {
+	if got := testService.GetSystemDefaultStorageQuota(); got <= 0 {
 		t.Fatalf("期望 positive default quota，实际为 %d", got)
 	}
 
 	// 覆盖为自定义值。
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigDefaultStorageQuota, Value: "123"}).Error
-	ClearCache()
-	if got := GetSystemDefaultStorageQuota(); got != 123 {
+	testService.ClearCache()
+	if got := testService.GetSystemDefaultStorageQuota(); got != 123 {
 		t.Fatalf("期望 123，实际为 %d", got)
 	}
 }
@@ -256,7 +256,7 @@ func TestGetUserDetailForAdmin(t *testing.T) {
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
 	_ = db.DB.Create(&u).Error
 
-	got, err := AdminGetUserDetail(u.ID)
+	got, err := testService.AdminGetUserDetail(u.ID)
 	if err != nil {
 		t.Fatalf("AdminGetUserDetail: %v", err)
 	}
@@ -276,7 +276,7 @@ func TestListUsersForAdmin_FilterAndShowDeleted(t *testing.T) {
 	_ = db.DB.Create(&u2).Error
 	_ = db.DB.Delete(&u2).Error
 
-	users, total, err := AdminListUsers(AdminUserListParams{Page: 1, PageSize: 10, Keyword: "ali"})
+	users, total, err := testService.AdminListUsers(AdminUserListParams{Page: 1, PageSize: 10, Keyword: "ali"})
 	if err != nil {
 		t.Fatalf("AdminListUsers: %v", err)
 	}
@@ -284,9 +284,9 @@ func TestListUsersForAdmin_FilterAndShowDeleted(t *testing.T) {
 		t.Fatalf("非预期: total=%d len=%d users=%v", total, len(users), users)
 	}
 
-	users2, total2, err := AdminListUsers(AdminUserListParams{Page: 1, PageSize: 10, ShowDeleted: true})
+	users2, total2, err := testService.AdminListUsers(AdminUserListParams{Page: 1, PageSize: 10, ShowDeleted: true})
 	if err != nil {
-		t.Fatalf("AdminListUsers(showDeleted): %v", err)
+		t.Fatalf("testService.AdminListUsers(showDeleted): %v", err)
 	}
 	if total2 != 2 || len(users2) != 2 {
 		t.Fatalf("期望 2 users with deleted，实际为 total=%d len=%d", total2, len(users2))
@@ -297,13 +297,13 @@ func TestListUsersForAdmin_FilterAndShowDeleted(t *testing.T) {
 func TestCreateUserForAdmin_Validates(t *testing.T) {
 	setupTestDB(t)
 
-	user, err := AdminCreateUser(AdminCreateUserInput{Username: "ab", Password: "abc12345"})
+	user, err := testService.AdminCreateUser(AdminCreateUserInput{Username: "ab", Password: "abc12345"})
 	if user != nil {
 		t.Fatalf("期望 user=nil，实际为 %v", user)
 	}
 	assertServiceErrorCode(t, err, ErrorCodeValidation)
 
-	user, err = AdminCreateUser(AdminCreateUserInput{Username: "alice", Password: "short"})
+	user, err = testService.AdminCreateUser(AdminCreateUserInput{Username: "alice", Password: "short"})
 	if user != nil {
 		t.Fatalf("期望 user=nil，实际为 %v", user)
 	}
@@ -319,7 +319,7 @@ func TestCreateUserForAdmin_SuccessOptions(t *testing.T) {
 	quota := int64(100)
 	status := 2
 
-	user, err := AdminCreateUser(AdminCreateUserInput{
+	user, err := testService.AdminCreateUser(AdminCreateUserInput{
 		Username:      "alice_1",
 		Password:      "abc12345",
 		Email:         &email,
@@ -339,7 +339,7 @@ func TestCreateUserForAdmin_SuccessOptions(t *testing.T) {
 
 	// StorageQuota=-1 应设置为 nil。
 	q2 := int64(-1)
-	user2, err := AdminCreateUser(AdminCreateUserInput{
+	user2, err := testService.AdminCreateUser(AdminCreateUserInput{
 		Username:     "alice_2",
 		Password:     "abc12345",
 		StorageQuota: &q2,
@@ -362,11 +362,11 @@ func TestPrepareAndApplyUserUpdatesForAdmin(t *testing.T) {
 
 	newName := "alice2"
 	newStatus := 2
-	updates, err := AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{Username: &newName, Status: &newStatus})
+	updates, err := testService.AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{Username: &newName, Status: &newStatus})
 	if err != nil {
 		t.Fatalf("AdminPrepareUserUpdates: err=%v", err)
 	}
-	if err := AdminApplyUserUpdates(u.ID, updates); err != nil {
+	if err := testService.AdminApplyUserUpdates(u.ID, updates); err != nil {
 		t.Fatalf("AdminApplyUserUpdates: %v", err)
 	}
 
@@ -387,29 +387,29 @@ func TestPrepareUserUpdatesForAdmin_MoreBranches(t *testing.T) {
 
 	// 无效状态
 	badStatus := 9
-	_, err := AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{Status: &badStatus})
+	_, err := testService.AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{Status: &badStatus})
 	assertServiceErrorCode(t, err, ErrorCodeValidation)
 
 	// 无效配额
 	badQuota := int64(-2)
-	_, err = AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{StorageQuota: &badQuota})
+	_, err = testService.AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{StorageQuota: &badQuota})
 	assertServiceErrorCode(t, err, ErrorCodeValidation)
 
 	// 邮箱已被占用
 	u2 := model.User{Username: "bobby", Password: string(hashed), Status: 1, Email: "taken@example.com"}
 	_ = db.DB.Create(&u2).Error
 	newEmail := "taken@example.com"
-	_, err = AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{Email: &newEmail})
+	_, err = testService.AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{Email: &newEmail})
 	assertServiceErrorCode(t, err, ErrorCodeConflict)
 
 	// 更新密码并清空配额（-1）
 	newPass := "abc123456"
 	clearQuota := int64(-1)
-	updates, err := AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{Password: &newPass, StorageQuota: &clearQuota})
+	updates, err := testService.AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{Password: &newPass, StorageQuota: &clearQuota})
 	if err != nil {
 		t.Fatalf("期望 success，实际为 err=%v", err)
 	}
-	if err := AdminApplyUserUpdates(u.ID, updates); err != nil {
+	if err := testService.AdminApplyUserUpdates(u.ID, updates); err != nil {
 		t.Fatalf("apply: %v", err)
 	}
 
@@ -431,7 +431,7 @@ func TestDeleteUserForAdmin_SoftDelete(t *testing.T) {
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
 	_ = db.DB.Create(&u).Error
 
-	if err := AdminDeleteUser(u.ID, false); err != nil {
+	if err := testService.AdminDeleteUser(u.ID, false); err != nil {
 		t.Fatalf("AdminDeleteUser: %v", err)
 	}
 
@@ -482,7 +482,7 @@ func TestDeleteUserForAdmin_HardDeleteAlsoDeletesFiles(t *testing.T) {
 		UserID:     u.ID,
 	}).Error
 
-	if err := AdminDeleteUser(u.ID, true); err != nil {
+	if err := testService.AdminDeleteUser(u.ID, true); err != nil {
 		t.Fatalf("hard delete: %v", err)
 	}
 
@@ -516,7 +516,7 @@ func TestIsUsernameTaken_IncludeDeleted(t *testing.T) {
 		t.Fatalf("soft delete user: %v", err)
 	}
 
-	taken, err := IsUsernameTaken("alice", nil, false)
+	taken, err := testService.IsUsernameTaken("alice", nil, false)
 	if err != nil {
 		t.Fatalf("IsUsernameTaken: %v", err)
 	}
@@ -524,9 +524,9 @@ func TestIsUsernameTaken_IncludeDeleted(t *testing.T) {
 		t.Fatalf("期望 username not taken when exclude deleted")
 	}
 
-	taken2, err := IsUsernameTaken("alice", nil, true)
+	taken2, err := testService.IsUsernameTaken("alice", nil, true)
 	if err != nil {
-		t.Fatalf("IsUsernameTaken(includeDeleted): %v", err)
+		t.Fatalf("testService.IsUsernameTaken(includeDeleted): %v", err)
 	}
 	if !taken2 {
 		t.Fatalf("期望 username taken when include deleted")
@@ -547,7 +547,7 @@ func TestIsEmailTaken_ExcludeUserID(t *testing.T) {
 	}
 
 	exclude := u1.ID
-	taken, err := IsEmailTaken("x@example.com", &exclude, true)
+	taken, err := testService.IsEmailTaken("x@example.com", &exclude, true)
 	if err != nil {
 		t.Fatalf("IsEmailTaken: %v", err)
 	}
@@ -573,7 +573,7 @@ func TestGetUserProfile(t *testing.T) {
 	}
 	_ = db.DB.Create(&u).Error
 
-	profile, err := GetUserProfile(u.ID)
+	profile, err := testService.GetUserProfile(u.ID)
 	if err != nil {
 		t.Fatalf("GetUserProfile: %v", err)
 	}
@@ -590,7 +590,7 @@ func TestUpdateUsernameAndGenerateToken(t *testing.T) {
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
 	_ = db.DB.Create(&u).Error
 
-	token, err := UpdateUsernameAndGenerateToken(u.ID, "ab", false)
+	token, err := testService.UpdateUsernameAndGenerateToken(u.ID, "ab", false)
 	if token != "" {
 		t.Fatalf("期望 token 为空，实际为 %q", token)
 	}
@@ -598,12 +598,12 @@ func TestUpdateUsernameAndGenerateToken(t *testing.T) {
 
 	u2 := model.User{Username: "bobby", Password: string(hashed), Status: 1, Email: "b@example.com"}
 	_ = db.DB.Create(&u2).Error
-	_, err = UpdateUsernameAndGenerateToken(u.ID, "bobby", false)
+	_, err = testService.UpdateUsernameAndGenerateToken(u.ID, "bobby", false)
 	if serviceErr := assertServiceErrorCode(t, err, ErrorCodeConflict); serviceErr.Message != "用户名已存在" {
 		t.Fatalf("期望 conflict message，实际为 %q", serviceErr.Message)
 	}
 
-	token, err = UpdateUsernameAndGenerateToken(u.ID, "alice2", true)
+	token, err = testService.UpdateUsernameAndGenerateToken(u.ID, "alice2", true)
 	if err != nil || token == "" {
 		t.Fatalf("期望 success，实际为 token=%q err=%v", token, err)
 	}
@@ -624,15 +624,15 @@ func TestUpdatePasswordByOldPassword(t *testing.T) {
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
 	_ = db.DB.Create(&u).Error
 
-	err := UpdatePasswordByOldPassword(u.ID, "abc12345", "short")
+	err := testService.UpdatePasswordByOldPassword(u.ID, "abc12345", "short")
 	assertServiceErrorCode(t, err, ErrorCodeValidation)
 
-	err = UpdatePasswordByOldPassword(u.ID, "wrong", "abc123456")
+	err = testService.UpdatePasswordByOldPassword(u.ID, "wrong", "abc123456")
 	if serviceErr := assertServiceErrorCode(t, err, ErrorCodeValidation); serviceErr.Message != "旧密码错误" {
 		t.Fatalf("期望 old password message，实际为 %q", serviceErr.Message)
 	}
 
-	err = UpdatePasswordByOldPassword(u.ID, "abc12345", "abc123456")
+	err = testService.UpdatePasswordByOldPassword(u.ID, "abc12345", "abc123456")
 	if err != nil {
 		t.Fatalf("期望 success，实际为 err=%v", err)
 	}
@@ -650,34 +650,35 @@ func TestRequestEmailChange(t *testing.T) {
 
 	// 确保 base_url 存在以覆盖 URL 规范化。
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigBaseURL, Value: "http://localhost/"}).Error
-	ClearCache()
+	testService.ClearCache()
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
 	_ = db.DB.Create(&u).Error
 
-	err := RequestEmailChange(u.ID, "abc12345", "bad-email")
+	err := testService.RequestEmailChange(u.ID, "abc12345", "bad-email")
 	assertServiceErrorCode(t, err, ErrorCodeValidation)
 
-	err = RequestEmailChange(u.ID, "wrong", "new@example.com")
+	err = testService.RequestEmailChange(u.ID, "wrong", "new@example.com")
 	if serviceErr := assertServiceErrorCode(t, err, ErrorCodeForbidden); serviceErr.Message != "密码错误" {
 		t.Fatalf("期望 password message，实际为 %q", serviceErr.Message)
 	}
 
-	err = RequestEmailChange(u.ID, "abc12345", "a@example.com")
+	err = testService.RequestEmailChange(u.ID, "abc12345", "a@example.com")
 	if serviceErr := assertServiceErrorCode(t, err, ErrorCodeValidation); serviceErr.Message != "新邮箱不能与当前邮箱相同" {
 		t.Fatalf("期望 same email message，实际为 %q", serviceErr.Message)
 	}
 
 	u2 := model.User{Username: "bob", Password: string(hashed), Status: 1, Email: "taken@example.com"}
 	_ = db.DB.Create(&u2).Error
-	err = RequestEmailChange(u.ID, "abc12345", "taken@example.com")
+	err = testService.RequestEmailChange(u.ID, "abc12345", "taken@example.com")
 	if serviceErr := assertServiceErrorCode(t, err, ErrorCodeConflict); serviceErr.Message != "该邮箱已被使用" {
 		t.Fatalf("期望 taken message，实际为 %q", serviceErr.Message)
 	}
 
-	err = RequestEmailChange(u.ID, "abc12345", "new@example.com")
+	err = testService.RequestEmailChange(u.ID, "abc12345", "new@example.com")
 	if err != nil {
 		t.Fatalf("期望 success，实际为 err=%v", err)
 	}
 }
+

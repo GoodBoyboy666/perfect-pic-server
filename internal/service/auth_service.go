@@ -6,7 +6,6 @@ import (
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/utils"
 	"time"
 
@@ -15,8 +14,8 @@ import (
 )
 
 // LoginUser 执行登录鉴权并返回登录令牌。
-func LoginUser(username, password string) (string, error) {
-	user, err := repository.User.FindByUsername(username)
+func (s *AppService) LoginUser(username, password string) (string, error) {
+	user, err := s.repos.User.FindByUsername(username)
 	if err != nil {
 		return "", newAuthError(AuthErrorUnauthorized, "用户名或密码错误")
 	}
@@ -32,7 +31,7 @@ func LoginUser(username, password string) (string, error) {
 		return "", newAuthError(AuthErrorForbidden, "该账号已停用")
 	}
 
-	if GetBool(consts.ConfigBlockUnverifiedUsers) {
+	if s.GetBool(consts.ConfigBlockUnverifiedUsers) {
 		if user.Email != "" && !user.EmailVerified {
 			return "", newAuthError(AuthErrorForbidden, "请先验证邮箱后再登录")
 		}
@@ -50,9 +49,9 @@ func LoginUser(username, password string) (string, error) {
 // RegisterUser 执行用户注册并异步发送邮箱验证邮件。
 //
 //nolint:gocyclo
-func RegisterUser(username, password, email string) error {
+func (s *AppService) RegisterUser(username, password, email string) error {
 	// 系统未初始化时禁止注册：避免在还未创建管理员/完成基础配置时产生普通用户。
-	if !IsSystemInitialized() {
+	if !s.IsSystemInitialized() {
 		return newAuthError(AuthErrorForbidden, "系统尚未初始化，请先完成初始化")
 	}
 
@@ -68,11 +67,11 @@ func RegisterUser(username, password, email string) error {
 		return newAuthError(AuthErrorValidation, msg)
 	}
 
-	if !GetBool(consts.ConfigAllowRegister) {
+	if !s.GetBool(consts.ConfigAllowRegister) {
 		return newAuthError(AuthErrorForbidden, "注册功能已关闭")
 	}
 
-	usernameTaken, err := IsUsernameTaken(username, nil, true)
+	usernameTaken, err := s.IsUsernameTaken(username, nil, true)
 	if err != nil {
 		return newAuthError(AuthErrorInternal, "注册失败，请稍后重试")
 	}
@@ -80,7 +79,7 @@ func RegisterUser(username, password, email string) error {
 		return newAuthError(AuthErrorConflict, "用户名已存在")
 	}
 
-	emailTaken, err := IsEmailTaken(email, nil, true)
+	emailTaken, err := s.IsEmailTaken(email, nil, true)
 	if err != nil {
 		return newAuthError(AuthErrorInternal, "注册失败，请稍后重试")
 	}
@@ -102,7 +101,7 @@ func RegisterUser(username, password, email string) error {
 		Avatar:        "",
 	}
 
-	if err := repository.User.Create(&newUser); err != nil {
+	if err := s.repos.User.Create(&newUser); err != nil {
 		return newAuthError(AuthErrorInternal, "注册失败，请稍后重试")
 	}
 
@@ -111,7 +110,7 @@ func RegisterUser(username, password, email string) error {
 		return newAuthError(AuthErrorInternal, "注册失败，请稍后重试")
 	}
 
-	baseURL := GetString(consts.ConfigBaseURL)
+	baseURL := s.GetString(consts.ConfigBaseURL)
 	if baseURL == "" {
 		baseURL = "http://localhost"
 	}
@@ -120,9 +119,9 @@ func RegisterUser(username, password, email string) error {
 	}
 
 	verifyURL := fmt.Sprintf("%s/auth/email-verify?token=%s", baseURL, verifyToken)
-	if shouldSendEmail() {
+	if s.shouldSendEmail() {
 		go func() {
-			_ = SendVerificationEmail(newUser.Email, newUser.Username, verifyURL)
+			_ = s.SendVerificationEmail(newUser.Email, newUser.Username, verifyURL)
 		}()
 	}
 
@@ -131,7 +130,7 @@ func RegisterUser(username, password, email string) error {
 
 // VerifyEmail 验证邮箱激活令牌。
 // 返回值第一个参数为 true 表示该邮箱已是验证状态。
-func VerifyEmail(token string) (bool, error) {
+func (s *AppService) VerifyEmail(token string) (bool, error) {
 	claims, err := utils.ParseEmailToken(token)
 	if err != nil {
 		return false, newAuthError(AuthErrorValidation, "验证链接已失效或不正确")
@@ -141,7 +140,7 @@ func VerifyEmail(token string) (bool, error) {
 		return false, newAuthError(AuthErrorValidation, "无效的验证 Token 类型")
 	}
 
-	user, err := repository.User.FindByID(claims.ID)
+	user, err := s.repos.User.FindByID(claims.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, newAuthError(AuthErrorNotFound, "用户不存在")
@@ -158,7 +157,7 @@ func VerifyEmail(token string) (bool, error) {
 	}
 
 	user.EmailVerified = true
-	if err := repository.User.Save(user); err != nil {
+	if err := s.repos.User.Save(user); err != nil {
 		return false, newAuthError(AuthErrorInternal, "验证失败，请稍后重试")
 	}
 
@@ -166,13 +165,13 @@ func VerifyEmail(token string) (bool, error) {
 }
 
 // VerifyEmailChange 验证邮箱变更令牌并更新邮箱。
-func VerifyEmailChange(token string) error {
-	payload, ok := VerifyEmailChangeToken(token)
+func (s *AppService) VerifyEmailChange(token string) error {
+	payload, ok := s.VerifyEmailChangeToken(token)
 	if !ok {
 		return newAuthError(AuthErrorValidation, "验证链接已失效或不正确")
 	}
 
-	user, err := repository.User.FindByID(payload.UserID)
+	user, err := s.repos.User.FindByID(payload.UserID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return newAuthError(AuthErrorNotFound, "用户不存在")
@@ -185,7 +184,7 @@ func VerifyEmailChange(token string) error {
 	}
 
 	excludeID := payload.UserID
-	emailTaken, err := IsEmailTaken(payload.NewEmail, &excludeID, true)
+	emailTaken, err := s.IsEmailTaken(payload.NewEmail, &excludeID, true)
 	if err != nil {
 		return newAuthError(AuthErrorInternal, "邮箱修改失败，请稍后重试")
 	}
@@ -195,7 +194,7 @@ func VerifyEmailChange(token string) error {
 
 	user.Email = payload.NewEmail
 	user.EmailVerified = true
-	if err := repository.User.Save(user); err != nil {
+	if err := s.repos.User.Save(user); err != nil {
 		return newAuthError(AuthErrorInternal, "邮箱修改失败，请稍后重试")
 	}
 
@@ -203,8 +202,8 @@ func VerifyEmailChange(token string) error {
 }
 
 // RequestPasswordReset 发起忘记密码流程并异步发送重置邮件。
-func RequestPasswordReset(email string) error {
-	user, err := repository.User.FindByEmail(email)
+func (s *AppService) RequestPasswordReset(email string) error {
+	user, err := s.repos.User.FindByEmail(email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
@@ -216,12 +215,12 @@ func RequestPasswordReset(email string) error {
 		return newAuthError(AuthErrorForbidden, "该账号已被封禁或停用，无法重置密码")
 	}
 
-	token, err := GenerateForgetPasswordToken(user.ID)
+	token, err := s.GenerateForgetPasswordToken(user.ID)
 	if err != nil {
 		return newAuthError(AuthErrorInternal, "生成重置链接失败，请稍后重试")
 	}
 
-	baseURL := GetString(consts.ConfigBaseURL)
+	baseURL := s.GetString(consts.ConfigBaseURL)
 	if baseURL == "" {
 		baseURL = "http://localhost"
 	}
@@ -230,9 +229,9 @@ func RequestPasswordReset(email string) error {
 	}
 	resetURL := fmt.Sprintf("%s/auth/reset-password?token=%s", baseURL, token)
 
-	if shouldSendEmail() {
+	if s.shouldSendEmail() {
 		go func() {
-			_ = SendPasswordResetEmail(user.Email, user.Username, resetURL)
+			_ = s.SendPasswordResetEmail(user.Email, user.Username, resetURL)
 		}()
 	}
 
@@ -240,17 +239,17 @@ func RequestPasswordReset(email string) error {
 }
 
 // ResetPassword 使用重置令牌设置新密码。
-func ResetPassword(token, newPassword string) error {
+func (s *AppService) ResetPassword(token, newPassword string) error {
 	if ok, msg := utils.ValidatePassword(newPassword); !ok {
 		return newAuthError(AuthErrorValidation, msg)
 	}
 
-	userID, valid := VerifyForgetPasswordToken(token)
+	userID, valid := s.VerifyForgetPasswordToken(token)
 	if !valid {
 		return newAuthError(AuthErrorValidation, "重置链接无效或已过期")
 	}
 
-	user, err := repository.User.FindByID(userID)
+	user, err := s.repos.User.FindByID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return newAuthError(AuthErrorNotFound, "用户不存在")
@@ -270,7 +269,7 @@ func ResetPassword(token, newPassword string) error {
 	user.Password = string(hashedPassword)
 	user.EmailVerified = true
 
-	if err := repository.User.Save(user); err != nil {
+	if err := s.repos.User.Save(user); err != nil {
 		return newAuthError(AuthErrorInternal, "密码重置失败")
 	}
 

@@ -11,7 +11,7 @@ import (
 )
 
 // BodyLimitMiddleware 限制请求体大小
-func BodyLimitMiddleware() gin.HandlerFunc {
+func BodyLimitMiddleware(appService *service.AppService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 跳过上传相关的路由
 		// 这里简单通过路径判断
@@ -21,7 +21,7 @@ func BodyLimitMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		maxSizeMB := service.GetInt(consts.ConfigMaxRequestBodySize)
+		maxSizeMB := appService.GetInt(consts.ConfigMaxRequestBodySize)
 		if maxSizeMB <= 0 {
 			// 如果未设置或为0，默认 2MB
 			maxSizeMB = 2
@@ -38,9 +38,9 @@ func BodyLimitMiddleware() gin.HandlerFunc {
 }
 
 // UploadBodyLimitMiddleware 限制上传/头像接口的请求体大小
-func UploadBodyLimitMiddleware() gin.HandlerFunc {
+func UploadBodyLimitMiddleware(appService *service.AppService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		maxSizeMB := service.GetInt(consts.ConfigMaxUploadSize)
+		maxSizeMB := appService.GetInt(consts.ConfigMaxUploadSize)
 		if maxSizeMB <= 0 {
 			maxSizeMB = 10
 		}

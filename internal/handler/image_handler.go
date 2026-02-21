@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func UploadImage(c *gin.Context) {
+func (h *Handler) UploadImage(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择文件"})
@@ -28,7 +28,7 @@ func UploadImage(c *gin.Context) {
 		return
 	}
 
-	imageRecord, url, err := service.ProcessImageUpload(file, uid)
+	imageRecord, url, err := h.service.ProcessImageUpload(file, uid)
 	if err != nil {
 		if _, ok := service.AsServiceError(err); !ok {
 			log.Printf("Upload failed: %v", err)
@@ -44,7 +44,7 @@ func UploadImage(c *gin.Context) {
 	})
 }
 
-func GetMyImages(c *gin.Context) {
+func (h *Handler) GetMyImages(c *gin.Context) {
 	userID, _ := c.Get("id")
 
 	pageStr := c.DefaultQuery("page", "1")
@@ -78,7 +78,7 @@ func GetMyImages(c *gin.Context) {
 		imageID = &id
 	}
 
-	images, total, page, pageSize, err := service.ListUserImages(service.UserImageListParams{
+	images, total, page, pageSize, err := h.service.ListUserImages(service.UserImageListParams{
 		PaginationQuery: service.PaginationQuery{Page: page, PageSize: pageSize},
 		UserID:          uid,
 		Filename:        filename,
@@ -98,7 +98,7 @@ func GetMyImages(c *gin.Context) {
 }
 
 // DeleteMyImage 用户删除自己的图片
-func DeleteMyImage(c *gin.Context) {
+func (h *Handler) DeleteMyImage(c *gin.Context) {
 	userID, _ := c.Get("id")
 	idParam := c.Param("id")
 	uid, ok := userID.(uint)
@@ -113,13 +113,13 @@ func DeleteMyImage(c *gin.Context) {
 		return
 	}
 
-	image, err := service.GetUserOwnedImage(uint(id), uid)
+	image, err := h.service.GetUserOwnedImage(uint(id), uid)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "图片不存在或无权删除"})
 		return
 	}
 
-	if err := service.DeleteImage(image); err != nil {
+	if err := h.service.DeleteImage(image); err != nil {
 		WriteServiceError(c, err, "删除失败")
 		return
 	}
@@ -128,7 +128,7 @@ func DeleteMyImage(c *gin.Context) {
 }
 
 // BatchDeleteMyImages 批量删除用户自己的图片
-func BatchDeleteMyImages(c *gin.Context) {
+func (h *Handler) BatchDeleteMyImages(c *gin.Context) {
 	userID, _ := c.Get("id")
 	uid, ok := userID.(uint)
 	if !ok {
@@ -154,7 +154,7 @@ func BatchDeleteMyImages(c *gin.Context) {
 		return
 	}
 
-	images, err := service.GetImagesByIDsForUser(req.Ids, uid)
+	images, err := h.service.GetImagesByIDsForUser(req.Ids, uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查找图片失败"})
 		return
@@ -165,7 +165,7 @@ func BatchDeleteMyImages(c *gin.Context) {
 		return
 	}
 
-	if err := service.BatchDeleteImages(images); err != nil {
+	if err := h.service.BatchDeleteImages(images); err != nil {
 		WriteServiceError(c, err, "删除失败")
 		return
 	}

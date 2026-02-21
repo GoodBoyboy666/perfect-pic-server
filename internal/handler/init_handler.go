@@ -10,8 +10,8 @@ import (
 
 var initLock sync.Mutex
 
-func GetInitState(c *gin.Context) {
-	if service.IsSystemInitialized() {
+func (h *Handler) GetInitState(c *gin.Context) {
+	if h.service.IsSystemInitialized() {
 		c.JSON(http.StatusOK, gin.H{
 			"initialized": true,
 		})
@@ -22,7 +22,7 @@ func GetInitState(c *gin.Context) {
 	}
 }
 
-func Init(c *gin.Context) {
+func (h *Handler) Init(c *gin.Context) {
 	// 加锁防止竞态条件
 	initLock.Lock()
 	defer initLock.Unlock()
@@ -37,12 +37,12 @@ func Init(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数格式错误"})
 		return
 	}
-	if service.IsSystemInitialized() {
+	if h.service.IsSystemInitialized() {
 		c.JSON(http.StatusForbidden, gin.H{"error": "已初始化，无法重复初始化"})
 		return
 	}
 
-	if err := service.InitializeSystem(service.InitPayload{
+	if err := h.service.InitializeSystem(service.InitPayload{
 		Username:        initInfo.Username,
 		Password:        initInfo.Password,
 		SiteName:        initInfo.SiteName,

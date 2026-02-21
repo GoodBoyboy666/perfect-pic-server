@@ -6,12 +6,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func registerPublicRoutes(api *gin.RouterGroup) {
+func registerPublicRoutes(api *gin.RouterGroup, h *handler.Handler) {
 	api.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "pong from gin"})
 	})
-	api.GET("/webinfo", handler.GetWebInfo)
-	api.GET("/image_prefix", handler.GetImagePrefix)
-	api.GET("/avatar_prefix", handler.GetAvatarPrefix)
-	api.GET("/default_storage_quota", handler.GetDefaultStorageQuota)
+	api.GET("/webinfo", h.GetWebInfo)
+	api.GET("/image_prefix", h.GetImagePrefix)
+	api.GET("/avatar_prefix", h.GetAvatarPrefix)
+	api.GET("/default_storage_quota", h.GetDefaultStorageQuota)
 }
