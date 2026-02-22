@@ -309,6 +309,22 @@ func TestCreateUserForAdmin_Validates(t *testing.T) {
 	assertServiceErrorCode(t, err, ErrorCodeValidation)
 }
 
+// 测试内容：验证管理员创建用户时允许使用保留用户名。
+func TestCreateUserForAdmin_AllowsReservedUsername(t *testing.T) {
+	setupTestDB(t)
+
+	user, err := testService.AdminCreateUser(AdminCreateUserInput{
+		Username: "admin",
+		Password: "abc12345",
+	})
+	if err != nil || user == nil {
+		t.Fatalf("期望 success，实际为 user=%v err=%v", user, err)
+	}
+	if user.Username != "admin" {
+		t.Fatalf("非预期用户名: %+v", user)
+	}
+}
+
 // 测试内容：验证管理员创建用户可选字段与配额清空逻辑。
 func TestCreateUserForAdmin_SuccessOptions(t *testing.T) {
 	setupTestDB(t)
@@ -641,6 +657,9 @@ func TestUpdateUsernameAndGenerateToken(t *testing.T) {
 	}
 
 	_, err = testService.UpdateUsernameAndGenerateToken(u.ID, "admin", false)
+	assertServiceErrorCode(t, err, ErrorCodeValidation)
+
+	_, err = testService.UpdateUsernameAndGenerateToken(u.ID, "root", true)
 	assertServiceErrorCode(t, err, ErrorCodeValidation)
 
 }
