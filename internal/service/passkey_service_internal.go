@@ -205,6 +205,7 @@ func storePasskeySessionInRedis(sessionID string, entry passkeySessionEntry) boo
 
 	payload, err := json.Marshal(entry)
 	if err != nil {
+		log.Printf("⚠️ Redis 写入 Passkey 会话失败，序列化异常，回退内存会话: %v", err)
 		return false
 	}
 
@@ -213,6 +214,7 @@ func storePasskeySessionInRedis(sessionID string, entry passkeySessionEntry) boo
 
 	key := RedisKey("passkey", "session", sessionID)
 	if err := redisClient.Set(ctx, key, payload, passkeySessionTTL).Err(); err != nil {
+		log.Printf("⚠️ Redis 写入 Passkey 会话失败，回退内存会话: %v", err)
 		return false
 	}
 
