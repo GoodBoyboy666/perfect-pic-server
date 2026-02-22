@@ -34,7 +34,8 @@ func (s *AppService) validateAdminCreateUserInput(input AdminCreateUserInput) er
 	if ok, msg := utils.ValidatePassword(input.Password); !ok {
 		return NewValidationError(msg)
 	}
-	if ok, msg := utils.ValidateUsername(input.Username); !ok {
+	// 管理员后台创建用户允许使用保留用户名（与后台修改用户名规则一致）。
+	if ok, msg := utils.ValidateUsernameAllowReserved(input.Username); !ok {
 		return NewValidationError(msg)
 	}
 

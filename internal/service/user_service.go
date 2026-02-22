@@ -442,6 +442,7 @@ func (s *AppService) GetUserProfile(userID uint) (*UserProfile, error) {
 
 // UpdateUsernameAndGenerateToken 更新用户名并签发新登录令牌。
 func (s *AppService) UpdateUsernameAndGenerateToken(userID uint, newUsername string, isAdmin bool) (string, error) {
+	// Profile 路径统一禁止保留用户名；管理员后台修改用户名走 AdminPrepareUserUpdates（允许保留词）。
 	if ok, msg := utils.ValidateUsername(newUsername); !ok {
 		return "", NewValidationError(msg)
 	}
