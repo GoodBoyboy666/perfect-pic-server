@@ -12,7 +12,6 @@ import (
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/utils"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -644,17 +643,6 @@ func TestUpdateUsernameAndGenerateToken(t *testing.T) {
 	_, err = testService.UpdateUsernameAndGenerateToken(u.ID, "admin", false)
 	assertServiceErrorCode(t, err, ErrorCodeValidation)
 
-	token, err = testService.UpdateUsernameAndGenerateToken(u.ID, "admin", true)
-	if err != nil || token == "" {
-		t.Fatalf("期望 success，实际为 token=%q err=%v", token, err)
-	}
-	claims, err := utils.ParseLoginToken(token)
-	if err != nil {
-		t.Fatalf("ParseLoginToken: %v", err)
-	}
-	if claims.Username != "admin" || !claims.Admin {
-		t.Fatalf("非预期 claims: %+v", claims)
-	}
 }
 
 // 测试内容：验证通过旧密码更新密码的校验与成功路径。

@@ -227,11 +227,17 @@ func allowByRedisInterval(client *redis.Client, namespace, ip string, interval t
 	defer cancel()
 
 	key := service.RedisKey("middleware", namespace, ip)
-	ok, err := client.SetNX(ctx, key, "1", interval).Result()
+	result, err := client.SetArgs(ctx, key, "1", redis.SetArgs{
+		Mode: "NX",
+		TTL:  interval,
+	}).Result()
 	if err != nil {
+		if err == redis.Nil {
+			return false, nil
+		}
 		return false, err
 	}
-	return ok, nil
+	return result == "OK", nil
 }
 
 func allowByRedisRateLimit(client *redis.Client, namespace, rpsKey, burstKey, ip string, rps float64, burst int) (bool, error) {
