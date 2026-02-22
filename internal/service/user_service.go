@@ -101,10 +101,11 @@ func (s *AppService) GenerateForgetPasswordToken(userID uint) (string, error) {
 
 		tokenKey := RedisKey("password_reset", "token", token)
 		if err := redisClient.Set(ctx, tokenKey, strconv.FormatUint(uint64(userID), 10), 15*time.Minute).Err(); err == nil {
-			if err := redisClient.Set(ctx, userKey, token, 15*time.Minute).Err(); err == nil {
+			if err2 := redisClient.Set(ctx, userKey, token, 15*time.Minute).Err(); err2 == nil {
 				return token, nil
+			} else {
+				log.Printf("⚠️ Redis 写入密码重置用户索引失败，回退内存 token 存储: %v", err2)
 			}
-			log.Printf("⚠️ Redis 写入密码重置用户索引失败，回退内存 token 存储: %v", err)
 			// 避免出现 tokenKey 已写入但 userKey 缺失的不一致状态。
 			_ = redisClient.Del(ctx, tokenKey).Err()
 		} else {
@@ -224,10 +225,11 @@ func (s *AppService) GenerateEmailChangeToken(userID uint, oldEmail, newEmail st
 
 		tokenKey := RedisKey("email_change", "token", token)
 		if err := redisClient.Set(ctx, tokenKey, payload, 30*time.Minute).Err(); err == nil {
-			if err := redisClient.Set(ctx, userKey, token, 30*time.Minute).Err(); err == nil {
+			if err2 := redisClient.Set(ctx, userKey, token, 30*time.Minute).Err(); err2 == nil {
 				return token, nil
+			} else {
+				log.Printf("⚠️ Redis 写入邮箱修改用户索引失败，回退内存 token 存储: %v", err2)
 			}
-			log.Printf("⚠️ Redis 写入邮箱修改用户索引失败，回退内存 token 存储: %v", err)
 			// 避免出现 tokenKey 已写入但 userKey 缺失的不一致状态。
 			_ = redisClient.Del(ctx, tokenKey).Err()
 		} else {
