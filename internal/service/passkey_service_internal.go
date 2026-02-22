@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -19,6 +20,7 @@ import (
 	"github.com/go-webauthn/webauthn/protocol/webauthncbor"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/go-webauthn/webauthn/webauthn"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -162,9 +164,6 @@ func storePasskeySession(sessionType passkeySessionType, userID uint, session *w
 		return "", errors.New("passkey session is nil")
 	}
 
-	// 每次写入前顺带清理过期会话，控制内存占用。
-	cleanupExpiredPasskeySessions()
-
 	sessionID, err := generatePasskeySessionID()
 	if err != nil {
 		return "", err
@@ -173,13 +172,45 @@ func storePasskeySession(sessionType passkeySessionType, userID uint, session *w
 	expireAt := time.Now().Add(passkeySessionTTL)
 	// 显式同步 Expires，确保后续库侧校验与本地过期策略一致。
 	session.Expires = expireAt
-	passkeySessionStore.Store(sessionID, passkeySessionEntry{
+	entry := passkeySessionEntry{
 		PasskeySessionType: sessionType,
 		UserID:             userID,
 		SessionData:        *session,
 		ExpiresAt:          expireAt,
-	})
+	}
+
+	// Redis 可用时优先写入 Redis，支持多实例共享会话。
+	if storePasskeySessionToRedis(sessionID, entry) {
+		return sessionID, nil
+	}
+
+	// Redis 不可用或写入失败时回退本地内存。
+	// 每次写入前顺带清理过期会话，控制内存占用。
+	cleanupExpiredPasskeySessions()
+	passkeySessionStore.Store(sessionID, entry)
 	return sessionID, nil
+}
+
+func storePasskeySessionToRedis(sessionID string, entry passkeySessionEntry) bool {
+	redisClient := GetRedisClient()
+	if redisClient == nil {
+		return false
+	}
+
+	payload, err := json.Marshal(entry)
+	if err != nil {
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	key := RedisKey("passkey", "session", sessionID)
+	if err := redisClient.Set(ctx, key, payload, passkeySessionTTL).Err(); err != nil {
+		return false
+	}
+
+	return true
 }
 
 // takePasskeySession 读取并消费会话，仅返回 WebAuthn 校验所需的 SessionData。
@@ -210,6 +241,61 @@ func takePasskeySessionEntry(sessionID string, expectedType passkeySessionType) 
 		return nil, NewValidationError("session_id 不能为空")
 	}
 
+	// Redis 可用时优先从 Redis 原子读取并删除；未命中再回退本地内存。
+	entry, err := takePasskeySessionEntryFromRedis(sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if entry == nil {
+		entry, err = takePasskeySessionEntryFromMemory(sessionID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// 防止把“注册会话”拿去走“登录校验”或反向混用。
+	if entry.PasskeySessionType != expectedType {
+		return nil, NewValidationError("Passkey 会话类型不匹配")
+	}
+	if time.Now().After(entry.ExpiresAt) {
+		return nil, NewValidationError("Passkey 会话已过期，请重新发起")
+	}
+
+	return entry, nil
+}
+
+func takePasskeySessionEntryFromRedis(sessionID string) (*passkeySessionEntry, error) {
+	redisClient := GetRedisClient()
+	if redisClient == nil {
+		return nil, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	key := RedisKey("passkey", "session", sessionID)
+	payload, err := redisClient.GetDel(ctx, key).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, nil
+		}
+		// Redis 异常时回退本地内存，避免影响单机兼容路径。
+		return nil, nil
+	}
+
+	if strings.TrimSpace(payload) == "" {
+		return nil, nil
+	}
+
+	var entry passkeySessionEntry
+	if err := json.Unmarshal([]byte(payload), &entry); err != nil {
+		return nil, NewInternalError("Passkey 会话数据异常")
+	}
+
+	return &entry, nil
+}
+
+func takePasskeySessionEntryFromMemory(sessionID string) (*passkeySessionEntry, error) {
 	// LoadAndDelete 保证会话只可使用一次，天然抵御挑战重放。
 	raw, ok := passkeySessionStore.LoadAndDelete(sessionID)
 	if !ok {
@@ -219,13 +305,6 @@ func takePasskeySessionEntry(sessionID string, expectedType passkeySessionType) 
 	entry, ok := raw.(passkeySessionEntry)
 	if !ok {
 		return nil, NewInternalError("Passkey 会话数据异常")
-	}
-	// 防止把“注册会话”拿去走“登录校验”或反向混用。
-	if entry.PasskeySessionType != expectedType {
-		return nil, NewValidationError("Passkey 会话类型不匹配")
-	}
-	if time.Now().After(entry.ExpiresAt) {
-		return nil, NewValidationError("Passkey 会话已过期，请重新发起")
 	}
 
 	return &entry, nil
