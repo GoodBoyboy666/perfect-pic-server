@@ -56,6 +56,15 @@ type passkeyWebAuthnUser struct {
 	credentials []webauthn.Credential
 }
 
+type passkeyStoredCredential struct {
+	ID              []byte                            `json:"id"`
+	PublicKey       []byte                            `json:"publicKey"`
+	AttestationType string                            `json:"attestationType"`
+	Transport       []protocol.AuthenticatorTransport `json:"transport"`
+	Flags           webauthn.CredentialFlags          `json:"flags"`
+	Authenticator   webauthn.Authenticator            `json:"authenticator"`
+}
+
 var passkeySessionStore sync.Map
 
 var passkeyAllowedCOSEAlgorithms = map[webauthncose.COSEAlgorithmIdentifier]struct{}{
@@ -433,9 +442,22 @@ func normalizePasskeyName(name string) (string, error) {
 	return normalized, nil
 }
 
-// marshalPasskeyCredential 将凭据对象序列化为 JSON 字符串。
+// marshalPasskeyCredential 将凭据对象序列化为存储用 JSON（不包含 Attestation 大字段）。
 func marshalPasskeyCredential(credential *webauthn.Credential) (string, error) {
-	raw, err := json.Marshal(credential)
+	if credential == nil {
+		return "", errors.New("credential is nil")
+	}
+
+	storedCredential := passkeyStoredCredential{
+		ID:              credential.ID,
+		PublicKey:       credential.PublicKey,
+		AttestationType: credential.AttestationType,
+		Transport:       credential.Transport,
+		Flags:           credential.Flags,
+		Authenticator:   credential.Authenticator,
+	}
+
+	raw, err := json.Marshal(storedCredential)
 	if err != nil {
 		return "", err
 	}

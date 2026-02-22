@@ -247,6 +247,8 @@ func (s *AppService) GenerateEmailChangeToken(userID uint, oldEmail, newEmail st
 }
 
 // VerifyEmailChangeToken 验证并消费修改邮箱 Token。
+//
+//nolint:gocyclo
 func (s *AppService) VerifyEmailChangeToken(token string) (*EmailChangeToken, bool) {
 	if token == "" {
 		return nil, false
