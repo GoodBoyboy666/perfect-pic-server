@@ -24,12 +24,12 @@ func (s *AppService) BeginPasskeyRegistration(userID uint) (string, *protocol.Cr
 		return "", nil, err
 	}
 
-	webauthnClient, err := s.newWebAuthnClient()
+	webauthnClient, err := s.createPasskeyWebAuthnClient()
 	if err != nil {
 		return "", nil, err
 	}
 
-	passkeyUser, err := s.loadPasskeyWebAuthnUser(userID)
+	passkeyUser, err := s.loadPasskeyWebAuthnUser(userID, passkeyWebAuthnUserLoadModeRegistration)
 	if err != nil {
 		return "", nil, err
 	}
@@ -37,7 +37,7 @@ func (s *AppService) BeginPasskeyRegistration(userID uint) (string, *protocol.Cr
 	creation, sessionData, err := webauthnClient.BeginRegistration(
 		passkeyUser,
 		// 限制可接受的公钥算法集合，只允许较安全的推荐算法。
-		webauthn.WithCredentialParameters(passkeyRecommendedCredentialParameters()),
+		webauthn.WithCredentialParameters(getPasskeyRecommendedCredentialParameters()),
 		// 要求创建可发现凭据（Resident Key），用于“无需用户名”的 Passkey 登录。
 		webauthn.WithResidentKeyRequirement(protocol.ResidentKeyRequirementRequired),
 		// 将已绑定凭据放入排除列表，阻止同一凭据重复注册。
@@ -61,22 +61,22 @@ func (s *AppService) BeginPasskeyRegistration(userID uint) (string, *protocol.Cr
 // FinishPasskeyRegistration 校验并完成 Passkey 注册，随后持久化凭据。
 func (s *AppService) FinishPasskeyRegistration(userID uint, sessionID string, credentialJSON []byte) error {
 	// 读取并消费注册会话，同时校验该会话必须归属当前登录用户。
-	sessionData, err := takePasskeyRegistrationSession(sessionID, userID)
+	sessionData, err := consumePasskeyRegistrationSession(sessionID, userID)
 	if err != nil {
 		return err
 	}
 
-	webauthnClient, err := s.newWebAuthnClient()
+	webauthnClient, err := s.createPasskeyWebAuthnClient()
 	if err != nil {
 		return err
 	}
 
-	passkeyUser, err := s.loadPasskeyWebAuthnUser(userID)
+	passkeyUser, err := s.loadPasskeyWebAuthnUser(userID, passkeyWebAuthnUserLoadModeRegistration)
 	if err != nil {
 		return err
 	}
 
-	request, err := newPasskeyCredentialRequest(credentialJSON)
+	request, err := buildPasskeyCredentialRequest(credentialJSON)
 	if err != nil {
 		return err
 	}
@@ -88,8 +88,8 @@ func (s *AppService) FinishPasskeyRegistration(userID uint, sessionID string, cr
 	}
 
 	// 注册阶段显式拒绝不在白名单内的签名算法。
-	credentialAlgorithm, err := passkeyCredentialAlgorithm(credential)
-	if err != nil || !isAllowedPasskeyAlgorithm(int64(credentialAlgorithm)) {
+	credentialAlgorithm, err := extractPasskeyCredentialAlgorithm(credential)
+	if err != nil || !isPasskeyAlgorithmAllowed(int64(credentialAlgorithm)) {
 		return NewValidationError("Passkey 签名算法不被允许")
 	}
 
@@ -123,7 +123,7 @@ func (s *AppService) FinishPasskeyRegistration(userID uint, sessionID string, cr
 		Name:         buildDefaultPasskeyName(credentialID),
 		Credential:   serialized,
 	}); err != nil {
-		if isPasskeyUniqueConflict(err) {
+		if isPasskeyUniqueConstraintConflict(err) {
 			return NewConflictError("该 Passkey 已绑定")
 		}
 		return NewInternalError("保存 Passkey 失败")
@@ -193,7 +193,7 @@ func (s *AppService) UpdateUserPasskeyName(userID uint, passkeyID uint, name str
 
 // BeginPasskeyLogin 创建无用户名（discoverable）的 Passkey 登录挑战。
 func (s *AppService) BeginPasskeyLogin() (string, *protocol.CredentialAssertion, error) {
-	webauthnClient, err := s.newWebAuthnClient()
+	webauthnClient, err := s.createPasskeyWebAuthnClient()
 	if err != nil {
 		return "", nil, err
 	}
@@ -220,17 +220,17 @@ func (s *AppService) BeginPasskeyLogin() (string, *protocol.CredentialAssertion,
 //nolint:gocyclo
 func (s *AppService) FinishPasskeyLogin(sessionID string, credentialJSON []byte) (string, error) {
 	// 登录挑战一次性消费，防止 assertion 重放攻击。
-	sessionData, err := takePasskeySession(sessionID, passkeySessionLogin)
+	sessionData, err := consumePasskeyLoginSession(sessionID)
 	if err != nil {
 		return "", err
 	}
 
-	webauthnClient, err := s.newWebAuthnClient()
+	webauthnClient, err := s.createPasskeyWebAuthnClient()
 	if err != nil {
 		return "", err
 	}
 
-	request, err := newPasskeyCredentialRequest(credentialJSON)
+	request, err := buildPasskeyCredentialRequest(credentialJSON)
 	if err != nil {
 		return "", err
 	}
@@ -245,7 +245,7 @@ func (s *AppService) FinishPasskeyLogin(sessionID string, credentialJSON []byte)
 			}
 
 			// 登录校验阶段仅需用户凭据集合，不必提前查询完整用户资料。
-			passkeyUser, loadErr := s.loadPasskeyWebAuthnLoginUser(userID)
+			passkeyUser, loadErr := s.loadPasskeyWebAuthnUser(userID, passkeyWebAuthnUserLoadModeLogin)
 			if loadErr != nil {
 				return nil, loadErr
 			}
@@ -269,8 +269,8 @@ func (s *AppService) FinishPasskeyLogin(sessionID string, credentialJSON []byte)
 		passkeyUser = resolvedUser
 	}
 	// 登录阶段同样校验算法白名单，阻断不符合策略的历史凭据。
-	credentialAlgorithm, err := passkeyCredentialAlgorithm(validatedCredential)
-	if err != nil || !isAllowedPasskeyAlgorithm(int64(credentialAlgorithm)) {
+	credentialAlgorithm, err := extractPasskeyCredentialAlgorithm(validatedCredential)
+	if err != nil || !isPasskeyAlgorithmAllowed(int64(credentialAlgorithm)) {
 		return "", NewUnauthorizedError("Passkey 签名算法不被允许")
 	}
 
