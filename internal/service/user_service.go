@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -103,8 +104,11 @@ func (s *AppService) GenerateForgetPasswordToken(userID uint) (string, error) {
 			if err := redisClient.Set(ctx, userKey, token, 15*time.Minute).Err(); err == nil {
 				return token, nil
 			}
+			log.Printf("⚠️ Redis 写入密码重置用户索引失败，回退内存 token 存储: %v", err)
 			// 避免出现 tokenKey 已写入但 userKey 缺失的不一致状态。
 			_ = redisClient.Del(ctx, tokenKey).Err()
+		} else {
+			log.Printf("⚠️ Redis 写入密码重置 token 失败，回退内存 token 存储: %v", err)
 		}
 	}
 
@@ -151,6 +155,9 @@ func (s *AppService) VerifyForgetPasswordToken(token string) (uint, bool) {
 			}
 			_ = redisClient.Del(ctx, tokenKey).Err()
 			return 0, false
+		}
+		if !errors.Is(err, redis.Nil) {
+			log.Printf("⚠️ Redis 读取密码重置 token 失败，回退内存 token 存储: %v", err)
 		}
 	}
 
@@ -220,8 +227,11 @@ func (s *AppService) GenerateEmailChangeToken(userID uint, oldEmail, newEmail st
 			if err := redisClient.Set(ctx, userKey, token, 30*time.Minute).Err(); err == nil {
 				return token, nil
 			}
+			log.Printf("⚠️ Redis 写入邮箱修改用户索引失败，回退内存 token 存储: %v", err)
 			// 避免出现 tokenKey 已写入但 userKey 缺失的不一致状态。
 			_ = redisClient.Del(ctx, tokenKey).Err()
+		} else {
+			log.Printf("⚠️ Redis 写入邮箱修改 token 失败，回退内存 token 存储: %v", err)
 		}
 	}
 
@@ -271,6 +281,9 @@ func (s *AppService) VerifyEmailChangeToken(token string) (*EmailChangeToken, bo
 				return nil, false
 			}
 			return nil, false
+		}
+		if err != nil && !errors.Is(err, redis.Nil) {
+			log.Printf("⚠️ Redis 读取邮箱修改 token 失败，回退内存 token 存储: %v", err)
 		}
 	}
 
