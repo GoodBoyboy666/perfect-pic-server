@@ -128,3 +128,48 @@ func TestUpdateSettingsForAdmin_MaskedSensitiveIsNotOverwritten(t *testing.T) {
 	}
 }
 
+// 测试内容：验证管理员读取设置时顺序稳定，优先按默认配置定义顺序返回。
+func TestListSettingsForAdmin_OrderStableByDefaultSettings(t *testing.T) {
+	setupTestDB(t)
+
+	// 乱序写入默认配置项 + 自定义配置项。
+	_ = db.DB.Create(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "image", Category: "验证码"}).Error
+	_ = db.DB.Create(&model.Setting{Key: consts.ConfigAllowRegister, Value: "true", Category: "安全"}).Error
+	_ = db.DB.Create(&model.Setting{Key: consts.ConfigSiteName, Value: "Perfect Pic", Category: "常规"}).Error
+	_ = db.DB.Create(&model.Setting{Key: "z_custom", Value: "1", Category: "自定义"}).Error
+	_ = db.DB.Create(&model.Setting{Key: "a_custom", Value: "2", Category: "自定义"}).Error
+
+	// 更新其中一项，模拟“修改后重新拉取列表”场景。
+	err := testService.AdminUpdateSettings([]UpdateSettingPayload{
+		{Key: consts.ConfigAllowRegister, Value: "false"},
+	})
+	if err != nil {
+		t.Fatalf("AdminUpdateSettings: %v", err)
+	}
+
+	settings, err := testService.AdminListSettings()
+	if err != nil {
+		t.Fatalf("AdminListSettings: %v", err)
+	}
+
+	pos := map[string]int{}
+	for i, item := range settings {
+		pos[item.Key] = i
+	}
+
+	// 默认项顺序应固定，不受写入/更新顺序影响。
+	if pos[consts.ConfigSiteName] >= pos[consts.ConfigAllowRegister] {
+		t.Fatalf("期望 %s 在 %s 之前，实际顺序异常", consts.ConfigSiteName, consts.ConfigAllowRegister)
+	}
+	if pos[consts.ConfigAllowRegister] >= pos[consts.ConfigCaptchaProvider] {
+		t.Fatalf("期望 %s 在 %s 之前，实际顺序异常", consts.ConfigAllowRegister, consts.ConfigCaptchaProvider)
+	}
+
+	// 自定义项应排在默认项之后，并在同分类内按 key 稳定排序。
+	if pos[consts.ConfigCaptchaProvider] >= pos["a_custom"] {
+		t.Fatalf("期望默认项在自定义项之前，实际顺序异常")
+	}
+	if pos["a_custom"] >= pos["z_custom"] {
+		t.Fatalf("期望自定义项按 key 排序，实际顺序异常")
+	}
+}
