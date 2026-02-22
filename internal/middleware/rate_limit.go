@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/service"
@@ -120,6 +121,7 @@ func RateLimitMiddleware(appService *service.AppService, rpsKey string, burstKey
 				c.Next()
 				return
 			}
+			log.Printf("⚠️ Redis 限流检查失败，回退内存限流: %v", err)
 		}
 
 		l := limiter.getLimiter(ip)
@@ -196,6 +198,7 @@ func IntervalRateMiddleware(appService *service.AppService, intervalKey string) 
 				c.Next()
 				return
 			}
+			log.Printf("⚠️ Redis 间隔限流检查失败，回退内存限流: %v", err)
 		}
 
 		val, ok := requestTimes.Load(ip)
