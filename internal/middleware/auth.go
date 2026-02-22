@@ -3,7 +3,6 @@ package middleware
 import (
 	"context"
 	"errors"
-	"log"
 	"net/http"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
@@ -116,11 +115,14 @@ func UserStatusCheck() gin.HandlerFunc {
 						Status:    currentStatus,
 						ExpiresAt: time.Now().Add(statusCacheTTL),
 					})
+					logRedisFallbackRecoveredWithTarget("用户状态缓存", "Redis 缓存")
 				} else {
-					log.Printf("⚠️ Redis 用户状态缓存数据异常，回退本地缓存: %v", parseErr)
+					logRedisFallbackDegradedWithTarget("用户状态缓存", "本地缓存", parseErr)
 				}
-			} else if !errors.Is(err, redis.Nil) {
-				log.Printf("⚠️ Redis 读取用户状态缓存失败，回退本地缓存: %v", err)
+			} else if errors.Is(err, redis.Nil) {
+				logRedisFallbackRecoveredWithTarget("用户状态缓存", "Redis 缓存")
+			} else {
+				logRedisFallbackDegradedWithTarget("用户状态缓存", "本地缓存", err)
 			}
 		}
 
