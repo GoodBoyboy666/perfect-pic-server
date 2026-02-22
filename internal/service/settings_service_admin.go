@@ -18,6 +18,7 @@ func (s *AppService) AdminListSettings() ([]model.Setting, error) {
 		return nil, NewInternalError("获取配置失败")
 	}
 
+	sortSettingsForAdmin(settings)
 	maskSensitiveSettings(settings)
 	return settings, nil
 }
