@@ -7,8 +7,19 @@ import (
 	"strings"
 )
 
+var reservedUsernames = []string{"admin", "root", "system", "audit", "security", "support"}
+
 // ValidateUsername checks if the username meets the requirements.
 func ValidateUsername(username string) (bool, string) {
+	return validateUsername(username, false)
+}
+
+// ValidateUsernameAllowReserved checks username rules but allows reserved words.
+func ValidateUsernameAllowReserved(username string) (bool, string) {
+	return validateUsername(username, true)
+}
+
+func validateUsername(username string, allowReserved bool) (bool, string) {
 	if len(username) < 4 || len(username) > 20 {
 		return false, "用户名长度必须在4到20个字符之间"
 	}
@@ -19,11 +30,12 @@ func ValidateUsername(username string) (bool, string) {
 		return false, "用户名只能包含英文大小写、数字和下划线"
 	}
 
-	// 检查保留用户名，防止冒充官方
-	reserved := []string{"admin", "root", "system", "audit", "security", "support"}
-	for _, r := range reserved {
-		if strings.EqualFold(username, r) {
-			return false, "用户名包含保留词汇，不可使用"
+	if !allowReserved {
+		// 检查保留用户名，防止冒充官方
+		for _, r := range reservedUsernames {
+			if strings.EqualFold(username, r) {
+				return false, "用户名包含保留词汇，不可使用"
+			}
 		}
 	}
 

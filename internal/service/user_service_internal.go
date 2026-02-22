@@ -108,7 +108,7 @@ func (s *AppService) prepareAdminUsernameUpdate(userID uint, username *string, u
 	if username == nil || *username == "" {
 		return nil
 	}
-	if ok, msg := utils.ValidateUsername(*username); !ok {
+	if ok, msg := utils.ValidateUsernameAllowReserved(*username); !ok {
 		return NewValidationError(msg)
 	}
 

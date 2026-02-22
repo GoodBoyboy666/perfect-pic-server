@@ -26,7 +26,7 @@ func (s *AppService) InitializeSystem(payload InitPayload) error {
 	if s.IsSystemInitialized() {
 		return NewForbiddenError("已初始化，无法重复初始化")
 	}
-	if ok, msg := utils.ValidateUsername(payload.Username); !ok {
+	if ok, msg := utils.ValidateUsernameAllowReserved(payload.Username); !ok {
 		return NewValidationError(msg)
 	}
 	if ok, msg := utils.ValidatePassword(payload.Password); !ok {

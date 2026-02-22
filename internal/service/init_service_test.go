@@ -56,3 +56,30 @@ func TestInitializeSystemAndIsSystemInitialized(t *testing.T) {
 	}
 }
 
+// 测试内容：验证初始化管理员账号时允许使用保留用户名（如 admin）。
+func TestInitializeSystem_AllowsReservedAdminUsername(t *testing.T) {
+	setupTestDB(t)
+
+	if err := testService.InitializeSettings(); err != nil {
+		t.Fatalf("InitializeSettings: %v", err)
+	}
+	testService.ClearCache()
+
+	payload := InitPayload{
+		Username:        "admin",
+		Password:        "abc12345",
+		SiteName:        "MySite",
+		SiteDescription: "Desc",
+	}
+	if err := testService.InitializeSystem(payload); err != nil {
+		t.Fatalf("InitializeSystem: %v", err)
+	}
+
+	var u model.User
+	if err := db.DB.Where("username = ?", "admin").First(&u).Error; err != nil {
+		t.Fatalf("期望 admin 用户创建成功: %v", err)
+	}
+	if !u.Admin {
+		t.Fatalf("期望 admin flag true")
+	}
+}
