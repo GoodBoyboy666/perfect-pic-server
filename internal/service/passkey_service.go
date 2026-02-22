@@ -111,7 +111,7 @@ func (s *AppService) FinishPasskeyRegistration(userID uint, sessionID string, cr
 		return err
 	}
 
-	// 持久化完整 credential（包含 signCount/flags/transport 等后续验签元数据）。
+	// 持久化登录验签所需核心字段。
 	serialized, err := marshalPasskeyCredential(credential)
 	if err != nil {
 		return NewInternalError("保存 Passkey 失败")

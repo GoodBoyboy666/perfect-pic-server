@@ -77,6 +77,8 @@ func JWTAuth() gin.HandlerFunc {
 }
 
 // UserStatusCheck 检查用户状态是否被封禁
+//
+//nolint:gocyclo
 func UserStatusCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID, exists := c.Get("id")
