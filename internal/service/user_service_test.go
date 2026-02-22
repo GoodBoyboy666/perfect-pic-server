@@ -377,6 +377,30 @@ func TestPrepareAndApplyUserUpdatesForAdmin(t *testing.T) {
 	}
 }
 
+// 测试内容：验证管理员后台修改用户名时允许使用保留用户名。
+func TestPrepareAndApplyUserUpdatesForAdmin_AllowsReservedUsername(t *testing.T) {
+	setupTestDB(t)
+
+	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
+	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
+	_ = db.DB.Create(&u).Error
+
+	newName := "admin"
+	updates, err := testService.AdminPrepareUserUpdates(u.ID, AdminUserUpdateInput{Username: &newName})
+	if err != nil {
+		t.Fatalf("AdminPrepareUserUpdates: err=%v", err)
+	}
+	if err := testService.AdminApplyUserUpdates(u.ID, updates); err != nil {
+		t.Fatalf("AdminApplyUserUpdates: %v", err)
+	}
+
+	var got model.User
+	_ = db.DB.First(&got, u.ID).Error
+	if got.Username != "admin" {
+		t.Fatalf("非预期 user after update: %+v", got)
+	}
+}
+
 // 测试内容：验证管理员更新用户的异常分支与密码/配额更新路径。
 func TestPrepareUserUpdatesForAdmin_MoreBranches(t *testing.T) {
 	setupTestDB(t)
@@ -617,7 +641,10 @@ func TestUpdateUsernameAndGenerateToken(t *testing.T) {
 		t.Fatalf("期望 conflict message，实际为 %q", serviceErr.Message)
 	}
 
-	token, err = testService.UpdateUsernameAndGenerateToken(u.ID, "alice2", true)
+	_, err = testService.UpdateUsernameAndGenerateToken(u.ID, "admin", false)
+	assertServiceErrorCode(t, err, ErrorCodeValidation)
+
+	token, err = testService.UpdateUsernameAndGenerateToken(u.ID, "admin", true)
 	if err != nil || token == "" {
 		t.Fatalf("期望 success，实际为 token=%q err=%v", token, err)
 	}
@@ -625,7 +652,7 @@ func TestUpdateUsernameAndGenerateToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseLoginToken: %v", err)
 	}
-	if claims.Username != "alice2" || !claims.Admin {
+	if claims.Username != "admin" || !claims.Admin {
 		t.Fatalf("非预期 claims: %+v", claims)
 	}
 }
