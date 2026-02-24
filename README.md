@@ -271,20 +271,6 @@ redis:
 
 当 `redis.enabled=true` 且可连接时，IP 限流、中间件间隔限流、重置密码 token 会写入 Redis；Redis 不可用时自动降级为内存模式。
 
-验证码配置仅通过管理员后台「系统设置」管理（数据库存储）。
-支持以下键：
-`captcha_provider`（空=关闭验证码，`image`=图形验证码，`turnstile`=Cloudflare Turnstile，`recaptcha`=Google reCAPTCHA，`hcaptcha`=hCaptcha，`geetest`=GeeTest）
-`captcha_turnstile_site_key`、`captcha_turnstile_secret_key`、`captcha_turnstile_verify_url`、`captcha_turnstile_expected_hostname`
-`captcha_recaptcha_site_key`、`captcha_recaptcha_secret_key`、`captcha_recaptcha_verify_url`、`captcha_recaptcha_expected_hostname`。
-`captcha_hcaptcha_site_key`、`captcha_hcaptcha_secret_key`、`captcha_hcaptcha_verify_url`、`captcha_hcaptcha_expected_hostname`。
-`captcha_geetest_captcha_id`、`captcha_geetest_captcha_key`、`captcha_geetest_verify_url`。
-`captcha_provider` 默认值为 `image`。
-当提供方为 `turnstile`、`recaptcha`、`hcaptcha` 或 `geetest` 且对应配置已完整时，后端启用对应的人机验证。
-前端登录/注册/找回密码统一提交 `captcha_token`（当 provider 为 turnstile/recaptcha/hcaptcha/geetest 时使用）。
-
-GeeTest 模式下，`captcha_token` 需传 JSON 字符串，包含：
-`lot_number`、`captcha_output`、`pass_token`、`gen_time`。
-
 ### 邮件模板
 
 `example` 文件夹中有有文件模板，复制至 `config` 目录即可。
