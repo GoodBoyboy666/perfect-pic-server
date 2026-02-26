@@ -29,8 +29,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port string `mapstructure:"port"`
-	Mode string `mapstructure:"mode"`
+	Port           string `mapstructure:"port"`
+	Mode           string `mapstructure:"mode"`
+	TrustedProxies string `mapstructure:"trusted_proxies"`
 }
 
 type DatabaseConfig struct {
@@ -119,6 +120,7 @@ func initViper(customConfigDir string) *viper.Viper {
 	v.SetDefault("upload.avatar_url_prefix", "/avatars/")
 	v.SetDefault("server.port", "8080")
 	v.SetDefault("server.mode", "debug")
+	v.SetDefault("server.trusted_proxies", "")
 	v.SetDefault("database.type", "sqlite")
 	v.SetDefault("database.filename", "database/perfect_pic.db")
 	v.SetDefault("database.host", "127.0.0.1")

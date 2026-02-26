@@ -2,14 +2,15 @@ package service
 
 import (
 	settingsrepo "perfect-pic-server/internal/modules/settings/repo"
-	"sync"
+	settingsruntime "perfect-pic-server/internal/modules/settings/runtime"
 )
 
 type AppService struct {
-	settingStore  settingsrepo.SettingStore
-	settingsCache sync.Map
+	*settingsruntime.Service
 }
 
 func NewAppService(settingStore settingsrepo.SettingStore) *AppService {
-	return &AppService{settingStore: settingStore}
+	return &AppService{
+		Service: settingsruntime.New(settingStore),
+	}
 }
