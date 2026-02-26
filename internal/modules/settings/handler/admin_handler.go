@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"perfect-pic-server/internal/modules/common/httpx"
 	moduledto "perfect-pic-server/internal/modules/settings/dto"
 
 	"github.com/gin-gonic/gin"
@@ -10,7 +11,7 @@ import (
 func (h *Handler) GetSettings(c *gin.Context) {
 	settings, err := h.settingsService.AdminListSettings()
 	if err != nil {
-		writeServiceError(c, err, "获取配置失败")
+		httpx.WriteServiceError(c, err, "获取配置失败")
 		return
 	}
 
@@ -31,7 +32,7 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 
 	err := h.settingsService.AdminUpdateSettings(items)
 	if err != nil {
-		writeServiceError(c, err, "更新失败")
+		httpx.WriteServiceError(c, err, "更新失败")
 		return
 	}
 
@@ -49,7 +50,7 @@ func (h *Handler) SendTestEmail(c *gin.Context) {
 	}
 
 	if err := h.settingsService.AdminSendTestEmail(req.ToEmail); err != nil {
-		writeServiceError(c, err, "发送失败")
+		httpx.WriteServiceError(c, err, "发送失败")
 		return
 	}
 

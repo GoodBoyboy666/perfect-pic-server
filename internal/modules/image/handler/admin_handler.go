@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"perfect-pic-server/internal/modules/common/httpx"
 	moduledto "perfect-pic-server/internal/modules/image/dto"
 	"strconv"
 
@@ -56,7 +57,7 @@ func (h *Handler) GetImageList(c *gin.Context) {
 		ID:                imageID,
 	})
 	if err != nil {
-		writeServiceError(c, err, "获取图片列表失败")
+		httpx.WriteServiceError(c, err, "获取图片列表失败")
 		return
 	}
 
@@ -88,12 +89,12 @@ func (h *Handler) DeleteImage(c *gin.Context) {
 
 	image, err := h.imageService.AdminGetImageByID(uint(id))
 	if err != nil {
-		writeServiceError(c, err, "图片不存在")
+		httpx.WriteServiceError(c, err, "图片不存在")
 		return
 	}
 
 	if err := h.imageService.DeleteImage(image); err != nil {
-		writeServiceError(c, err, "删除失败")
+		httpx.WriteServiceError(c, err, "删除失败")
 		return
 	}
 
@@ -120,7 +121,7 @@ func (h *Handler) BatchDeleteImages(c *gin.Context) {
 
 	images, err := h.imageService.AdminGetImagesByIDs(req.IDs)
 	if err != nil {
-		writeServiceError(c, err, "查找图片失败")
+		httpx.WriteServiceError(c, err, "查找图片失败")
 		return
 	}
 
@@ -130,7 +131,7 @@ func (h *Handler) BatchDeleteImages(c *gin.Context) {
 	}
 
 	if err := h.imageService.BatchDeleteImages(images); err != nil {
-		writeServiceError(c, err, "删除失败")
+		httpx.WriteServiceError(c, err, "删除失败")
 		return
 	}
 

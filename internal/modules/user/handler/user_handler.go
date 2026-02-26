@@ -3,6 +3,7 @@ package handler
 import (
 	"log"
 	"net/http"
+	"perfect-pic-server/internal/modules/common/httpx"
 	moduledto "perfect-pic-server/internal/modules/user/dto"
 	"strconv"
 
@@ -25,7 +26,7 @@ func (h *Handler) GetSelfInfo(c *gin.Context) {
 
 	profile, err := h.userService.GetUserProfile(uid)
 	if err != nil {
-		WriteServiceError(c, err, "获取用户信息失败")
+		httpx.WriteServiceError(c, err, "获取用户信息失败")
 		return
 	}
 
@@ -61,7 +62,7 @@ func (h *Handler) UpdateSelfUsername(c *gin.Context) {
 
 	token, err := h.userService.UpdateUsernameAndGenerateToken(uid, req.Username, isAdmin)
 	if err != nil {
-		WriteServiceError(c, err, "更新失败")
+		httpx.WriteServiceError(c, err, "更新失败")
 		return
 	}
 
@@ -93,7 +94,7 @@ func (h *Handler) UpdateSelfPassword(c *gin.Context) {
 
 	err := h.userService.UpdatePasswordByOldPassword(uid, req.OldPassword, req.NewPassword)
 	if err != nil {
-		WriteServiceError(c, err, "更新失败")
+		httpx.WriteServiceError(c, err, "更新失败")
 		return
 	}
 
@@ -121,7 +122,7 @@ func (h *Handler) RequestUpdateEmail(c *gin.Context) {
 
 	err := h.userService.RequestEmailChange(uid, req.Password, req.NewEmail)
 	if err != nil {
-		WriteServiceError(c, err, "生成验证链接失败")
+		httpx.WriteServiceError(c, err, "生成验证链接失败")
 		return
 	}
 
@@ -148,7 +149,7 @@ func (h *Handler) UpdateSelfAvatar(c *gin.Context) {
 
 	valid, ext, err := h.imageService.ValidateImageFile(file)
 	if !valid {
-		WriteServiceError(c, err, "头像文件校验失败")
+		httpx.WriteServiceError(c, err, "头像文件校验失败")
 		return
 	}
 	_ = ext
@@ -160,14 +161,14 @@ func (h *Handler) UpdateSelfAvatar(c *gin.Context) {
 
 	user, err := h.userService.GetUserByID(uid)
 	if err != nil {
-		WriteServiceError(c, err, "获取用户失败")
+		httpx.WriteServiceError(c, err, "获取用户失败")
 		return
 	}
 
 	newFilename, err := h.imageService.UpdateUserAvatar(user, file)
 	if err != nil {
 		log.Printf("UpdateUserAvatar error: %v", err)
-		WriteServiceError(c, err, "头像更新失败")
+		httpx.WriteServiceError(c, err, "头像更新失败")
 		return
 	}
 
@@ -194,7 +195,7 @@ func (h *Handler) GetSelfImagesCount(c *gin.Context) {
 
 	count, err := h.imageService.GetUserImageCount(uid)
 	if err != nil {
-		WriteServiceError(c, err, "获取图片数量失败")
+		httpx.WriteServiceError(c, err, "获取图片数量失败")
 		return
 	}
 
@@ -224,7 +225,7 @@ func (h *Handler) BeginPasskeyRegistration(c *gin.Context) {
 
 	sessionID, creation, err := h.authService.BeginPasskeyRegistration(uid)
 	if err != nil {
-		WriteServiceError(c, err, "创建 Passkey 注册挑战失败")
+		httpx.WriteServiceError(c, err, "创建 Passkey 注册挑战失败")
 		return
 	}
 
@@ -260,7 +261,7 @@ func (h *Handler) FinishPasskeyRegistration(c *gin.Context) {
 	}
 
 	if err := h.authService.FinishPasskeyRegistration(uid, req.SessionID, req.Credential); err != nil {
-		WriteServiceError(c, err, "Passkey 绑定失败")
+		httpx.WriteServiceError(c, err, "Passkey 绑定失败")
 		return
 	}
 
@@ -288,7 +289,7 @@ func (h *Handler) ListSelfPasskeys(c *gin.Context) {
 
 	passkeys, err := h.authService.ListUserPasskeys(uid)
 	if err != nil {
-		WriteServiceError(c, err, "获取 Passkey 列表失败")
+		httpx.WriteServiceError(c, err, "获取 Passkey 列表失败")
 		return
 	}
 
@@ -322,7 +323,7 @@ func (h *Handler) DeleteSelfPasskey(c *gin.Context) {
 	}
 
 	if err := h.authService.DeleteUserPasskey(uid, uint(passkeyID)); err != nil {
-		WriteServiceError(c, err, "删除 Passkey 失败")
+		httpx.WriteServiceError(c, err, "删除 Passkey 失败")
 		return
 	}
 
@@ -362,7 +363,7 @@ func (h *Handler) UpdateSelfPasskeyName(c *gin.Context) {
 	}
 
 	if err := h.authService.UpdateUserPasskeyName(uid, uint(passkeyID), req.Name); err != nil {
-		WriteServiceError(c, err, "更新 Passkey 名称失败")
+		httpx.WriteServiceError(c, err, "更新 Passkey 名称失败")
 		return
 	}
 
