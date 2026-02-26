@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/service"
+	"perfect-pic-server/internal/platform/service"
 
 	"github.com/gin-gonic/gin"
 )

@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/service"
+	"perfect-pic-server/internal/platform/service"
 	"strconv"
 	"sync"
 	"time"

@@ -8,25 +8,25 @@ package di
 
 import (
 	"gorm.io/gorm"
-	"perfect-pic-server/internal/handler"
-	"perfect-pic-server/internal/handler/admin"
-	"perfect-pic-server/internal/repository"
+	"perfect-pic-server/internal/modules"
+	imagerepo "perfect-pic-server/internal/modules/image/repo"
+	settingsrepo "perfect-pic-server/internal/modules/settings/repo"
+	systemrepo "perfect-pic-server/internal/modules/system/repo"
+	userrepo "perfect-pic-server/internal/modules/user/repo"
+	"perfect-pic-server/internal/platform/service"
 	"perfect-pic-server/internal/router"
-	"perfect-pic-server/internal/service"
 )
 
 // Injectors from wire.go:
 
 func InitializeApplication(gormDB *gorm.DB) (*Application, error) {
-	userStore := repository.NewUserRepository(gormDB)
-	imageStore := repository.NewImageRepository(gormDB)
-	settingStore := repository.NewSettingRepository(gormDB)
-	systemStore := repository.NewSystemRepository(gormDB)
-	repositories := repository.NewRepositories(userStore, imageStore, settingStore, systemStore)
-	appService := service.NewAppService(repositories)
-	handlerHandler := handler.NewHandler(appService)
-	adminHandler := admin.NewHandler(appService)
-	routerRouter := router.NewRouter(handlerHandler, adminHandler, appService)
-	application := NewApplication(routerRouter, appService)
+	userStore := userrepo.NewUserRepository(gormDB)
+	imageStore := imagerepo.NewImageRepository(gormDB)
+	settingStore := settingsrepo.NewSettingRepository(gormDB)
+	systemStore := systemrepo.NewSystemRepository(gormDB)
+	appService := service.NewAppService(settingStore)
+	appModules := modules.New(appService, userStore, imageStore, settingStore, systemStore)
+	routerRouter := router.NewRouter(appModules, appService)
+	application := NewApplication(appModules, routerRouter, appService)
 	return application, nil
 }

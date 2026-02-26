@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/service"
+	"perfect-pic-server/internal/platform/service"
 	"strings"
 
 	"github.com/gin-gonic/gin"
