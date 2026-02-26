@@ -37,10 +37,11 @@ func (r *SettingRepository) InitializeDefaults(defaults []model.Setting) error {
 }
 
 func (r *SettingRepository) DeleteNotInKeys(allowedKeys []string) error {
-	query := r.db.Model(&model.Setting{})
 	if len(allowedKeys) == 0 {
-		return query.Where("1 = 1").Delete(&model.Setting{}).Error
+		return fmt.Errorf("DeleteNotInKeys: allowedKeys must not be empty")
 	}
+
+	query := r.db.Model(&model.Setting{})
 	return query.Where("key NOT IN ?", allowedKeys).Delete(&model.Setting{}).Error
 }
 
