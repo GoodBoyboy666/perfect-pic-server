@@ -36,6 +36,14 @@ func (r *SettingRepository) InitializeDefaults(defaults []model.Setting) error {
 	})
 }
 
+func (r *SettingRepository) DeleteNotInKeys(allowedKeys []string) error {
+	query := r.db.Model(&model.Setting{})
+	if len(allowedKeys) == 0 {
+		return query.Where("1 = 1").Delete(&model.Setting{}).Error
+	}
+	return query.Where("key NOT IN ?", allowedKeys).Delete(&model.Setting{}).Error
+}
+
 func (r *SettingRepository) FindByKey(key string) (*model.Setting, error) {
 	var setting model.Setting
 	if err := r.db.Where("key = ?", key).First(&setting).Error; err != nil {

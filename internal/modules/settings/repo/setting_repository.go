@@ -9,6 +9,7 @@ type UpdateSettingItem struct {
 
 type SettingStore interface {
 	InitializeDefaults(defaults []model.Setting) error
+	DeleteNotInKeys(allowedKeys []string) error
 	FindByKey(key string) (*model.Setting, error)
 	Create(setting *model.Setting) error
 	FindAll() ([]model.Setting, error)

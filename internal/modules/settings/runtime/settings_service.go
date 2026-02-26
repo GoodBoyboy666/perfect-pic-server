@@ -1,12 +1,15 @@
-package service
+package runtime
 
 import (
+	"strconv"
+	"sync"
+
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
-	"strconv"
+	settingsrepo "perfect-pic-server/internal/modules/settings/repo"
 )
 
-const DefaultValueNotFound = "||__NOT_FOUND__||"
+const defaultValueNotFound = "||__NOT_FOUND__||"
 
 var DefaultSettings = []model.Setting{
 	{Key: consts.ConfigSiteName, Value: "Perfect Pic", Desc: "网站名称", Category: "常规"},
@@ -33,7 +36,6 @@ var DefaultSettings = []model.Setting{
 	{Key: consts.ConfigRateLimitEmailUpdateIntervalSeconds, Value: "120", Desc: "修改邮箱请求最小间隔（秒）", Category: "速率限制"},
 	{Key: consts.ConfigMaxRequestBodySize, Value: "2", Desc: "非文件上传接口最大请求体限制 (MB)", Category: "服务"},
 	{Key: consts.ConfigStaticCacheControl, Value: "public, max-age=31536000", Desc: "静态资源缓存设置 (Cache-Control)", Category: "服务"},
-	{Key: consts.ConfigTrustedProxies, Value: "", Desc: "可信代理列表（逗号分隔，留空表示不信任代理头；修改后需重启服务生效）", Category: "安全"},
 	{Key: consts.ConfigCaptchaProvider, Value: "image", Desc: "验证码提供方（空=关闭, image, turnstile, recaptcha, hcaptcha, geetest）", Category: "验证码"},
 	{Key: consts.ConfigCaptchaTurnstileSiteKey, Value: "", Desc: "Cloudflare Turnstile Site Key", Category: "验证码"},
 	{Key: consts.ConfigCaptchaTurnstileSecretKey, Value: "", Desc: "Cloudflare Turnstile Secret Key", Category: "验证码", Sensitive: true},
@@ -52,27 +54,46 @@ var DefaultSettings = []model.Setting{
 	{Key: consts.ConfigCaptchaGeetestVerifyURL, Value: "", Desc: "GeeTest 校验地址，留空使用官方默认", Category: "验证码"},
 }
 
-// ClearCache 清空设置缓存。
-func (s *AppService) ClearCache() {
+type Service struct {
+	settingStore  settingsrepo.SettingStore
+	settingsCache sync.Map
+}
+
+func New(settingStore settingsrepo.SettingStore) *Service {
+	return &Service{settingStore: settingStore}
+}
+
+func (s *Service) ClearCache() {
 	s.settingsCache.Range(func(key, value interface{}) bool {
 		s.settingsCache.Delete(key)
 		return true
 	})
 }
 
-// InitializeSettings 将默认设置写入数据库，并同步描述与分类信息。
-func (s *AppService) InitializeSettings() error {
-	return s.settingStore.InitializeDefaults(DefaultSettings)
+func (s *Service) InitializeSettings() error {
+	if err := s.settingStore.InitializeDefaults(DefaultSettings); err != nil {
+		return err
+	}
+
+	allowedKeys := make([]string, 0, len(DefaultSettings))
+	for _, def := range DefaultSettings {
+		allowedKeys = append(allowedKeys, def.Key)
+	}
+	if err := s.settingStore.DeleteNotInKeys(allowedKeys); err != nil {
+		return err
+	}
+
+	s.ClearCache()
+	return nil
 }
 
-// GetString 读取字符串配置值（优先缓存，其次数据库，最后默认值）。
-func (s *AppService) GetString(key string) string {
+func (s *Service) GetString(key string) string {
 	if val, ok := s.settingsCache.Load(key); ok {
 		strVal, ok := val.(string)
 		if !ok {
 			s.settingsCache.Delete(key)
 		} else {
-			if strVal == DefaultValueNotFound {
+			if strVal == defaultValueNotFound {
 				return ""
 			}
 			return strVal
@@ -81,12 +102,9 @@ func (s *AppService) GetString(key string) string {
 
 	setting, err := s.settingStore.FindByKey(key)
 	if err != nil {
-		// 数据库没查到，尝试查找默认配置
 		for _, def := range DefaultSettings {
 			if def.Key == key {
-				// 查到了默认值，写入数据库并写入缓存
 				newSetting := def
-				// 尝试写入数据库 (忽略错误，防止并发写入导致的主键冲突)
 				_ = s.settingStore.Create(&newSetting)
 
 				s.settingsCache.Store(key, newSetting.Value)
@@ -94,24 +112,20 @@ func (s *AppService) GetString(key string) string {
 			}
 		}
 
-		// 没查到，往缓存里存 DefaultValueNotFound 标记
-		s.settingsCache.Store(key, DefaultValueNotFound)
+		s.settingsCache.Store(key, defaultValueNotFound)
 		return ""
 	}
-	// 数据库查到，写入缓存
 	s.settingsCache.Store(key, setting.Value)
 
 	return setting.Value
 }
 
-// GetInt 读取整型配置值。
-func (s *AppService) GetInt(key string) int {
+func (s *Service) GetInt(key string) int {
 	valStr := s.GetString(key)
 	if valStr == "" {
 		return 0
 	}
 
-	// 尝试转成 int
 	val, err := strconv.Atoi(valStr)
 	if err != nil {
 		return 0
@@ -119,14 +133,12 @@ func (s *AppService) GetInt(key string) int {
 	return val
 }
 
-// GetInt64 读取 int64 配置值。
-func (s *AppService) GetInt64(key string) int64 {
+func (s *Service) GetInt64(key string) int64 {
 	valStr := s.GetString(key)
 	if valStr == "" {
 		return 0
 	}
 
-	// 尝试转成 int64
 	val, err := strconv.ParseInt(valStr, 10, 64)
 	if err != nil {
 		return 0
@@ -134,8 +146,7 @@ func (s *AppService) GetInt64(key string) int64 {
 	return val
 }
 
-// GetFloat64 读取浮点型配置值。
-func (s *AppService) GetFloat64(key string) float64 {
+func (s *Service) GetFloat64(key string) float64 {
 	valStr := s.GetString(key)
 	if valStr == "" {
 		return 0
@@ -148,14 +159,12 @@ func (s *AppService) GetFloat64(key string) float64 {
 	return val
 }
 
-// GetBool 读取布尔配置值。
-func (s *AppService) GetBool(key string) bool {
+func (s *Service) GetBool(key string) bool {
 	valStr := s.GetString(key)
 	if valStr == "" {
 		return false
 	}
 
-	// ParseBool 支持 "1", "t", "T", "true", "TRUE", "True"
 	val, err := strconv.ParseBool(valStr)
 	if err != nil {
 		return false

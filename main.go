@@ -13,7 +13,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"perfect-pic-server/internal/config"
-	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/di"
 	"perfect-pic-server/internal/middleware"
@@ -57,7 +56,7 @@ func main() {
 	gin.SetMode(config.Get().Server.Mode)
 
 	r := gin.Default()
-	applyTrustedProxies(r, app.Service)
+	applyTrustedProxies(r)
 	app.Router.Init(r)
 
 	setupStaticFiles(r, app.Service, uploadPath, avatarPath)
@@ -273,8 +272,8 @@ func checkSecurePath(path string) {
 	}
 }
 
-func applyTrustedProxies(r *gin.Engine, appService *service.AppService) {
-	raw := strings.TrimSpace(appService.GetString(consts.ConfigTrustedProxies))
+func applyTrustedProxies(r *gin.Engine) {
+	raw := strings.TrimSpace(config.Get().Server.TrustedProxies)
 	if raw == "" {
 		if err := r.SetTrustedProxies(nil); err != nil {
 			log.Printf("⚠️ 设置可信代理失败: %v", err)

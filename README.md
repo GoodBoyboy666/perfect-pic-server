@@ -219,6 +219,7 @@ chmod +x build.sh
 server:
   port: "8080"
   mode: "release" # debug / release
+  trusted_proxies: "" # 逗号分隔或 CIDR，留空表示不信任代理头
 
 database:
   type: "sqlite" # sqlite, mysql, postgres
@@ -262,6 +263,7 @@ redis:
 例如：
 
 * `server.port` -> `PERFECT_PIC_SERVER_PORT`
+* `server.trusted_proxies` -> `PERFECT_PIC_SERVER_TRUSTED_PROXIES`
 * `jwt.secret` -> `PERFECT_PIC_JWT_SECRET`
 * `redis.enabled` -> `PERFECT_PIC_REDIS_ENABLED`
 * `redis.addr` -> `PERFECT_PIC_REDIS_ADDR`
