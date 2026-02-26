@@ -1,6 +1,8 @@
 package user
 
 import (
+	authservice "perfect-pic-server/internal/modules/auth/service"
+	imageservice "perfect-pic-server/internal/modules/image/service"
 	"perfect-pic-server/internal/modules/user/handler"
 	"perfect-pic-server/internal/modules/user/repo"
 	"perfect-pic-server/internal/modules/user/service"
@@ -12,11 +14,13 @@ type Module struct {
 	Handler *handler.Handler
 }
 
-func New(appService *platformservice.AppService, userStore repo.UserStore, imageStore repo.ImageStore) *Module {
-	moduleService := service.New(appService, userStore, imageStore)
+func NewService(appService *platformservice.AppService, userStore repo.UserStore, imageStore repo.ImageStore) *service.Service {
+	return service.New(appService, userStore, imageStore)
+}
 
+func New(moduleService *service.Service, authService *authservice.Service, imageService *imageservice.Service) *Module {
 	return &Module{
 		Service: moduleService,
-		Handler: nil,
+		Handler: handler.New(moduleService, authService, imageService),
 	}
 }

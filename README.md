@@ -285,16 +285,25 @@ redis:
 ├── internal/
 │   ├── config/         # 配置加载与管理
 │   ├── consts/         # 常量定义
-│   ├── db/             # 数据库初始化 (GORM + SQLite)
-│   ├── handler/        # 业务逻辑控制器 (Controller)
-│   │   └── admin/      # 管理员相关控制器
-│   ├── middleware/     # Gin 中间件 (Auth, CORS, RateLimit, Cache)
-│   ├── model/          # 数据库模型 (User, Image, Setting)
-│   ├── router/         # 路由定义
-│   ├── service/        # 核心业务逻辑服务层
+│   ├── db/             # 数据库初始化
+│   ├── di/             # 依赖注入装配
+│   ├── middleware/     # Gin 中间件
+│   ├── model/          # 数据模型
+│   ├── modules/        # 按领域组织的业务模块
+│   │   ├── app.go      # 模块聚合与组装入口
+│   │   ├── common/
+│   │   │   └── httpx/  # 跨模块 HTTP 错误响应等公共能力
+│   │   ├── auth/
+│   │   ├── image/
+│   │   ├── user/
+│   │   ├── settings/
+│   │   └── system/
+│   ├── platform/
+│   │   └── service/    # 跨领域共享基础服务（缓存/邮件/redis/通用错误等）
+│   ├── router/         # 顶层路由编排
+│   ├── testutils/      # 测试辅助
 │   └── utils/          # 工具函数
 ├── scripts/            # 构建与部署脚本
-├── uploads/            # 图片存储目录 (自动创建)
 ├── main.go             # 程序入口
 └── go.mod
 ```

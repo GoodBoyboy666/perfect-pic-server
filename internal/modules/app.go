@@ -9,7 +9,6 @@ import (
 	"perfect-pic-server/internal/modules/system"
 	systemrepo "perfect-pic-server/internal/modules/system/repo"
 	"perfect-pic-server/internal/modules/user"
-	userhandler "perfect-pic-server/internal/modules/user/handler"
 	userrepo "perfect-pic-server/internal/modules/user/repo"
 	platformservice "perfect-pic-server/internal/platform/service"
 )
@@ -29,10 +28,10 @@ func New(
 	settingStore settingsrepo.SettingStore,
 	systemStore systemrepo.SystemStore,
 ) *AppModules {
-	userModule := user.New(appService, userStore, imageStore)
+	userService := user.NewService(appService, userStore, imageStore)
 	imageModule := image.New(appService, userStore, imageStore)
-	authModule := auth.New(appService, userStore, userModule.Service)
-	userModule.Handler = userhandler.New(userModule.Service, authModule.Service, imageModule.Service)
+	authModule := auth.New(appService, userStore, userService)
+	userModule := user.New(userService, authModule.Service, imageModule.Service)
 
 	return &AppModules{
 		Auth:     authModule,
