@@ -15,10 +15,10 @@ type Module struct {
 func New(
 	appService *platformservice.AppService,
 	systemStore repo.SystemStore,
-	userStore repo.UserStore,
-	imageStore repo.ImageStore,
+	userService service.UserService,
+	imageService service.ImageService,
 ) *Module {
-	moduleService := service.New(appService, systemStore, userStore, imageStore)
+	moduleService := service.New(appService, systemStore, userService, imageService)
 	moduleHandler := handler.New(moduleService)
 
 	return &Module{

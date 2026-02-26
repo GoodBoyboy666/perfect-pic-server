@@ -5,23 +5,32 @@ import (
 	platformservice "perfect-pic-server/internal/platform/service"
 )
 
+type UserService interface {
+	CountAll() (int64, error)
+}
+
+type ImageService interface {
+	CountAll() (int64, error)
+	SumAllSize() (int64, error)
+}
+
 type Service struct {
 	*platformservice.AppService
-	systemStore repo.SystemStore
-	userStore   repo.UserStore
-	imageStore  repo.ImageStore
+	systemStore  repo.SystemStore
+	userService  UserService
+	imageService ImageService
 }
 
 func New(
 	appService *platformservice.AppService,
 	systemStore repo.SystemStore,
-	userStore repo.UserStore,
-	imageStore repo.ImageStore,
+	userService UserService,
+	imageService ImageService,
 ) *Service {
 	return &Service{
-		AppService:  appService,
-		systemStore: systemStore,
-		userStore:   userStore,
-		imageStore:  imageStore,
+		AppService:   appService,
+		systemStore:  systemStore,
+		userService:  userService,
+		imageService: imageService,
 	}
 }

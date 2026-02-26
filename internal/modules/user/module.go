@@ -14,8 +14,8 @@ type Module struct {
 	Handler *handler.Handler
 }
 
-func NewService(appService *platformservice.AppService, userStore repo.UserStore, imageStore repo.ImageStore) *service.Service {
-	return service.New(appService, userStore, imageStore)
+func NewService(appService *platformservice.AppService, userStore repo.UserStore) *service.Service {
+	return service.New(appService, userStore)
 }
 
 func New(moduleService *service.Service, authService *authservice.Service, imageService *imageservice.Service) *Module {

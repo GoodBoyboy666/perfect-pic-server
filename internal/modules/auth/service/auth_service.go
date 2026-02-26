@@ -15,7 +15,7 @@ import (
 
 // LoginUser 执行登录鉴权并返回登录令牌。
 func (s *Service) LoginUser(username, password string) (string, error) {
-	user, err := s.userStore.FindByUsername(username)
+	user, err := s.userService.FindByUsername(username)
 	if err != nil {
 		return "", newAuthError(AuthErrorUnauthorized, "用户名或密码错误")
 	}
@@ -86,7 +86,7 @@ func (s *Service) RegisterUser(username, password, email string) error {
 		Avatar:        "",
 	}
 
-	if err := s.userStore.Create(&newUser); err != nil {
+	if err := s.userService.Create(&newUser); err != nil {
 		return newAuthError(AuthErrorInternal, "注册失败，请稍后重试")
 	}
 
@@ -125,7 +125,7 @@ func (s *Service) VerifyEmail(token string) (bool, error) {
 		return false, newAuthError(AuthErrorValidation, "无效的验证 Token 类型")
 	}
 
-	user, err := s.userStore.FindByID(claims.ID)
+	user, err := s.userService.FindByID(claims.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, newAuthError(AuthErrorNotFound, "用户不存在")
@@ -142,7 +142,7 @@ func (s *Service) VerifyEmail(token string) (bool, error) {
 	}
 
 	user.EmailVerified = true
-	if err := s.userStore.Save(user); err != nil {
+	if err := s.userService.Save(user); err != nil {
 		return false, newAuthError(AuthErrorInternal, "验证失败，请稍后重试")
 	}
 
@@ -160,7 +160,7 @@ func (s *Service) VerifyEmailChange(token string) error {
 		return newAuthError(AuthErrorValidation, "验证链接已失效或不正确")
 	}
 
-	user, err := s.userStore.FindByID(payload.UserID)
+	user, err := s.userService.FindByID(payload.UserID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return newAuthError(AuthErrorNotFound, "用户不存在")
@@ -183,7 +183,7 @@ func (s *Service) VerifyEmailChange(token string) error {
 
 	user.Email = payload.NewEmail
 	user.EmailVerified = true
-	if err := s.userStore.Save(user); err != nil {
+	if err := s.userService.Save(user); err != nil {
 		return newAuthError(AuthErrorInternal, "邮箱修改失败，请稍后重试")
 	}
 
@@ -192,7 +192,7 @@ func (s *Service) VerifyEmailChange(token string) error {
 
 // RequestPasswordReset 发起忘记密码流程并异步发送重置邮件。
 func (s *Service) RequestPasswordReset(email string) error {
-	user, err := s.userStore.FindByEmail(email)
+	user, err := s.userService.FindByEmail(email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
@@ -246,7 +246,7 @@ func (s *Service) ResetPassword(token, newPassword string) error {
 		return newAuthError(AuthErrorValidation, "重置链接无效或已过期")
 	}
 
-	user, err := s.userStore.FindByID(userID)
+	user, err := s.userService.FindByID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return newAuthError(AuthErrorNotFound, "用户不存在")
@@ -266,7 +266,7 @@ func (s *Service) ResetPassword(token, newPassword string) error {
 	user.Password = string(hashedPassword)
 	user.EmailVerified = true
 
-	if err := s.userStore.Save(user); err != nil {
+	if err := s.userService.Save(user); err != nil {
 		return newAuthError(AuthErrorInternal, "密码重置失败")
 	}
 

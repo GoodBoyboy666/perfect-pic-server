@@ -89,7 +89,7 @@ func (s *Service) FinishPasskeyRegistration(userID uint, sessionID string, crede
 
 	credentialID := encodePasskeyCredentialID(credential.ID)
 	// 先按 credential_id 查重，区分“同账号重复绑定”和“被其他账号占用”。
-	existing, findErr := s.userStore.FindPasskeyCredentialByCredentialID(credentialID)
+	existing, findErr := s.userService.FindPasskeyCredentialByCredentialID(credentialID)
 	if findErr == nil {
 		if existing.UserID == userID {
 			return platformservice.NewConflictError("该 Passkey 已绑定")
@@ -111,7 +111,7 @@ func (s *Service) FinishPasskeyRegistration(userID uint, sessionID string, crede
 		return platformservice.NewInternalError("保存 Passkey 失败")
 	}
 
-	if err := s.userStore.CreatePasskeyCredential(&model.PasskeyCredential{
+	if err := s.userService.CreatePasskeyCredential(&model.PasskeyCredential{
 		UserID:       userID,
 		CredentialID: credentialID,
 		Name:         buildDefaultPasskeyName(credentialID),
@@ -128,14 +128,14 @@ func (s *Service) FinishPasskeyRegistration(userID uint, sessionID string, crede
 
 // ListUserPasskeys 返回指定用户已绑定的 Passkey 列表。
 func (s *Service) ListUserPasskeys(userID uint) ([]moduledto.UserPasskeyResponse, error) {
-	if _, err := s.userStore.FindByID(userID); err != nil {
+	if _, err := s.userService.FindByID(userID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, platformservice.NewNotFoundError("用户不存在")
 		}
 		return nil, platformservice.NewInternalError("读取用户信息失败")
 	}
 
-	records, err := s.userStore.ListPasskeyCredentialsByUserID(userID)
+	records, err := s.userService.ListPasskeyCredentialsByUserID(userID)
 	if err != nil {
 		return nil, platformservice.NewInternalError("读取 Passkey 列表失败")
 	}
@@ -159,7 +159,7 @@ func (s *Service) DeleteUserPasskey(userID uint, passkeyID uint) error {
 		return platformservice.NewValidationError("无效的 Passkey ID")
 	}
 
-	if err := s.userStore.DeletePasskeyCredentialByID(userID, passkeyID); err != nil {
+	if err := s.userService.DeletePasskeyCredentialByID(userID, passkeyID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return platformservice.NewNotFoundError("Passkey 不存在")
 		}
@@ -179,7 +179,7 @@ func (s *Service) UpdateUserPasskeyName(userID uint, passkeyID uint, name string
 		return err
 	}
 
-	if err := s.userStore.UpdatePasskeyCredentialNameByID(userID, passkeyID, normalizedName); err != nil {
+	if err := s.userService.UpdatePasskeyCredentialNameByID(userID, passkeyID, normalizedName); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return platformservice.NewNotFoundError("Passkey 不存在")
 		}
@@ -277,7 +277,7 @@ func (s *Service) FinishPasskeyLogin(sessionID string, credentialJSON []byte) (s
 		return "", platformservice.NewInternalError("Passkey 登录失败")
 	}
 
-	if err := s.userStore.UpdatePasskeyCredentialData(
+	if err := s.userService.UpdatePasskeyCredentialData(
 		passkeyUser.userID,
 		encodePasskeyCredentialID(validatedCredential.ID),
 		serialized,
@@ -289,7 +289,7 @@ func (s *Service) FinishPasskeyLogin(sessionID string, credentialJSON []byte) (s
 	}
 
 	// 验签通过后再查完整用户，复用统一登录准入策略（状态/邮箱验证/管理员规则等）。
-	user, err := s.userStore.FindByID(passkeyUser.userID)
+	user, err := s.userService.FindByID(passkeyUser.userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", platformservice.NewUnauthorizedError("Passkey 登录失败")

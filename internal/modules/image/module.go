@@ -12,8 +12,8 @@ type Module struct {
 	Handler *handler.Handler
 }
 
-func New(appService *platformservice.AppService, userStore repo.UserStore, imageStore repo.ImageStore) *Module {
-	moduleService := service.New(appService, userStore, imageStore)
+func New(appService *platformservice.AppService, userService service.UserService, imageStore repo.ImageStore) *Module {
+	moduleService := service.New(appService, userService, imageStore)
 	moduleHandler := handler.New(moduleService)
 
 	return &Module{

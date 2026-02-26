@@ -127,7 +127,7 @@ func (s *Service) loadPasskeyWebAuthnUser(
 
 	switch loadMode {
 	case passkeyWebAuthnUserLoadModeRegistration:
-		user, err := s.userStore.FindByID(userID)
+		user, err := s.userService.FindByID(userID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, platformservice.NewNotFoundError("用户不存在")
@@ -158,7 +158,7 @@ func (s *Service) loadPasskeyWebAuthnUser(
 
 // loadUserPasskeyCredentials 读取并反序列化用户的 Passkey 凭据集合。
 func (s *Service) loadUserPasskeyCredentials(userID uint) ([]webauthn.Credential, error) {
-	records, err := s.userStore.ListPasskeyCredentialsByUserID(userID)
+	records, err := s.userService.ListPasskeyCredentialsByUserID(userID)
 	if err != nil {
 		return nil, platformservice.NewInternalError("读取 Passkey 失败")
 	}
@@ -477,7 +477,7 @@ func isPasskeyUniqueConstraintConflict(err error) bool {
 // ensureUserPasskeyCapacity 检查用户 Passkey 是否达到上限。
 func (s *Service) ensureUserPasskeyCapacity(userID uint) error {
 	// 以数据库实时计数为准，避免依赖客户端状态导致上限失效。
-	count, err := s.userStore.CountPasskeyCredentialsByUserID(userID)
+	count, err := s.userService.CountPasskeyCredentialsByUserID(userID)
 	if err != nil {
 		return platformservice.NewInternalError("校验 Passkey 数量失败")
 	}

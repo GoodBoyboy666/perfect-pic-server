@@ -184,7 +184,7 @@ func TestResetPasswordHandler_OK(t *testing.T) {
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
 	_ = db.DB.Create(&u).Error
 
-	token, err := testService.GenerateForgetPasswordToken(u.ID)
+	token, err := testUserSvc.GenerateForgetPasswordToken(u.ID)
 	if err != nil {
 		t.Fatalf("GenerateForgetPasswordToken: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestEmailChangeVerifyHandler_OK(t *testing.T) {
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "old@example.com", EmailVerified: true}
 	_ = db.DB.Create(&u).Error
 
-	token, err := testService.GenerateEmailChangeToken(u.ID, "old@example.com", "new@example.com")
+	token, err := testUserSvc.GenerateEmailChangeToken(u.ID, "old@example.com", "new@example.com")
 	if err != nil {
 		t.Fatalf("GenerateEmailChangeToken: %v", err)
 	}
