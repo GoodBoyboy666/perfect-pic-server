@@ -3,6 +3,7 @@ package handler
 import (
 	"log"
 	"net/http"
+	"perfect-pic-server/internal/modules/common/httpx"
 	moduledto "perfect-pic-server/internal/modules/image/dto"
 	platformservice "perfect-pic-server/internal/platform/service"
 	"strconv"
@@ -34,7 +35,7 @@ func (h *Handler) UploadImage(c *gin.Context) {
 		if _, ok := platformservice.AsServiceError(err); !ok {
 			log.Printf("Upload failed: %v", err)
 		}
-		WriteServiceError(c, err, "上传失败，请稍后重试")
+		httpx.WriteServiceError(c, err, "上传失败，请稍后重试")
 		return
 	}
 
@@ -121,7 +122,7 @@ func (h *Handler) DeleteMyImage(c *gin.Context) {
 	}
 
 	if err := h.imageService.DeleteImage(image); err != nil {
-		WriteServiceError(c, err, "删除失败")
+		httpx.WriteServiceError(c, err, "删除失败")
 		return
 	}
 
@@ -165,7 +166,7 @@ func (h *Handler) BatchDeleteMyImages(c *gin.Context) {
 	}
 
 	if err := h.imageService.BatchDeleteImages(images); err != nil {
-		WriteServiceError(c, err, "删除失败")
+		httpx.WriteServiceError(c, err, "删除失败")
 		return
 	}
 

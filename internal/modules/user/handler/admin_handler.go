@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"perfect-pic-server/internal/middleware"
+	"perfect-pic-server/internal/modules/common/httpx"
 	moduledto "perfect-pic-server/internal/modules/user/dto"
 	"strconv"
 
@@ -35,7 +36,7 @@ func (h *Handler) GetUserList(c *gin.Context) {
 		Order:       order,
 	})
 	if err != nil {
-		writeServiceError(c, err, "获取用户列表失败")
+		httpx.WriteServiceError(c, err, "获取用户列表失败")
 		return
 	}
 
@@ -58,7 +59,7 @@ func (h *Handler) GetUserDetail(c *gin.Context) {
 
 	user, err := h.userService.AdminGetUserDetail(uint(id))
 	if err != nil {
-		writeServiceError(c, err, "获取用户失败")
+		httpx.WriteServiceError(c, err, "获取用户失败")
 		return
 	}
 
@@ -75,7 +76,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 
 	user, err := h.userService.AdminCreateUser(moduledto.AdminCreateUserRequest(req))
 	if err != nil {
-		writeServiceError(c, err, "创建用户失败")
+		httpx.WriteServiceError(c, err, "创建用户失败")
 		return
 	}
 
@@ -99,13 +100,13 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 
 	updates, err := h.userService.AdminPrepareUserUpdates(uint(id), moduledto.AdminUserUpdateRequest(req))
 	if err != nil {
-		writeServiceError(c, err, "更新用户失败")
+		httpx.WriteServiceError(c, err, "更新用户失败")
 		return
 	}
 
 	if len(updates) > 0 {
 		if err := h.userService.AdminApplyUserUpdates(uint(id), updates); err != nil {
-			writeServiceError(c, err, "更新用户失败")
+			httpx.WriteServiceError(c, err, "更新用户失败")
 			return
 		}
 		// 清除用户状态缓存
@@ -137,21 +138,21 @@ func (h *Handler) UpdateUserAvatar(c *gin.Context) {
 
 	valid, ext, err := h.imageService.ValidateImageFile(file)
 	if !valid {
-		writeServiceError(c, err, "头像文件校验失败")
+		httpx.WriteServiceError(c, err, "头像文件校验失败")
 		return
 	}
 	_ = ext
 
 	user, err := h.userService.AdminGetUserDetail(uint(id))
 	if err != nil {
-		writeServiceError(c, err, "获取用户失败")
+		httpx.WriteServiceError(c, err, "获取用户失败")
 		return
 	}
 
 	newFilename, err := h.imageService.UpdateUserAvatar(user, file)
 	if err != nil {
 		log.Printf("Admin UpdateUserAvatar error: %v", err)
-		writeServiceError(c, err, "头像更新失败")
+		httpx.WriteServiceError(c, err, "头像更新失败")
 		return
 	}
 
@@ -169,7 +170,7 @@ func (h *Handler) RemoveUserAvatar(c *gin.Context) {
 
 	user, err := h.userService.AdminGetUserDetail(uint(id))
 	if err != nil {
-		writeServiceError(c, err, "获取用户失败")
+		httpx.WriteServiceError(c, err, "获取用户失败")
 		return
 	}
 
@@ -180,7 +181,7 @@ func (h *Handler) RemoveUserAvatar(c *gin.Context) {
 
 	if err := h.imageService.RemoveUserAvatar(user); err != nil {
 		log.Printf("Admin RemoveUserAvatar error: %v", err)
-		writeServiceError(c, err, "头像移除失败")
+		httpx.WriteServiceError(c, err, "头像移除失败")
 		return
 	}
 
@@ -199,7 +200,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 	hardDelete := c.DefaultQuery("hard_delete", "false")
 
 	if err := h.userService.AdminDeleteUser(uint(id), hardDelete == "true"); err != nil {
-		writeServiceError(c, err, "删除用户失败")
+		httpx.WriteServiceError(c, err, "删除用户失败")
 		return
 	}
 

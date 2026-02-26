@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"perfect-pic-server/internal/modules/common/httpx"
 
 	"github.com/gin-gonic/gin"
 )
@@ -10,7 +11,7 @@ import (
 func (h *Handler) GetServerStats(c *gin.Context) {
 	stats, err := h.systemService.AdminGetServerStats()
 	if err != nil {
-		writeServiceError(c, err, "统计图片数据失败")
+		httpx.WriteServiceError(c, err, "统计图片数据失败")
 		return
 	}
 

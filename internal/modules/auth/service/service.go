@@ -4,17 +4,25 @@ import (
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/modules/auth/repo"
 	userdto "perfect-pic-server/internal/modules/user/dto"
-	userservice "perfect-pic-server/internal/modules/user/service"
 	platformservice "perfect-pic-server/internal/platform/service"
 )
+
+type UserService interface {
+	IsUsernameTaken(username string, excludeUserID *uint, includeDeleted bool) (bool, error)
+	IsEmailTaken(email string, excludeUserID *uint, includeDeleted bool) (bool, error)
+	GenerateForgetPasswordToken(userID uint) (string, error)
+	VerifyForgetPasswordToken(token string) (uint, bool)
+	GenerateEmailChangeToken(userID uint, oldEmail, newEmail string) (string, error)
+	VerifyEmailChangeToken(token string) (*userdto.EmailChangeToken, bool)
+}
 
 type Service struct {
 	*platformservice.AppService
 	userStore   repo.UserStore
-	userService *userservice.Service
+	userService UserService
 }
 
-func New(appService *platformservice.AppService, userStore repo.UserStore, userService *userservice.Service) *Service {
+func New(appService *platformservice.AppService, userStore repo.UserStore, userService UserService) *Service {
 	return &Service{
 		AppService:  appService,
 		userStore:   userStore,

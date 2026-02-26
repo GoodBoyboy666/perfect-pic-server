@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"perfect-pic-server/internal/consts"
 	moduledto "perfect-pic-server/internal/modules/auth/dto"
+	"perfect-pic-server/internal/modules/common/httpx"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,7 +23,7 @@ func (h *Handler) Login(c *gin.Context) {
 
 	token, err := h.authService.LoginUser(req.Username, req.Password)
 	if err != nil {
-		WriteServiceError(c, err, "登录失败，请稍后重试")
+		httpx.WriteServiceError(c, err, "登录失败，请稍后重试")
 		return
 	}
 
@@ -45,7 +46,7 @@ func (h *Handler) Register(c *gin.Context) {
 	}
 
 	if err := h.authService.RegisterUser(req.Username, req.Password, req.Email); err != nil {
-		WriteServiceError(c, err, "注册失败，请稍后重试")
+		httpx.WriteServiceError(c, err, "注册失败，请稍后重试")
 		return
 	}
 
@@ -62,7 +63,7 @@ func (h *Handler) EmailVerify(c *gin.Context) {
 
 	alreadyVerified, err := h.authService.VerifyEmail(tokenString)
 	if err != nil {
-		WriteServiceError(c, err, "验证失败，请稍后重试")
+		httpx.WriteServiceError(c, err, "验证失败，请稍后重试")
 		return
 	}
 
@@ -83,7 +84,7 @@ func (h *Handler) EmailChangeVerify(c *gin.Context) {
 	tokenString := req.Token
 
 	if err := h.authService.VerifyEmailChange(tokenString); err != nil {
-		WriteServiceError(c, err, "邮箱修改失败，请稍后重试")
+		httpx.WriteServiceError(c, err, "邮箱修改失败，请稍后重试")
 		return
 	}
 
@@ -104,7 +105,7 @@ func (h *Handler) RequestPasswordReset(c *gin.Context) {
 	}
 
 	if err := h.authService.RequestPasswordReset(req.Email); err != nil {
-		WriteServiceError(c, err, "生成重置链接失败，请稍后重试")
+		httpx.WriteServiceError(c, err, "生成重置链接失败，请稍后重试")
 		return
 	}
 
@@ -120,7 +121,7 @@ func (h *Handler) ResetPassword(c *gin.Context) {
 	}
 
 	if err := h.authService.ResetPassword(req.Token, req.NewPassword); err != nil {
-		WriteServiceError(c, err, "密码重置失败")
+		httpx.WriteServiceError(c, err, "密码重置失败")
 		return
 	}
 
@@ -150,7 +151,7 @@ func (h *Handler) BeginPasskeyLogin(c *gin.Context) {
 
 	sessionID, assertion, err := h.authService.BeginPasskeyLogin()
 	if err != nil {
-		WriteServiceError(c, err, "创建 Passkey 登录挑战失败")
+		httpx.WriteServiceError(c, err, "创建 Passkey 登录挑战失败")
 		return
 	}
 
@@ -170,7 +171,7 @@ func (h *Handler) FinishPasskeyLogin(c *gin.Context) {
 
 	token, err := h.authService.FinishPasskeyLogin(req.SessionID, req.Credential)
 	if err != nil {
-		WriteServiceError(c, err, "Passkey 登录失败")
+		httpx.WriteServiceError(c, err, "Passkey 登录失败")
 		return
 	}
 

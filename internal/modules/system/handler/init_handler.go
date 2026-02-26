@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"perfect-pic-server/internal/modules/common/httpx"
 	moduledto "perfect-pic-server/internal/modules/system/dto"
 	"sync"
 
@@ -38,7 +39,7 @@ func (h *Handler) Init(c *gin.Context) {
 	}
 
 	if err := h.systemService.InitializeSystem(initInfo); err != nil {
-		WriteServiceError(c, err, "初始化失败")
+		httpx.WriteServiceError(c, err, "初始化失败")
 		return
 	}
 
