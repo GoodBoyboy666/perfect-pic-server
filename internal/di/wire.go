@@ -4,11 +4,13 @@
 package di
 
 import (
-	"perfect-pic-server/internal/handler"
-	adminhandler "perfect-pic-server/internal/handler/admin"
-	"perfect-pic-server/internal/repository"
+	"perfect-pic-server/internal/modules"
+	imagerepo "perfect-pic-server/internal/modules/image/repo"
+	settingsrepo "perfect-pic-server/internal/modules/settings/repo"
+	systemrepo "perfect-pic-server/internal/modules/system/repo"
+	userrepo "perfect-pic-server/internal/modules/user/repo"
+	"perfect-pic-server/internal/platform/service"
 	"perfect-pic-server/internal/router"
-	"perfect-pic-server/internal/service"
 
 	"github.com/google/wire"
 	"gorm.io/gorm"
@@ -16,14 +18,12 @@ import (
 
 func InitializeApplication(gormDB *gorm.DB) (*Application, error) {
 	wire.Build(
-		repository.NewUserRepository,
-		repository.NewImageRepository,
-		repository.NewSettingRepository,
-		repository.NewSystemRepository,
-		repository.NewRepositories,
+		userrepo.NewUserRepository,
+		imagerepo.NewImageRepository,
+		settingsrepo.NewSettingRepository,
+		systemrepo.NewSystemRepository,
 		service.NewAppService,
-		handler.NewHandler,
-		adminhandler.NewHandler,
+		modules.New,
 		router.NewRouter,
 		NewApplication,
 	)

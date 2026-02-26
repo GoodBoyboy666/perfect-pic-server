@@ -17,7 +17,7 @@ import (
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/di"
 	"perfect-pic-server/internal/middleware"
-	"perfect-pic-server/internal/service"
+	"perfect-pic-server/internal/platform/service"
 	"perfect-pic-server/internal/utils"
 	"strings"
 	"syscall"
