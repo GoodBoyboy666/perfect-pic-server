@@ -68,3 +68,33 @@ func TestBodyLimitMiddleware_LimitsNonUploadRoutes(t *testing.T) {
 		t.Fatalf("期望 413，实际为 %d body=%s", w.Code, w.Body.String())
 	}
 }
+
+// 测试内容：验证 BodyLimitMiddleware 不依赖路由后缀；即使是 /upload 路径也会限制请求体。
+func TestBodyLimitMiddleware_DoesNotBypassByPathSuffix(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupTestDB(t)
+
+	// 1MB 限制
+	_ = db.DB.Save(&model.Setting{Key: consts.ConfigMaxRequestBodySize, Value: "1"}).Error
+	testService.ClearCache()
+
+	r := gin.New()
+	r.POST("/upload", BodyLimitMiddleware(testService), func(c *gin.Context) {
+		_, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"err": err.Error()})
+			return
+		}
+		c.Status(http.StatusOK)
+	})
+
+	payload := bytes.Repeat([]byte("a"), 2*1024*1024)
+	req := httptest.NewRequest(http.MethodPost, "/upload", bytes.NewReader(payload))
+	req.ContentLength = int64(len(payload))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("期望 413，实际为 %d body=%s", w.Code, w.Body.String())
+	}
+}
