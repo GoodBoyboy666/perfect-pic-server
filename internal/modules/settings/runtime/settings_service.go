@@ -10,6 +10,7 @@ import (
 )
 
 const defaultValueNotFound = "||__NOT_FOUND__||"
+const defaultStorageQuotaBytes int64 = 1073741824
 
 var DefaultSettings = []model.Setting{
 	{Key: consts.ConfigSiteName, Value: "Perfect Pic", Desc: "网站名称", Category: "常规"},
@@ -170,4 +171,14 @@ func (s *Service) GetBool(key string) bool {
 		return false
 	}
 	return val
+}
+
+// GetDefaultStorageQuota 获取默认存储配额（字节）。
+// 当配置值非法（<= 0）时回退到 1GB。
+func (s *Service) GetDefaultStorageQuota() int64 {
+	quota := s.GetInt64(consts.ConfigDefaultStorageQuota)
+	if quota <= 0 {
+		return defaultStorageQuotaBytes
+	}
+	return quota
 }

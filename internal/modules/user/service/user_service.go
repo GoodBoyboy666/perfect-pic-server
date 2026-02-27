@@ -289,15 +289,13 @@ func (s *Service) VerifyEmailChangeToken(token string) (*moduledto.EmailChangeTo
 
 // GetSystemDefaultStorageQuota 获取系统默认存储配额
 func (s *Service) GetSystemDefaultStorageQuota() int64 {
-	quota := s.GetInt64(consts.ConfigDefaultStorageQuota)
-	if quota == 0 {
-		return 1073741824 // 兜底 1GB
-	}
-	return quota
+	return s.GetDefaultStorageQuota()
 }
 
 // DeleteUserFiles 删除指定用户的所有关联文件（头像、上传的照片）
 // 此函数只负责删除物理文件，不处理数据库记录的清理
+//
+//nolint:gocyclo
 func (s *Service) DeleteUserFiles(userID uint) error {
 	cfg := config.Get()
 
@@ -331,9 +329,13 @@ func (s *Service) DeleteUserFiles(userID uint) error {
 		log.Printf("Warning: Failed to delete avatar directory for user %d: %v\n", userID, err)
 	}
 
+	if s.imageService == nil {
+		return fmt.Errorf("图片服务未初始化")
+	}
+
 	// 2. 查找并删除用户上传的所有图片
 	// Unscoped() 确保即使是软删除的图片也能被查出来删除文件
-	images, err := s.imageStore.FindUnscopedByUserID(userID)
+	images, err := s.imageService.FindUnscopedByUserID(userID)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve user images: %w", err)
 	}

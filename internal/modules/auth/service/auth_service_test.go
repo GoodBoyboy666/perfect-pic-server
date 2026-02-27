@@ -228,7 +228,7 @@ func TestVerifyEmailChange_UpdatesEmail(t *testing.T) {
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com", EmailVerified: true}
 	_ = db.DB.Create(&u).Error
 
-	token, err := testService.GenerateEmailChangeToken(u.ID, "a@example.com", "new@example.com")
+	token, err := testUserService.GenerateEmailChangeToken(u.ID, "a@example.com", "new@example.com")
 	if err != nil {
 		t.Fatalf("GenerateEmailChangeToken: %v", err)
 	}
@@ -253,7 +253,7 @@ func TestResetPassword_Flow(t *testing.T) {
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com", EmailVerified: false}
 	_ = db.DB.Create(&u).Error
 
-	token, err := testService.GenerateForgetPasswordToken(u.ID)
+	token, err := testUserService.GenerateForgetPasswordToken(u.ID)
 	if err != nil {
 		t.Fatalf("GenerateForgetPasswordToken: %v", err)
 	}
@@ -265,7 +265,7 @@ func TestResetPassword_Flow(t *testing.T) {
 	}
 
 	// 由于一次性令牌会被删除，需要重新生成
-	token, _ = testService.GenerateForgetPasswordToken(u.ID)
+	token, _ = testUserService.GenerateForgetPasswordToken(u.ID)
 	if err := testService.ResetPassword(token, "abc123456"); err != nil {
 		t.Fatalf("ResetPassword: %v", err)
 	}

@@ -8,17 +8,17 @@ import (
 
 // AdminGetServerStats 获取后台仪表盘统计数据。
 func (s *Service) AdminGetServerStats() (*moduledto.ServerStatsResponse, error) {
-	imageCount, err := s.imageStore.CountAll()
+	imageCount, err := s.imageService.CountAll()
 	if err != nil {
 		return nil, platformservice.NewInternalError("统计图片数据失败")
 	}
 
-	totalSize, err := s.imageStore.SumAllSize()
+	totalSize, err := s.imageService.SumAllSize()
 	if err != nil {
 		return nil, platformservice.NewInternalError("统计图片数据失败")
 	}
 
-	userCount, err := s.userStore.CountAll()
+	userCount, err := s.userService.CountAll()
 	if err != nil {
 		return nil, platformservice.NewInternalError("统计用户数据失败")
 	}

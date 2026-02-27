@@ -1,20 +1,27 @@
 package service
 
 import (
+	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/modules/image/repo"
 	platformservice "perfect-pic-server/internal/platform/service"
 )
 
-type Service struct {
-	*platformservice.AppService
-	userStore  repo.UserStore
-	imageStore repo.ImageStore
+type UserService interface {
+	FindByID(id uint) (*model.User, error)
+	UpdateAvatar(user *model.User, filename string) error
+	ClearAvatar(user *model.User) error
 }
 
-func New(appService *platformservice.AppService, userStore repo.UserStore, imageStore repo.ImageStore) *Service {
+type Service struct {
+	*platformservice.AppService
+	userService UserService
+	imageStore  repo.ImageStore
+}
+
+func New(appService *platformservice.AppService, userService UserService, imageStore repo.ImageStore) *Service {
 	return &Service{
-		AppService: appService,
-		userStore:  userStore,
-		imageStore: imageStore,
+		AppService:  appService,
+		userService: userService,
+		imageStore:  imageStore,
 	}
 }

@@ -26,9 +26,10 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	imageStore := imagerepo.NewImageRepository(gdb)
 	settingStore := settingsrepo.NewSettingRepository(gdb)
 	testService = platformservice.NewAppService(settingStore)
-	userSvc := userservice.New(testService, userStore, imageStore)
-	imageSvc := imageservice.New(testService, userStore, imageStore)
-	authSvc := authservice.New(testService, userStore, userSvc)
+	userSvc := userservice.New(testService, userStore)
+	imageSvc := imageservice.New(testService, userSvc, imageStore)
+	userSvc.SetImageService(imageSvc)
+	authSvc := authservice.New(testService, userSvc)
 	testHandler = New(userSvc, authSvc, imageSvc)
 	testService.ClearCache()
 	return gdb

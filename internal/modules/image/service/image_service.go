@@ -77,7 +77,7 @@ func (s *Service) ProcessImageUpload(file *multipart.FileHeader, uid uint) (*mod
 	}
 
 	// 检查配额 (使用 StorageUsed 字段)
-	user, err := s.userStore.FindByID(uid)
+	user, err := s.userService.FindByID(uid)
 	if err != nil {
 		log.Printf("Get user error: %v\n", err)
 		return nil, "", platformservice.NewInternalError("查询用户信息失败")
@@ -90,10 +90,7 @@ func (s *Service) ProcessImageUpload(file *multipart.FileHeader, uid uint) (*mod
 	if user.StorageQuota != nil {
 		quota = *user.StorageQuota
 	} else {
-		quota = s.GetInt64(consts.ConfigDefaultStorageQuota)
-		if quota == 0 {
-			quota = 1073741824 // 1GB
-		}
+		quota = s.GetDefaultStorageQuota()
 	}
 
 	if usedSize+file.Size > quota {
@@ -348,7 +345,7 @@ func (s *Service) UpdateUserAvatar(user *model.User, file *multipart.FileHeader)
 	oldAvatar := user.Avatar
 
 	// 更新数据库
-	if err := s.userStore.UpdateAvatar(user, newFilename); err != nil {
+	if err := s.userService.UpdateAvatar(user, newFilename); err != nil {
 		_ = os.Remove(dstPath) // 回滚文件
 		log.Printf("DB Update avatar error: %v\n", err)
 		return "", platformservice.NewInternalError("系统错误: 数据库更新失败")
@@ -402,7 +399,7 @@ func (s *Service) RemoveUserAvatar(user *model.User) error {
 	}
 
 	// 更新数据库
-	if err := s.userStore.ClearAvatar(user); err != nil {
+	if err := s.userService.ClearAvatar(user); err != nil {
 		log.Printf("DB Remove avatar error: %v\n", err)
 		return platformservice.NewInternalError("系统错误: 移除头像失败")
 	}

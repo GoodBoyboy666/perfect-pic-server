@@ -7,7 +7,20 @@ import (
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	moduledto "perfect-pic-server/internal/modules/settings/dto"
+	platformservice "perfect-pic-server/internal/platform/service"
 )
+
+func assertSettingsServiceErrorCode(t *testing.T, err error, code platformservice.ErrorCode) *platformservice.ServiceError {
+	t.Helper()
+	serviceErr, ok := platformservice.AsServiceError(err)
+	if !ok {
+		t.Fatalf("期望 ServiceError，实际为: %v", err)
+	}
+	if serviceErr.Code != code {
+		t.Fatalf("期望错误码 %q，实际为 %q", code, serviceErr.Code)
+	}
+	return serviceErr
+}
 
 // 测试内容：验证读取字符串设置时会插入默认值并与数据库一致。
 func TestGetString_DefaultSettingInserted(t *testing.T) {
@@ -126,6 +139,46 @@ func TestUpdateSettingsForAdmin_MaskedSensitiveIsNotOverwritten(t *testing.T) {
 	_ = db.DB.Where("key = ?", "new").First(&n).Error
 	if n.Value != "val" {
 		t.Fatalf("期望 new=val，实际为 %q", n.Value)
+	}
+}
+
+// 测试内容：验证默认存储配额配置仅允许正整数，非法值会被拒绝。
+func TestUpdateSettingsForAdmin_RejectInvalidDefaultStorageQuota(t *testing.T) {
+	setupTestDB(t)
+
+	_ = db.DB.Save(&model.Setting{Key: consts.ConfigDefaultStorageQuota, Value: "1073741824"}).Error
+	testService.ClearCache()
+
+	invalidValues := []string{"-1", "0", "abc", ""}
+	for _, value := range invalidValues {
+		err := testService.AdminUpdateSettings([]moduledto.UpdateSettingRequest{
+			{Key: consts.ConfigDefaultStorageQuota, Value: value},
+		})
+		assertSettingsServiceErrorCode(t, err, platformservice.ErrorCodeValidation)
+
+		var setting model.Setting
+		_ = db.DB.Where("key = ?", consts.ConfigDefaultStorageQuota).First(&setting).Error
+		if setting.Value != "1073741824" {
+			t.Fatalf("非法值不应写入数据库，实际为 %q", setting.Value)
+		}
+	}
+}
+
+// 测试内容：验证默认存储配额配置在合法值下可成功更新。
+func TestUpdateSettingsForAdmin_AcceptValidDefaultStorageQuota(t *testing.T) {
+	setupTestDB(t)
+
+	err := testService.AdminUpdateSettings([]moduledto.UpdateSettingRequest{
+		{Key: consts.ConfigDefaultStorageQuota, Value: "2048"},
+	})
+	if err != nil {
+		t.Fatalf("AdminUpdateSettings: %v", err)
+	}
+
+	var setting model.Setting
+	_ = db.DB.Where("key = ?", consts.ConfigDefaultStorageQuota).First(&setting).Error
+	if setting.Value != "2048" {
+		t.Fatalf("期望 quota=2048，实际为 %q", setting.Value)
 	}
 }
 

@@ -248,6 +248,13 @@ func TestGetSystemDefaultStorageQuota(t *testing.T) {
 	if got := testService.GetSystemDefaultStorageQuota(); got != 123 {
 		t.Fatalf("期望 123，实际为 %d", got)
 	}
+
+	// 非法值（<=0）应统一回退到默认 1GB。
+	_ = db.DB.Save(&model.Setting{Key: consts.ConfigDefaultStorageQuota, Value: "-1"}).Error
+	testService.ClearCache()
+	if got := testService.GetSystemDefaultStorageQuota(); got != 1073741824 {
+		t.Fatalf("期望 fallback 1GB，实际为 %d", got)
+	}
 }
 
 // 测试内容：验证管理员获取用户详情接口可正确返回用户信息。
@@ -731,4 +738,3 @@ func TestRequestEmailChange(t *testing.T) {
 		t.Fatalf("期望 success，实际为 err=%v", err)
 	}
 }
-

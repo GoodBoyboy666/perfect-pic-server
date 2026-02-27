@@ -28,9 +28,10 @@ func New(
 	settingStore settingsrepo.SettingStore,
 	systemStore systemrepo.SystemStore,
 ) *AppModules {
-	userService := user.NewService(appService, userStore, imageStore)
-	imageModule := image.New(appService, userStore, imageStore)
-	authModule := auth.New(appService, userStore, userService)
+	userService := user.NewService(appService, userStore)
+	imageModule := image.New(appService, userService, imageStore)
+	userService.SetImageService(imageModule.Service)
+	authModule := auth.New(appService, userService)
 	userModule := user.New(userService, authModule.Service, imageModule.Service)
 
 	return &AppModules{
@@ -38,6 +39,6 @@ func New(
 		User:     userModule,
 		Image:    imageModule,
 		Settings: settings.New(appService, settingStore),
-		System:   system.New(appService, systemStore, userStore, imageStore),
+		System:   system.New(appService, systemStore, userService, imageModule.Service),
 	}
 }

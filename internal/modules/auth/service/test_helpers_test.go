@@ -3,7 +3,6 @@ package service
 import (
 	"testing"
 
-	imagerepo "perfect-pic-server/internal/modules/image/repo"
 	settingsrepo "perfect-pic-server/internal/modules/settings/repo"
 	userrepo "perfect-pic-server/internal/modules/user/repo"
 	userservice "perfect-pic-server/internal/modules/user/service"
@@ -14,15 +13,15 @@ import (
 )
 
 var testService *Service
+var testUserService *userservice.Service
 
 func setupTestDB(t *testing.T) *gorm.DB {
 	gdb := testutils.SetupDB(t)
 	userStore := userrepo.NewUserRepository(gdb)
-	imageStore := imagerepo.NewImageRepository(gdb)
 	settingStore := settingsrepo.NewSettingRepository(gdb)
 	appService := platformservice.NewAppService(settingStore)
-	userSvc := userservice.New(appService, userStore, imageStore)
-	testService = New(appService, userStore, userSvc)
+	testUserService = userservice.New(appService, userStore)
+	testService = New(appService, testUserService)
 	testService.ClearCache()
 	return gdb
 }
