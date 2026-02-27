@@ -24,6 +24,7 @@ func (r *SystemRepository) InitializeSystem(settingValues map[string]string, adm
 		}
 
 		for key, value := range settingValues {
+			// Skip ConfigAllowInit as it was already updated in the optimistic lock claim above (lines 16-18).
 			if key == consts.ConfigAllowInit {
 				continue
 			}
