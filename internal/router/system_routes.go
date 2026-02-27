@@ -1,14 +1,14 @@
 package router
 
 import (
+	"perfect-pic-server/internal/handler"
 	"perfect-pic-server/internal/middleware"
-	systemhandler "perfect-pic-server/internal/modules/system/handler"
-	"perfect-pic-server/internal/platform/service"
+	"perfect-pic-server/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
-func registerSystemRoutes(api *gin.RouterGroup, authLimiter gin.HandlerFunc, h *systemhandler.Handler, appService *service.AppService) {
+func registerSystemRoutes(api *gin.RouterGroup, authLimiter gin.HandlerFunc, h *handler.SystemHandler, appService *service.Service) {
 	bodyLimit := middleware.BodyLimitMiddleware(appService)
 
 	api.GET("/init", h.GetInitState)

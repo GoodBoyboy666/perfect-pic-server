@@ -2,15 +2,14 @@ package router
 
 import (
 	"perfect-pic-server/internal/consts"
+	"perfect-pic-server/internal/handler"
 	"perfect-pic-server/internal/middleware"
-	imagehandler "perfect-pic-server/internal/modules/image/handler"
-	userhandler "perfect-pic-server/internal/modules/user/handler"
-	"perfect-pic-server/internal/platform/service"
+	"perfect-pic-server/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
-func registerUserRoutes(api *gin.RouterGroup, userHandler *userhandler.Handler, imageHandler *imagehandler.Handler, appService *service.AppService) {
+func registerUserRoutes(api *gin.RouterGroup, userHandler *handler.UserHandler, imageHandler *handler.ImageHandler, appService *service.Service) {
 	userGroup := api.Group("/user")
 	userGroup.Use(middleware.JWTAuth())
 	userGroup.Use(middleware.UserStatusCheck())

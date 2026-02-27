@@ -1,20 +1,17 @@
 package di
 
 import (
-	"perfect-pic-server/internal/modules"
-	"perfect-pic-server/internal/platform/service"
 	"perfect-pic-server/internal/router"
+	"perfect-pic-server/internal/service"
 )
 
 type Application struct {
-	Modules *modules.AppModules
 	Router  *router.Router
-	Service *service.AppService
+	Service *service.Service
 }
 
-func NewApplication(m *modules.AppModules, r *router.Router, s *service.AppService) *Application {
+func NewApplication(r *router.Router, s *service.Service) *Application {
 	return &Application{
-		Modules: m,
 		Router:  r,
 		Service: s,
 	}

@@ -3,12 +3,9 @@ package router
 import (
 	"testing"
 
-	"perfect-pic-server/internal/modules"
-	imagerepo "perfect-pic-server/internal/modules/image/repo"
-	settingsrepo "perfect-pic-server/internal/modules/settings/repo"
-	systemrepo "perfect-pic-server/internal/modules/system/repo"
-	userrepo "perfect-pic-server/internal/modules/user/repo"
-	"perfect-pic-server/internal/platform/service"
+	"perfect-pic-server/internal/handler"
+	"perfect-pic-server/internal/repository"
+	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/testutils"
 
 	"github.com/gin-gonic/gin"
@@ -18,14 +15,18 @@ import (
 func TestInitRouter_RegistersCoreRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	gdb := testutils.SetupDB(t)
-	userStore := userrepo.NewUserRepository(gdb)
-	imageStore := imagerepo.NewImageRepository(gdb)
-	settingStore := settingsrepo.NewSettingRepository(gdb)
-	systemStore := systemrepo.NewSystemRepository(gdb)
-	appService := service.NewAppService(settingStore)
+	userStore := repository.NewUserRepository(gdb)
+	imageStore := repository.NewImageRepository(gdb)
+	settingStore := repository.NewSettingRepository(gdb)
+	systemStore := repository.NewSystemRepository(gdb)
+	appService := service.NewAppService(userStore, imageStore, settingStore, systemStore)
 	appService.ClearCache()
-	appModules := modules.New(appService, userStore, imageStore, settingStore, systemStore)
-	rt := NewRouter(appModules, appService)
+	authHandler := handler.NewAuthHandler(appService)
+	systemHandler := handler.NewSystemHandler(appService)
+	settingsHandler := handler.NewSettingsHandler(appService)
+	userHandler := handler.NewUserHandler(appService)
+	imageHandler := handler.NewImageHandler(appService)
+	rt := NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, appService)
 
 	r := gin.New()
 	rt.Init(r)

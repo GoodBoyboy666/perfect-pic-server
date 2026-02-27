@@ -16,7 +16,7 @@ import (
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/di"
 	"perfect-pic-server/internal/middleware"
-	"perfect-pic-server/internal/platform/service"
+	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/utils"
 	"strings"
 	"syscall"
@@ -93,7 +93,7 @@ func ensureDirectories() (string, string) {
 	return uploadPath, avatarPath
 }
 
-func setupStaticFiles(r *gin.Engine, appService *service.AppService, uploadPath, avatarPath string) {
+func setupStaticFiles(r *gin.Engine, appService *service.Service, uploadPath, avatarPath string) {
 	// 使用带缓存控制的静态文件服务
 	r.Group(config.Get().Upload.URLPrefix, middleware.StaticCacheMiddleware(appService)).
 		StaticFS("", gin.Dir(uploadPath, false))

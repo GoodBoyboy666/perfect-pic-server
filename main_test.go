@@ -13,8 +13,8 @@ import (
 
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/db"
-	settingsrepo "perfect-pic-server/internal/modules/settings/repo"
-	"perfect-pic-server/internal/platform/service"
+	"perfect-pic-server/internal/repository"
+	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/testutils"
 
 	"github.com/gin-gonic/gin"
@@ -265,6 +265,9 @@ func setupTestDBForMain(t *testing.T) *gorm.DB {
 var _ fs.FS = fstest.MapFS{}
 
 func buildTestAppServiceForMain() *service.AppService {
-	settingStore := settingsrepo.NewSettingRepository(db.DB)
-	return service.NewAppService(settingStore)
+	userStore := repository.NewUserRepository(db.DB)
+	imageStore := repository.NewImageRepository(db.DB)
+	settingStore := repository.NewSettingRepository(db.DB)
+	systemStore := repository.NewSystemRepository(db.DB)
+	return service.NewAppService(userStore, imageStore, settingStore, systemStore)
 }

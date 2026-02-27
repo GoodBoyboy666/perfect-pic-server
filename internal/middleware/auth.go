@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/platform/service"
+	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/utils"
 	"strconv"
 	"strings"

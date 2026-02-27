@@ -1,23 +1,20 @@
 package router
 
 import (
+	"perfect-pic-server/internal/handler"
 	"perfect-pic-server/internal/middleware"
-	imagehandler "perfect-pic-server/internal/modules/image/handler"
-	settingshandler "perfect-pic-server/internal/modules/settings/handler"
-	systemhandler "perfect-pic-server/internal/modules/system/handler"
-	userhandler "perfect-pic-server/internal/modules/user/handler"
-	"perfect-pic-server/internal/platform/service"
+	"perfect-pic-server/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
 func registerAdminRoutes(
 	api *gin.RouterGroup,
-	systemHandler *systemhandler.Handler,
-	settingsHandler *settingshandler.Handler,
-	userHandler *userhandler.Handler,
-	imageHandler *imagehandler.Handler,
-	appService *service.AppService,
+	systemHandler *handler.SystemHandler,
+	settingsHandler *handler.SettingsHandler,
+	userHandler *handler.UserHandler,
+	imageHandler *handler.ImageHandler,
+	appService *service.Service,
 ) {
 	adminGroup := api.Group("/admin")
 	adminGroup.Use(middleware.JWTAuth())
