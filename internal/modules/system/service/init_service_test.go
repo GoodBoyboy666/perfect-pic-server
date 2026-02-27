@@ -1,12 +1,14 @@
 package service
 
 import (
+	"sync"
 	"testing"
 
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	moduledto "perfect-pic-server/internal/modules/system/dto"
+	platformservice "perfect-pic-server/internal/platform/service"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -85,3 +87,77 @@ func TestInitializeSystem_AllowsReservedAdminUsername(t *testing.T) {
 	}
 }
 
+// 测试内容：验证并发初始化时只有一个请求成功，另一个请求会被拒绝。
+func TestInitializeSystem_ConcurrentOnlyOneSucceeds(t *testing.T) {
+	setupTestDB(t)
+
+	if err := testService.InitializeSettings(); err != nil {
+		t.Fatalf("InitializeSettings: %v", err)
+	}
+	testService.ClearCache()
+
+	payloads := []moduledto.InitRequest{
+		{
+			Username:        "admin_a",
+			Password:        "abc12345",
+			SiteName:        "SiteA",
+			SiteDescription: "DescA",
+		},
+		{
+			Username:        "admin_b",
+			Password:        "abc12345",
+			SiteName:        "SiteB",
+			SiteDescription: "DescB",
+		},
+	}
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(payloads))
+
+	for _, payload := range payloads {
+		wg.Add(1)
+		go func(p moduledto.InitRequest) {
+			defer wg.Done()
+			errCh <- testService.InitializeSystem(p)
+		}(payload)
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	successCount := 0
+	forbiddenCount := 0
+	otherErrCount := 0
+	for err := range errCh {
+		if err == nil {
+			successCount++
+			continue
+		}
+		serviceErr, ok := platformservice.AsServiceError(err)
+		if ok && serviceErr.Code == platformservice.ErrorCodeForbidden {
+			forbiddenCount++
+			continue
+		}
+		otherErrCount++
+	}
+
+	if successCount != 1 || forbiddenCount != 1 || otherErrCount != 0 {
+		t.Fatalf("期望 1 成功 + 1 forbidden，无其他错误；实际 success=%d forbidden=%d other=%d", successCount, forbiddenCount, otherErrCount)
+	}
+
+	var adminCount int64
+	if err := db.DB.Model(&model.User{}).Where("admin = ?", true).Count(&adminCount).Error; err != nil {
+		t.Fatalf("统计管理员数量失败: %v", err)
+	}
+	if adminCount != 1 {
+		t.Fatalf("期望仅创建 1 个管理员，实际为 %d", adminCount)
+	}
+
+	var allowInit model.Setting
+	if err := db.DB.Where("key = ?", consts.ConfigAllowInit).First(&allowInit).Error; err != nil {
+		t.Fatalf("查询 allow_init 失败: %v", err)
+	}
+	if allowInit.Value != "false" {
+		t.Fatalf("期望 allow_init=false，实际为 %q", allowInit.Value)
+	}
+}

@@ -1,9 +1,11 @@
 package service
 
 import (
+	"errors"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
 	moduledto "perfect-pic-server/internal/modules/system/dto"
+	systemrepo "perfect-pic-server/internal/modules/system/repo"
 	platformservice "perfect-pic-server/internal/platform/service"
 	"perfect-pic-server/internal/utils"
 	"strings"
@@ -52,6 +54,11 @@ func (s *Service) InitializeSystem(payload moduledto.InitRequest) error {
 	}
 	err = s.systemStore.InitializeSystem(settingsToUpdate, &newUser)
 	if err != nil {
+		if errors.Is(err, systemrepo.ErrSystemAlreadyInitialized) {
+			// 其他实例已完成初始化时，立即清理缓存并返回业务态冲突。
+			s.ClearCache()
+			return platformservice.NewForbiddenError("已初始化，无法重复初始化")
+		}
 		return platformservice.NewInternalError("初始化失败")
 	}
 
