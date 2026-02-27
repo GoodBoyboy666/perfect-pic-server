@@ -14,6 +14,7 @@ func registerUserRoutes(api *gin.RouterGroup, userHandler *userhandler.Handler, 
 	userGroup := api.Group("/user")
 	userGroup.Use(middleware.JWTAuth())
 	userGroup.Use(middleware.UserStatusCheck())
+	bodyLimit := middleware.BodyLimitMiddleware(appService)
 
 	// 修改用户名请求间隔：读取配置（秒）
 	usernameLimiter := middleware.IntervalRateMiddleware(appService, consts.ConfigRateLimitUsernameUpdateIntervalSeconds)
@@ -26,18 +27,18 @@ func registerUserRoutes(api *gin.RouterGroup, userHandler *userhandler.Handler, 
 	userGroup.GET("/profile", userHandler.GetSelfInfo)
 	userGroup.GET("/passkeys", userHandler.ListSelfPasskeys)
 	userGroup.DELETE("/passkeys/:id", userHandler.DeleteSelfPasskey)
-	userGroup.PATCH("/passkeys/:id/name", userHandler.UpdateSelfPasskeyName)
-	userGroup.POST("/passkeys/register/start", userHandler.BeginPasskeyRegistration)
-	userGroup.POST("/passkeys/register/finish", userHandler.FinishPasskeyRegistration)
-	userGroup.PATCH("/username", usernameLimiter, userHandler.UpdateSelfUsername)
-	userGroup.PATCH("/password", userHandler.UpdateSelfPassword)
-	userGroup.POST("/email", emailLimiter, userHandler.RequestUpdateEmail)
+	userGroup.PATCH("/passkeys/:id/name", bodyLimit, userHandler.UpdateSelfPasskeyName)
+	userGroup.POST("/passkeys/register/start", bodyLimit, userHandler.BeginPasskeyRegistration)
+	userGroup.POST("/passkeys/register/finish", bodyLimit, userHandler.FinishPasskeyRegistration)
+	userGroup.PATCH("/username", bodyLimit, usernameLimiter, userHandler.UpdateSelfUsername)
+	userGroup.PATCH("/password", bodyLimit, userHandler.UpdateSelfPassword)
+	userGroup.POST("/email", bodyLimit, emailLimiter, userHandler.RequestUpdateEmail)
 
 	userGroup.PATCH("/avatar", uploadBodyLimit, uploadLimiter, userHandler.UpdateSelfAvatar)
-
 	userGroup.POST("/upload", uploadBodyLimit, uploadLimiter, imageHandler.UploadImage)
+
 	userGroup.GET("/images", imageHandler.GetMyImages)
-	userGroup.DELETE("/images/batch", imageHandler.BatchDeleteMyImages)
+	userGroup.DELETE("/images/batch", bodyLimit, imageHandler.BatchDeleteMyImages)
 	userGroup.DELETE("/images/:id", imageHandler.DeleteMyImage)
 	userGroup.GET("/images/count", userHandler.GetSelfImagesCount)
 

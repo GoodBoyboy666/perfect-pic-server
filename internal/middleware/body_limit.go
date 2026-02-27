@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/platform/service"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,14 +12,6 @@ import (
 // BodyLimitMiddleware 限制请求体大小
 func BodyLimitMiddleware(appService *service.AppService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 跳过上传相关的路由
-		// 这里简单通过路径判断
-		path := c.Request.URL.Path
-		if strings.HasSuffix(path, "/upload") || strings.HasSuffix(path, "/avatar") {
-			c.Next()
-			return
-		}
-
 		maxSizeMB := appService.GetInt(consts.ConfigMaxRequestBodySize)
 		if maxSizeMB <= 0 {
 			// 如果未设置或为0，默认 2MB
