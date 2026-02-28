@@ -4,13 +4,13 @@
 package di
 
 import (
-	"perfect-pic-server/internal/modules"
-	imagerepo "perfect-pic-server/internal/modules/image/repo"
-	settingsrepo "perfect-pic-server/internal/modules/settings/repo"
-	systemrepo "perfect-pic-server/internal/modules/system/repo"
-	userrepo "perfect-pic-server/internal/modules/user/repo"
-	"perfect-pic-server/internal/platform/service"
+	"perfect-pic-server/internal/config"
+	"perfect-pic-server/internal/handler"
+	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
+	"perfect-pic-server/internal/service"
+	"perfect-pic-server/internal/usecase/admin"
+	"perfect-pic-server/internal/usecase/app"
 
 	"github.com/google/wire"
 	"gorm.io/gorm"
@@ -18,12 +18,32 @@ import (
 
 func InitializeApplication(gormDB *gorm.DB) (*Application, error) {
 	wire.Build(
-		userrepo.NewUserRepository,
-		imagerepo.NewImageRepository,
-		settingsrepo.NewSettingRepository,
-		systemrepo.NewSystemRepository,
-		service.NewAppService,
-		modules.New,
+		repository.NewUserRepository,
+		repository.NewImageRepository,
+		repository.NewSettingRepository,
+		repository.NewSystemRepository,
+		repository.NewPasskeyRepository,
+		config.NewDBConfig,
+		service.NewUserService,
+		service.NewImageService,
+		service.NewSettingsService,
+		service.NewAuthService,
+		service.NewEmailService,
+		service.NewCaptchaService,
+		service.NewInitService,
+		service.NewPasskeyService,
+		admin.NewUserManageUseCase,
+		admin.NewSettingsUseCase,
+		admin.NewStatUseCase,
+		app.NewAuthUseCase,
+		app.NewUserUseCase,
+		app.NewImageUseCase,
+		app.NewPasskeyUseCase,
+		handler.NewAuthHandler,
+		handler.NewSystemHandler,
+		handler.NewSettingsHandler,
+		handler.NewUserHandler,
+		handler.NewImageHandler,
 		router.NewRouter,
 		NewApplication,
 	)

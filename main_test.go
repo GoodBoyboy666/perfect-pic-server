@@ -13,8 +13,7 @@ import (
 
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/db"
-	settingsrepo "perfect-pic-server/internal/modules/settings/repo"
-	"perfect-pic-server/internal/platform/service"
+	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/testutils"
 
 	"github.com/gin-gonic/gin"
@@ -241,7 +240,7 @@ func TestSetupStaticFiles_ServesUploadsAndAvatars(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(avatarPath, "b.txt"), []byte("a"), 0644)
 
 	r := gin.New()
-	setupStaticFiles(r, buildTestAppServiceForMain(), uploadPath, avatarPath)
+	setupStaticFiles(r, buildTestDBConfigForMain(), uploadPath, avatarPath)
 
 	w1 := httptest.NewRecorder()
 	r.ServeHTTP(w1, httptest.NewRequest(http.MethodGet, "/imgs/a.txt", nil))
@@ -258,13 +257,13 @@ func TestSetupStaticFiles_ServesUploadsAndAvatars(t *testing.T) {
 
 func setupTestDBForMain(t *testing.T) *gorm.DB {
 	gdb := testutils.SetupDB(t)
-	buildTestAppServiceForMain().ClearCache()
+	buildTestDBConfigForMain().ClearCache()
 	return gdb
 }
 
 var _ fs.FS = fstest.MapFS{}
 
-func buildTestAppServiceForMain() *service.AppService {
-	settingStore := settingsrepo.NewSettingRepository(db.DB)
-	return service.NewAppService(settingStore)
+func buildTestDBConfigForMain() *config.DBConfig {
+	settingStore := repository.NewSettingRepository(db.DB)
+	return config.NewDBConfig(settingStore)
 }

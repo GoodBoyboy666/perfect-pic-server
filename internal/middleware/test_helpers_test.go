@@ -3,19 +3,20 @@ package middleware
 import (
 	"testing"
 
-	settingsrepo "perfect-pic-server/internal/modules/settings/repo"
-	"perfect-pic-server/internal/platform/service"
+	"perfect-pic-server/internal/config"
+	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/testutils"
 
 	"gorm.io/gorm"
 )
 
-var testService *service.AppService
+var testService *config.DBConfig
 
 func setupTestDB(t *testing.T) *gorm.DB {
+	config.InitConfig("")
 	gdb := testutils.SetupDB(t)
-	settingStore := settingsrepo.NewSettingRepository(gdb)
-	testService = service.NewAppService(settingStore)
+	settingStore := repository.NewSettingRepository(gdb)
+	testService = config.NewDBConfig(settingStore)
 	testService.ClearCache()
 	return gdb
 }

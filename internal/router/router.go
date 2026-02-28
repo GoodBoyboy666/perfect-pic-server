@@ -1,38 +1,53 @@
 package router
 
 import (
+	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
+	"perfect-pic-server/internal/handler"
 	"perfect-pic-server/internal/middleware"
-	"perfect-pic-server/internal/modules"
-	"perfect-pic-server/internal/platform/service"
 
 	"github.com/gin-gonic/gin"
 )
 
 type Router struct {
-	modules *modules.AppModules
-	service *service.AppService
+	authHandler     *handler.AuthHandler
+	systemHandler   *handler.SystemHandler
+	settingsHandler *handler.SettingsHandler
+	userHandler     *handler.UserHandler
+	imageHandler    *handler.ImageHandler
+	dbConfig        *config.DBConfig
 }
 
-func NewRouter(appModules *modules.AppModules, appService *service.AppService) *Router {
+func NewRouter(
+	authHandler *handler.AuthHandler,
+	systemHandler *handler.SystemHandler,
+	settingsHandler *handler.SettingsHandler,
+	userHandler *handler.UserHandler,
+	imageHandler *handler.ImageHandler,
+	dbConfig *config.DBConfig,
+) *Router {
 	return &Router{
-		modules: appModules,
-		service: appService,
+		authHandler:     authHandler,
+		systemHandler:   systemHandler,
+		settingsHandler: settingsHandler,
+		userHandler:     userHandler,
+		imageHandler:    imageHandler,
+		dbConfig:        dbConfig,
 	}
 }
 
 func (rt *Router) Init(r *gin.Engine) {
 	// 注册全局安全标头中间件
-	r.Use(middleware.SecurityHeaders(rt.service))
+	r.Use(middleware.SecurityHeaders(rt.dbConfig))
 
 	api := r.Group("/api")
 
 	// 认证限流：读取配置（在多个域路由中复用同一个实例，保持行为一致）
-	authLimiter := middleware.RateLimitMiddleware(rt.service, consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst)
+	authLimiter := middleware.RateLimitMiddleware(rt.dbConfig, consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst)
 
-	registerPublicRoutes(api, rt.modules.Settings.Handler)
-	registerSystemRoutes(api, authLimiter, rt.modules.System.Handler, rt.service)
-	registerAuthRoutes(api, authLimiter, rt.modules.Auth.Handler, rt.service)
-	registerUserRoutes(api, rt.modules.User.Handler, rt.modules.Image.Handler, rt.service)
-	registerAdminRoutes(api, rt.modules.System.Handler, rt.modules.Settings.Handler, rt.modules.User.Handler, rt.modules.Image.Handler, rt.service)
+	registerPublicRoutes(api, rt.systemHandler)
+	registerSystemRoutes(api, authLimiter, rt.systemHandler, rt.dbConfig)
+	registerAuthRoutes(api, authLimiter, rt.authHandler, rt.dbConfig)
+	registerUserRoutes(api, rt.userHandler, rt.imageHandler, rt.dbConfig)
+	registerAdminRoutes(api, rt.systemHandler, rt.settingsHandler, rt.userHandler, rt.imageHandler, rt.dbConfig)
 }

@@ -1,15 +1,15 @@
 package middleware
 
 import (
+	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
-	platformservice "perfect-pic-server/internal/platform/service"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
 // SecurityHeaders 添加安全相关的 HTTP 响应头
-func SecurityHeaders(appService *platformservice.AppService) gin.HandlerFunc {
+func SecurityHeaders(dbConfig *config.DBConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 防止浏览器猜测内容类型
 		c.Header("X-Content-Type-Options", "nosniff")
@@ -27,7 +27,7 @@ func SecurityHeaders(appService *platformservice.AppService) gin.HandlerFunc {
 			frameSrc   = []string{"'self'"}
 		)
 
-		provider := strings.ToLower(appService.GetString(consts.ConfigCaptchaProvider))
+		provider := strings.ToLower(dbConfig.GetString(consts.ConfigCaptchaProvider))
 
 		switch provider {
 		case consts.CaptchaProviderGeetest:

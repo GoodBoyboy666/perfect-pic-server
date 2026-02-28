@@ -1,12 +1,12 @@
 package router
 
 import (
-	settingshandler "perfect-pic-server/internal/modules/settings/handler"
+	"perfect-pic-server/internal/handler"
 
 	"github.com/gin-gonic/gin"
 )
 
-func registerPublicRoutes(api *gin.RouterGroup, h *settingshandler.Handler) {
+func registerPublicRoutes(api *gin.RouterGroup, h *handler.SystemHandler) {
 	api.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "pong from gin"})
 	})

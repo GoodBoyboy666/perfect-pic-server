@@ -8,25 +8,45 @@ package di
 
 import (
 	"gorm.io/gorm"
-	"perfect-pic-server/internal/modules"
-	repo3 "perfect-pic-server/internal/modules/image/repo"
-	"perfect-pic-server/internal/modules/settings/repo"
-	repo4 "perfect-pic-server/internal/modules/system/repo"
-	repo2 "perfect-pic-server/internal/modules/user/repo"
-	"perfect-pic-server/internal/platform/service"
+	"perfect-pic-server/internal/config"
+	"perfect-pic-server/internal/handler"
+	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
+	"perfect-pic-server/internal/service"
+	"perfect-pic-server/internal/usecase/admin"
+	"perfect-pic-server/internal/usecase/app"
 )
 
 // Injectors from wire.go:
 
 func InitializeApplication(gormDB *gorm.DB) (*Application, error) {
-	settingStore := repo.NewSettingRepository(gormDB)
-	appService := service.NewAppService(settingStore)
-	userStore := repo2.NewUserRepository(gormDB)
-	imageStore := repo3.NewImageRepository(gormDB)
-	systemStore := repo4.NewSystemRepository(gormDB)
-	appModules := modules.New(appService, userStore, imageStore, settingStore, systemStore)
-	routerRouter := router.NewRouter(appModules, appService)
-	application := NewApplication(appModules, routerRouter, appService)
+	settingStore := repository.NewSettingRepository(gormDB)
+	dbConfig := config.NewDBConfig(settingStore)
+	authService := service.NewAuthService(dbConfig)
+	captchaService := service.NewCaptchaService(dbConfig)
+	userStore := repository.NewUserRepository(gormDB)
+	userService := service.NewUserService(userStore, dbConfig)
+	emailService := service.NewEmailService(dbConfig)
+	systemStore := repository.NewSystemRepository(gormDB)
+	initService := service.NewInitService(systemStore, dbConfig)
+	authUseCase := app.NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
+	passkeyStore := repository.NewPasskeyRepository(gormDB)
+	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig)
+	passkeyUseCase := app.NewPasskeyUseCase(passkeyService, passkeyStore, authService, userStore)
+	authHandler := handler.NewAuthHandler(authService, captchaService, authUseCase, initService, dbConfig, passkeyUseCase)
+	imageStore := repository.NewImageRepository(gormDB)
+	statUseCase := admin.NewStatUseCase(imageStore, userStore)
+	systemHandler := handler.NewSystemHandler(initService, statUseCase, dbConfig, userService)
+	settingsService := service.NewSettingsService(settingStore, dbConfig)
+	settingsUseCase := admin.NewSettingsUseCase(emailService)
+	settingsHandler := handler.NewSettingsHandler(settingsService, settingsUseCase)
+	userUseCase := app.NewUserUseCase(userService, userStore, emailService, dbConfig)
+	imageService := service.NewImageService(imageStore, dbConfig)
+	userManageUseCase := admin.NewUserManageUseCase(userService, imageService, passkeyService)
+	imageUseCase := app.NewImageUseCase(imageService, userService, userStore, dbConfig)
+	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase)
+	imageHandler := handler.NewImageHandler(imageService, imageUseCase)
+	routerRouter := router.NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig)
+	application := NewApplication(routerRouter, dbConfig)
 	return application, nil
 }

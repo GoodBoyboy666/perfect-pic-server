@@ -285,27 +285,26 @@ redis:
 ├── example/            # 示例文件 (如邮件模板)
 ├── frontend/           # 前端静态资源 (嵌入式)
 ├── internal/
+│   ├── common/         # 通用错误模型与 HTTP 错误写入
 │   ├── config/         # 配置加载与管理
 │   ├── consts/         # 常量定义
-│   ├── db/             # 数据库初始化
-│   ├── di/             # 依赖注入装配
+│   ├── db/             # 数据库初始化与迁移
+│   ├── di/             # Wire 依赖注入装配
+│   ├── dto/            # 请求/响应 DTO
+│   ├── handler/        # HTTP Handler 层
 │   ├── middleware/     # Gin 中间件
 │   ├── model/          # 数据模型
-│   ├── modules/        # 按领域组织的业务模块
-│   │   ├── app.go      # 模块聚合与组装入口
-│   │   ├── common/
-│   │   │   └── httpx/  # 跨模块 HTTP 错误响应等公共能力
-│   │   ├── auth/
-│   │   ├── image/
-│   │   ├── user/
-│   │   ├── settings/
-│   │   └── system/
-│   ├── platform/
-│   │   └── service/    # 跨领域共享基础服务（缓存/邮件/redis/通用错误等）
+│   ├── repository/     # 数据访问层
 │   ├── router/         # 顶层路由编排
+│   ├── service/        # 领域服务与基础能力
+│   ├── usecase/        # 应用编排层
+│   │   ├── app/        # 前台业务用例
+│   │   └── admin/      # 后台管理用例
 │   ├── testutils/      # 测试辅助
 │   └── utils/          # 工具函数
 ├── scripts/            # 构建与部署脚本
+├── embed_enabled.go    # embed 构建入口
+├── embed_disabled.go   # 非 embed 构建入口
 ├── main.go             # 程序入口
 └── go.mod
 ```

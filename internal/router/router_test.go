@@ -3,13 +3,13 @@ package router
 import (
 	"testing"
 
-	"perfect-pic-server/internal/modules"
-	imagerepo "perfect-pic-server/internal/modules/image/repo"
-	settingsrepo "perfect-pic-server/internal/modules/settings/repo"
-	systemrepo "perfect-pic-server/internal/modules/system/repo"
-	userrepo "perfect-pic-server/internal/modules/user/repo"
-	"perfect-pic-server/internal/platform/service"
+	"perfect-pic-server/internal/config"
+	"perfect-pic-server/internal/handler"
+	"perfect-pic-server/internal/repository"
+	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/testutils"
+	adminuc "perfect-pic-server/internal/usecase/admin"
+	appuc "perfect-pic-server/internal/usecase/app"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,14 +18,41 @@ import (
 func TestInitRouter_RegistersCoreRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	gdb := testutils.SetupDB(t)
-	userStore := userrepo.NewUserRepository(gdb)
-	imageStore := imagerepo.NewImageRepository(gdb)
-	settingStore := settingsrepo.NewSettingRepository(gdb)
-	systemStore := systemrepo.NewSystemRepository(gdb)
-	appService := service.NewAppService(settingStore)
-	appService.ClearCache()
-	appModules := modules.New(appService, userStore, imageStore, settingStore, systemStore)
-	rt := NewRouter(appModules, appService)
+	userStore := repository.NewUserRepository(gdb)
+	imageStore := repository.NewImageRepository(gdb)
+	settingStore := repository.NewSettingRepository(gdb)
+	systemStore := repository.NewSystemRepository(gdb)
+	passkeyStore := repository.NewPasskeyRepository(gdb)
+
+	dbConfig := config.NewDBConfig(settingStore)
+	if err := dbConfig.InitializeSettings(); err != nil {
+		t.Fatalf("InitializeSettings failed: %v", err)
+	}
+	dbConfig.ClearCache()
+
+	authService := service.NewAuthService(dbConfig)
+	captchaService := service.NewCaptchaService(dbConfig)
+	userService := service.NewUserService(userStore, dbConfig)
+	imageService := service.NewImageService(imageStore, dbConfig)
+	emailService := service.NewEmailService(dbConfig)
+	initService := service.NewInitService(systemStore, dbConfig)
+	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig)
+	settingsService := service.NewSettingsService(settingStore, dbConfig)
+
+	authUseCase := appuc.NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
+	userUseCase := appuc.NewUserUseCase(userService, userStore, emailService, dbConfig)
+	imageUseCase := appuc.NewImageUseCase(imageService, userService, userStore, dbConfig)
+	passkeyUseCase := appuc.NewPasskeyUseCase(passkeyService, passkeyStore, authService, userStore)
+	userManageUseCase := adminuc.NewUserManageUseCase(userService, imageService, passkeyService)
+	settingsUseCase := adminuc.NewSettingsUseCase(emailService)
+	statUseCase := adminuc.NewStatUseCase(imageStore, userStore)
+
+	authHandler := handler.NewAuthHandler(authService, captchaService, authUseCase, initService, dbConfig, passkeyUseCase)
+	systemHandler := handler.NewSystemHandler(initService, statUseCase, dbConfig, userService)
+	settingsHandler := handler.NewSettingsHandler(settingsService, settingsUseCase)
+	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase)
+	imageHandler := handler.NewImageHandler(imageService, imageUseCase)
+	rt := NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig)
 
 	r := gin.New()
 	rt.Init(r)
