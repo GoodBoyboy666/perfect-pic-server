@@ -12,21 +12,21 @@ type AuthUseCase struct {
 	userService  *service.UserService
 	emailService *service.EmailService
 	initService  *service.InitService
-	dbConfig     config.DBConfig
+	dbConfig     *config.DBConfig
 }
 
 type UserUseCase struct {
 	userService  *service.UserService
 	userStore    repository.UserStore
 	emailService *service.EmailService
-	dbConfig     config.DBConfig
+	dbConfig     *config.DBConfig
 }
 
 type ImageUseCase struct {
 	imageService *service.ImageService
 	userService  *service.UserService
 	userStore    repository.UserStore
-	dbConfig     config.DBConfig
+	dbConfig     *config.DBConfig
 }
 
 type PasskeyUseCase struct {
@@ -50,7 +50,7 @@ func NewAuthUseCase(
 		userService:  userService,
 		emailService: emailService,
 		initService:  initService,
-		dbConfig:     *dbConfig,
+		dbConfig:     dbConfig,
 	}
 }
 
@@ -64,7 +64,7 @@ func NewUserUseCase(
 		userService:  userService,
 		userStore:    userStore,
 		emailService: emailService,
-		dbConfig:     *dbConfig,
+		dbConfig:     dbConfig,
 	}
 }
 
@@ -78,7 +78,7 @@ func NewImageUseCase(
 		imageService: imageService,
 		userService:  userService,
 		userStore:    userStore,
-		dbConfig:     *dbConfig,
+		dbConfig:     dbConfig,
 	}
 }
 
