@@ -17,7 +17,7 @@ func (c *UserUseCase) RequestEmailChange(userID uint, password, newEmail string)
 
 	user, err := c.userStore.FindByID(userID)
 	if err != nil {
-		return commonpkg.NewNotFoundError("用户不存在")
+		return commonpkg.NewInternalError("用户不存在")
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
@@ -30,7 +30,7 @@ func (c *UserUseCase) RequestEmailChange(userID uint, password, newEmail string)
 
 	emailTaken, err := c.userService.IsEmailTaken(newEmail, nil, true)
 	if err != nil {
-		return commonpkg.NewInternalError("生成验证链接失败")
+		return commonpkg.NewInternalError("检查邮箱占用失败")
 	}
 	if emailTaken {
 		return commonpkg.NewConflictError("该邮箱已被使用")
