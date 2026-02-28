@@ -45,7 +45,7 @@ func (rt *Router) Init(r *gin.Engine) {
 	// 认证限流：读取配置（在多个域路由中复用同一个实例，保持行为一致）
 	authLimiter := middleware.RateLimitMiddleware(rt.dbConfig, consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst)
 
-	registerPublicRoutes(api, rt.settingsHandler)
+	registerPublicRoutes(api, rt.systemHandler)
 	registerSystemRoutes(api, authLimiter, rt.systemHandler, rt.dbConfig)
 	registerAuthRoutes(api, authLimiter, rt.authHandler, rt.dbConfig)
 	registerUserRoutes(api, rt.userHandler, rt.imageHandler, rt.dbConfig)

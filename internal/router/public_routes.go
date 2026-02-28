@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func registerPublicRoutes(api *gin.RouterGroup, h *handler.SettingsHandler) {
+func registerPublicRoutes(api *gin.RouterGroup, h *handler.SystemHandler) {
 	api.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "pong from gin"})
 	})
