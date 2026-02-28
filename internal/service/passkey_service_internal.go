@@ -25,16 +25,12 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-
-
 type passkeySessionEntry struct {
 	PasskeySessionType consts.PasskeySessionType
 	UserID             uint
 	SessionData        webauthn.SessionData
 	ExpiresAt          time.Time
 }
-
-
 
 type passkeyStoredCredential struct {
 	ID              []byte                            `json:"id"`
@@ -163,7 +159,7 @@ func storePasskeySessionInMemory(sessionID string, entry passkeySessionEntry) {
 
 // ConsumePasskeyLoginSession 读取并消费登录会话，仅返回 WebAuthn 校验所需的 SessionData。
 func (s *PasskeyService) ConsumePasskeyLoginSession(sessionID string) (*webauthn.SessionData, error) {
-	entry, err := consumePasskeySessionEntry(sessionID,consts. PasskeySessionLogin)
+	entry, err := consumePasskeySessionEntry(sessionID, consts.PasskeySessionLogin)
 	if err != nil {
 		return nil, err
 	}

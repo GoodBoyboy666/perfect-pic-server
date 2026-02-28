@@ -39,4 +39,3 @@ func NewSettingsUseCase(emailService *service.EmailService) *SettingsUseCase {
 func NewStatUseCase(imageStore repository.ImageStore, userStore repository.UserStore) *StatUseCase {
 	return &StatUseCase{imageStore: imageStore, userStore: userStore}
 }
-

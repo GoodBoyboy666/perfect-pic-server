@@ -61,4 +61,3 @@ func validateSettingUpdate(item moduledto.UpdateSettingRequest) error {
 
 	return nil
 }
-

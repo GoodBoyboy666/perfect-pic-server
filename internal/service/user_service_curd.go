@@ -18,10 +18,10 @@ func (s *UserService) ClearAvatar(user *model.User) error {
 	return s.userStore.ClearAvatar(user)
 }
 
-func (s* UserService) HardDeleteUserWithImages(userID uint) error{
+func (s *UserService) HardDeleteUserWithImages(userID uint) error {
 	return s.userStore.HardDeleteUserWithImages(userID)
 }
 
-func (s* UserService) SoftDeleteUser(userID uint, timestamp int64) error{
+func (s *UserService) SoftDeleteUser(userID uint, timestamp int64) error {
 	return s.userStore.SoftDeleteUser(userID, timestamp)
 }

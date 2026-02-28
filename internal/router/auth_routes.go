@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func registerAuthRoutes(api *gin.RouterGroup, authLimiter gin.HandlerFunc, h *handler.AuthHandler, dbConfig *config.DBConfig,) {
+func registerAuthRoutes(api *gin.RouterGroup, authLimiter gin.HandlerFunc, h *handler.AuthHandler, dbConfig *config.DBConfig) {
 	bodyLimit := middleware.BodyLimitMiddleware(dbConfig)
 
 	api.POST("/login", bodyLimit, authLimiter, h.Login)

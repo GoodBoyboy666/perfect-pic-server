@@ -4,13 +4,13 @@
 package di
 
 import (
+	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/handler"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/usecase/admin"
 	"perfect-pic-server/internal/usecase/app"
-	"perfect-pic-server/internal/config"
 
 	"github.com/google/wire"
 	"gorm.io/gorm"
