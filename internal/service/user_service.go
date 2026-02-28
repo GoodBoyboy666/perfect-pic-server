@@ -15,28 +15,11 @@ import (
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/utils"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
-)
-
-var (
-	// passwordResetStore 存储忘记密码 Token
-	// Key: UserID (uint), Value: Token (string)
-	passwordResetStore sync.Map
-	// passwordResetTokenStore 存储忘记密码 Token 索引
-	// Key: Token (string), Value: moduledto.ForgetPasswordToken
-	passwordResetTokenStore sync.Map
-
-	// emailChangeStore 存储修改邮箱 Token
-	// Key: UserID (uint), Value: Token (string)
-	emailChangeStore sync.Map
-	// emailChangeTokenStore 存储修改邮箱 Token 索引
-	// Key: Token (string), Value: moduledto.EmailChangeToken
-	emailChangeTokenStore sync.Map
 )
 
 var errRedisTokenCASMismatch = errors.New("redis token cas mismatch")
@@ -82,13 +65,13 @@ func (s *UserService) GenerateForgetPasswordToken(userID uint) (string, error) {
 	}
 
 	// 存储（覆盖之前的）
-	if prev, ok := passwordResetStore.Load(userID); ok {
+	if prev, ok := s.passwordResetStore.Load(userID); ok {
 		if prevToken, ok2 := prev.(string); ok2 && prevToken != "" {
-			passwordResetTokenStore.Delete(prevToken)
+			s.passwordResetTokenStore.Delete(prevToken)
 		}
 	}
-	passwordResetStore.Store(userID, token)
-	passwordResetTokenStore.Store(token, resetToken)
+	s.passwordResetStore.Store(userID, token)
+	s.passwordResetTokenStore.Store(token, resetToken)
 	return token, nil
 }
 
@@ -131,7 +114,7 @@ func (s *UserService) VerifyForgetPasswordToken(token string) (uint, bool) {
 	}
 
 	// LoadAndDelete 保证并发下同一 token 只会被成功消费一次。
-	val, ok := passwordResetTokenStore.LoadAndDelete(token)
+	val, ok := s.passwordResetTokenStore.LoadAndDelete(token)
 	if !ok {
 		return 0, false
 	}
@@ -142,9 +125,9 @@ func (s *UserService) VerifyForgetPasswordToken(token string) (uint, bool) {
 	}
 
 	// 仅当 user->token 映射仍指向当前 token 时再删除，避免误删更新后的新 token 映射。
-	if current, ok := passwordResetStore.Load(resetToken.UserID); ok {
+	if current, ok := s.passwordResetStore.Load(resetToken.UserID); ok {
 		if currentToken, ok2 := current.(string); ok2 && currentToken == token {
-			passwordResetStore.Delete(resetToken.UserID)
+			s.passwordResetStore.Delete(resetToken.UserID)
 		}
 	}
 
@@ -206,13 +189,13 @@ func (s *UserService) GenerateEmailChangeToken(userID uint, oldEmail, newEmail s
 	}
 
 	// 存储（覆盖之前的）
-	if prev, ok := emailChangeStore.Load(userID); ok {
+	if prev, ok := s.emailChangeStore.Load(userID); ok {
 		if prevToken, ok2 := prev.(string); ok2 && prevToken != "" {
-			emailChangeTokenStore.Delete(prevToken)
+			s.emailChangeTokenStore.Delete(prevToken)
 		}
 	}
-	emailChangeStore.Store(userID, token)
-	emailChangeTokenStore.Store(token, changeToken)
+	s.emailChangeStore.Store(userID, token)
+	s.emailChangeTokenStore.Store(token, changeToken)
 	return token, nil
 }
 
@@ -260,7 +243,7 @@ func (s *UserService) VerifyEmailChangeToken(token string) (*moduledto.EmailChan
 	}
 
 	// LoadAndDelete 保证并发下同一 token 只会被成功消费一次。
-	val, ok := emailChangeTokenStore.LoadAndDelete(token)
+	val, ok := s.emailChangeTokenStore.LoadAndDelete(token)
 	if !ok {
 		return nil, false
 	}
@@ -271,9 +254,9 @@ func (s *UserService) VerifyEmailChangeToken(token string) (*moduledto.EmailChan
 	}
 
 	// 仅当 user->token 映射仍指向当前 token 时再删除，避免误删更新后的新 token 映射。
-	if current, ok := emailChangeStore.Load(changeToken.UserID); ok {
+	if current, ok := s.emailChangeStore.Load(changeToken.UserID); ok {
 		if currentToken, ok2 := current.(string); ok2 && currentToken == token {
-			emailChangeStore.Delete(changeToken.UserID)
+			s.emailChangeStore.Delete(changeToken.UserID)
 		}
 	}
 

@@ -3,6 +3,7 @@ package service
 import (
 	"perfect-pic-server/internal/config"
 	repo "perfect-pic-server/internal/repository"
+	"sync"
 )
 
 type AuthService struct {
@@ -12,6 +13,11 @@ type AuthService struct {
 type UserService struct {
 	userStore repo.UserStore
 	dbConfig  *config.DBConfig
+
+	passwordResetStore      sync.Map
+	passwordResetTokenStore sync.Map
+	emailChangeStore        sync.Map
+	emailChangeTokenStore   sync.Map
 }
 
 type ImageService struct {

@@ -225,13 +225,19 @@ func (s *Service) UpdatePasswordByOldPassword(userID uint, oldPassword, newPassw
 }
 
 func resetPasswordResetStore() {
-	clearSyncMap(&passwordResetStore)
-	clearSyncMap(&passwordResetTokenStore)
+	if testService == nil || testService.userService == nil {
+		return
+	}
+	clearSyncMap(&testService.userService.passwordResetStore)
+	clearSyncMap(&testService.userService.passwordResetTokenStore)
 }
 
 func resetEmailChangeStore() {
-	clearSyncMap(&emailChangeStore)
-	clearSyncMap(&emailChangeTokenStore)
+	if testService == nil || testService.userService == nil {
+		return
+	}
+	clearSyncMap(&testService.userService.emailChangeStore)
+	clearSyncMap(&testService.userService.emailChangeTokenStore)
 }
 
 func clearSyncMap(store *sync.Map) {
