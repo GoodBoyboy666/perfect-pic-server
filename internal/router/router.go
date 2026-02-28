@@ -1,10 +1,10 @@
 package router
 
 import (
+	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/handler"
 	"perfect-pic-server/internal/middleware"
-	"perfect-pic-server/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,7 +15,7 @@ type Router struct {
 	settingsHandler *handler.SettingsHandler
 	userHandler     *handler.UserHandler
 	imageHandler    *handler.ImageHandler
-	service         *service.Service
+	dbConfig        *config.DBConfig
 }
 
 func NewRouter(
@@ -24,7 +24,7 @@ func NewRouter(
 	settingsHandler *handler.SettingsHandler,
 	userHandler *handler.UserHandler,
 	imageHandler *handler.ImageHandler,
-	appService *service.Service,
+	dbConfig *config.DBConfig,
 ) *Router {
 	return &Router{
 		authHandler:     authHandler,
@@ -32,22 +32,22 @@ func NewRouter(
 		settingsHandler: settingsHandler,
 		userHandler:     userHandler,
 		imageHandler:    imageHandler,
-		service:         appService,
+		dbConfig:        dbConfig,
 	}
 }
 
 func (rt *Router) Init(r *gin.Engine) {
 	// 注册全局安全标头中间件
-	r.Use(middleware.SecurityHeaders(rt.service))
+	r.Use(middleware.SecurityHeaders(rt.dbConfig))
 
 	api := r.Group("/api")
 
 	// 认证限流：读取配置（在多个域路由中复用同一个实例，保持行为一致）
-	authLimiter := middleware.RateLimitMiddleware(rt.service, consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst)
+	authLimiter := middleware.RateLimitMiddleware(rt.dbConfig, consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst)
 
 	registerPublicRoutes(api, rt.settingsHandler)
-	registerSystemRoutes(api, authLimiter, rt.systemHandler, rt.service)
-	registerAuthRoutes(api, authLimiter, rt.authHandler, rt.service)
-	registerUserRoutes(api, rt.userHandler, rt.imageHandler, rt.service)
-	registerAdminRoutes(api, rt.systemHandler, rt.settingsHandler, rt.userHandler, rt.imageHandler, rt.service)
+	registerSystemRoutes(api, authLimiter, rt.systemHandler, rt.dbConfig)
+	registerAuthRoutes(api, authLimiter, rt.authHandler, rt.dbConfig)
+	registerUserRoutes(api, rt.userHandler, rt.imageHandler, rt.dbConfig)
+	registerAdminRoutes(api, rt.systemHandler, rt.settingsHandler, rt.userHandler, rt.imageHandler, rt.dbConfig)
 }

@@ -149,7 +149,7 @@ func (h *UserHandler) UpdateUserAvatar(c *gin.Context) {
 		return
 	}
 
-	newFilename, err := h.imageService.UpdateUserAvatar(user, file)
+	newFilename, err := h.imageUseCase.UpdateUserAvatar(user, file)
 	if err != nil {
 		log.Printf("Admin UpdateUserAvatar error: %v", err)
 		httpx.WriteServiceError(c, err, "头像更新失败")
@@ -179,7 +179,7 @@ func (h *UserHandler) RemoveUserAvatar(c *gin.Context) {
 		return
 	}
 
-	if err := h.imageService.RemoveUserAvatar(user); err != nil {
+	if err := h.imageUseCase.RemoveUserAvatar(user); err != nil {
 		log.Printf("Admin RemoveUserAvatar error: %v", err)
 		httpx.WriteServiceError(c, err, "头像移除失败")
 		return
@@ -199,7 +199,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 
 	hardDelete := c.DefaultQuery("hard_delete", "false")
 
-	if err := h.userService.AdminDeleteUser(uint(id), hardDelete == "true"); err != nil {
+	if err := h.userManageUseCase.AdminDeleteUser(uint(id), hardDelete == "true"); err != nil {
 		httpx.WriteServiceError(c, err, "删除用户失败")
 		return
 	}

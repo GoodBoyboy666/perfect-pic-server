@@ -120,7 +120,7 @@ func (h *UserHandler) RequestUpdateEmail(c *gin.Context) {
 		return
 	}
 
-	err := h.userService.RequestEmailChange(uid, req.Password, req.NewEmail)
+	err := h.userUseCase.RequestEmailChange(uid, req.Password, req.NewEmail)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "生成验证链接失败")
 		return
@@ -165,7 +165,7 @@ func (h *UserHandler) UpdateSelfAvatar(c *gin.Context) {
 		return
 	}
 
-	newFilename, err := h.imageService.UpdateUserAvatar(user, file)
+	newFilename, err := h.imageUseCase.UpdateUserAvatar(user, file)
 	if err != nil {
 		log.Printf("UpdateUserAvatar error: %v", err)
 		httpx.WriteServiceError(c, err, "头像更新失败")
@@ -223,7 +223,7 @@ func (h *UserHandler) BeginPasskeyRegistration(c *gin.Context) {
 		return
 	}
 
-	sessionID, creation, err := h.authService.BeginPasskeyRegistration(uid)
+	sessionID, creation, err := h.passkeyUseCase.BeginPasskeyRegistration(uid)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "创建 Passkey 注册挑战失败")
 		return
@@ -260,7 +260,7 @@ func (h *UserHandler) FinishPasskeyRegistration(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.FinishPasskeyRegistration(uid, req.SessionID, req.Credential); err != nil {
+	if err := h.passkeyUseCase.FinishPasskeyRegistration(uid, req.SessionID, req.Credential); err != nil {
 		httpx.WriteServiceError(c, err, "Passkey 绑定失败")
 		return
 	}
@@ -287,7 +287,7 @@ func (h *UserHandler) ListSelfPasskeys(c *gin.Context) {
 		return
 	}
 
-	passkeys, err := h.authService.ListUserPasskeys(uid)
+	passkeys, err := h.passkeyService.ListUserPasskeys(uid)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "获取 Passkey 列表失败")
 		return
@@ -322,7 +322,7 @@ func (h *UserHandler) DeleteSelfPasskey(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.DeleteUserPasskey(uid, uint(passkeyID)); err != nil {
+	if err := h.passkeyService.DeleteUserPasskey(uid, uint(passkeyID)); err != nil {
 		httpx.WriteServiceError(c, err, "删除 Passkey 失败")
 		return
 	}
@@ -362,7 +362,7 @@ func (h *UserHandler) UpdateSelfPasskeyName(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.UpdateUserPasskeyName(uid, uint(passkeyID), req.Name); err != nil {
+	if err := h.passkeyService.UpdateUserPasskeyName(uid, uint(passkeyID), req.Name); err != nil {
 		httpx.WriteServiceError(c, err, "更新 Passkey 名称失败")
 		return
 	}

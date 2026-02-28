@@ -1,49 +1,112 @@
 package handler
 
-import "perfect-pic-server/internal/service"
+import (
+	"perfect-pic-server/internal/config"
+	"perfect-pic-server/internal/service"
+	"perfect-pic-server/internal/usecase/admin"
+	"perfect-pic-server/internal/usecase/app"
+)
 
 type AuthHandler struct {
-	authService *service.Service
+	authService    *service.AuthService
+	captchaService *service.CaptchaService
+	authUseCase    *app.AuthUseCase
+	initService    *service.InitService
+	dbConfig       *config.DBConfig
+	passkeyUseCase *app.PasskeyUseCase
 }
 
 type UserHandler struct {
-	userService  *service.Service
-	imageService *service.Service
-	authService  *service.Service
+	userService       *service.UserService
+	userUseCase       *app.UserUseCase
+	userManageUseCase *admin.UserManageUseCase
+	imageService      *service.ImageService
+	imageUseCase      *app.ImageUseCase
+	authService       *service.AuthService
+	passkeyService    *service.PasskeyService
+	passkeyUseCase    *app.PasskeyUseCase
 }
 
 type ImageHandler struct {
-	imageService *service.Service
+	imageService *service.ImageService
+	imageUseCase *app.ImageUseCase
 }
 
 type SystemHandler struct {
-	systemService *service.Service
+	initService *service.InitService
+	statUseCase *admin.StatUseCase
+	dbConfig    *config.DBConfig
+	userService *service.UserService
 }
 
 type SettingsHandler struct {
-	settingsService *service.Service
+	settingsService *service.SettingsService
+	settingsUseCase *admin.SettingsUseCase
 }
 
-func NewAuthHandler(appService *service.Service) *AuthHandler {
-	return &AuthHandler{authService: appService}
-}
-
-func NewUserHandler(appService *service.Service) *UserHandler {
-	return &UserHandler{
-		userService:  appService,
-		imageService: appService,
-		authService:  appService,
+func NewAuthHandler(
+	authService *service.AuthService,
+	captchaService *service.CaptchaService,
+	authUseCase *app.AuthUseCase,
+	initService *service.InitService,
+	dbConfig *config.DBConfig,
+	passkeyUseCase *app.PasskeyUseCase,
+) *AuthHandler {
+	return &AuthHandler{
+		authService:    authService,
+		captchaService: captchaService,
+		authUseCase:    authUseCase,
+		initService:    initService,
+		dbConfig:       dbConfig,
+		passkeyUseCase: passkeyUseCase,
 	}
 }
 
-func NewImageHandler(appService *service.Service) *ImageHandler {
-	return &ImageHandler{imageService: appService}
+func NewUserHandler(
+	userService *service.UserService,
+	userUseCase *app.UserUseCase,
+	userManageUseCase *admin.UserManageUseCase,
+	imageService *service.ImageService,
+	imageUseCase *app.ImageUseCase,
+	authService *service.AuthService,
+	passkeyService *service.PasskeyService,
+	passkeyUseCase *app.PasskeyUseCase,
+) *UserHandler {
+	return &UserHandler{
+		userService:       userService,
+		userUseCase:       userUseCase,
+		userManageUseCase: userManageUseCase,
+		imageService:      imageService,
+		imageUseCase:      imageUseCase,
+		authService:       authService,
+		passkeyService:    passkeyService,
+		passkeyUseCase:    passkeyUseCase,
+	}
 }
 
-func NewSystemHandler(appService *service.Service) *SystemHandler {
-	return &SystemHandler{systemService: appService}
+func NewImageHandler(imageService *service.ImageService, imageUseCase *app.ImageUseCase) *ImageHandler {
+	return &ImageHandler{imageService: imageService, imageUseCase: imageUseCase}
 }
 
-func NewSettingsHandler(appService *service.Service) *SettingsHandler {
-	return &SettingsHandler{settingsService: appService}
+func NewSystemHandler(
+	initService *service.InitService,
+	statUseCase *admin.StatUseCase,
+	dbConfig *config.DBConfig,
+	userService *service.UserService) *SystemHandler {
+	return &SystemHandler{
+		initService: initService,
+		statUseCase: statUseCase,
+		dbConfig:    dbConfig,
+		userService: userService,
+	}
+}
+
+func NewSettingsHandler(
+	settingsService *service.SettingsService,
+	settingsUseCase *admin.SettingsUseCase,
+) *SettingsHandler {
+	return &SettingsHandler{
+		settingsService: settingsService,
+		settingsUseCase: settingsUseCase,
+	}
 }

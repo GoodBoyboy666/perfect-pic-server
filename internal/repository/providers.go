@@ -17,3 +17,7 @@ func NewSettingRepository(db *gorm.DB) SettingStore {
 func NewSystemRepository(db *gorm.DB) SystemStore {
 	return &SystemRepository{db: db}
 }
+
+func NewPasskeyRepository(db *gorm.DB) PasskeyStore {
+	return &PasskeyRepository{db: db}
+}

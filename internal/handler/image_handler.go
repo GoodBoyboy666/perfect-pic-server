@@ -30,7 +30,7 @@ func (h *ImageHandler) UploadImage(c *gin.Context) {
 		return
 	}
 
-	imageRecord, url, err := h.imageService.ProcessImageUpload(file, uid)
+	imageRecord, url, err := h.imageUseCase.ProcessImageUpload(file, uid)
 	if err != nil {
 		if _, ok := platformservice.AsServiceError(err); !ok {
 			log.Printf("Upload failed: %v", err)

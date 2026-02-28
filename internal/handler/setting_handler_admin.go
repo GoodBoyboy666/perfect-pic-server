@@ -49,7 +49,7 @@ func (h *SettingsHandler) SendTestEmail(c *gin.Context) {
 		return
 	}
 
-	if err := h.settingsService.AdminSendTestEmail(req.ToEmail); err != nil {
+	if err := h.settingsUseCase.AdminSendTestEmail(req.ToEmail); err != nil {
 		httpx.WriteServiceError(c, err, "发送失败")
 		return
 	}

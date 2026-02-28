@@ -3,16 +3,16 @@ package middleware
 import (
 	"fmt"
 	"net/http"
+	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
 // BodyLimitMiddleware 限制请求体大小
-func BodyLimitMiddleware(appService *service.Service) gin.HandlerFunc {
+func BodyLimitMiddleware(dbConfig *config.DBConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		maxSizeMB := appService.GetInt(consts.ConfigMaxRequestBodySize)
+		maxSizeMB := dbConfig.GetInt(consts.ConfigMaxRequestBodySize)
 		if maxSizeMB <= 0 {
 			// 如果未设置或为0，默认 2MB
 			maxSizeMB = 2
@@ -29,9 +29,9 @@ func BodyLimitMiddleware(appService *service.Service) gin.HandlerFunc {
 }
 
 // UploadBodyLimitMiddleware 限制上传/头像接口的请求体大小
-func UploadBodyLimitMiddleware(appService *service.Service) gin.HandlerFunc {
+func UploadBodyLimitMiddleware(dbConfig *config.DBConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		maxSizeMB := appService.GetInt(consts.ConfigMaxUploadSize)
+		maxSizeMB := dbConfig.GetInt(consts.ConfigMaxUploadSize)
 		if maxSizeMB <= 0 {
 			maxSizeMB = 10
 		}

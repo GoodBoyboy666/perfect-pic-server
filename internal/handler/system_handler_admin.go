@@ -9,7 +9,7 @@ import (
 
 // GetServerStats 获取服务器概览统计信息
 func (h *SystemHandler) GetServerStats(c *gin.Context) {
-	stats, err := h.systemService.AdminGetServerStats()
+	stats, err := h.statUseCase.AdminGetServerStats()
 	if err != nil {
 		httpx.WriteServiceError(c, err, "统计图片数据失败")
 		return

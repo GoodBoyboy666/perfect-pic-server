@@ -47,7 +47,7 @@ func main() {
 	if err != nil {
 		log.Fatal("❌ 依赖注入初始化失败: ", err)
 	}
-	if err := app.Service.InitializeSettings(); err != nil {
+	if err := app.d.InitializeSettings(); err != nil {
 		log.Fatal("❌ 初始化默认系统设置失败: ", err)
 	}
 
@@ -59,7 +59,7 @@ func main() {
 	applyTrustedProxies(r)
 	app.Router.Init(r)
 
-	setupStaticFiles(r, app.Service, uploadPath, avatarPath)
+	setupStaticFiles(r, app.db, uploadPath, avatarPath)
 
 	distFS := GetFrontendAssets()
 	indexData := setupFrontend(r, distFS)
@@ -93,12 +93,12 @@ func ensureDirectories() (string, string) {
 	return uploadPath, avatarPath
 }
 
-func setupStaticFiles(r *gin.Engine, appService *service.Service, uploadPath, avatarPath string) {
+func setupStaticFiles(r *gin.Engine, dbConfig *config.DBConfig, uploadPath, avatarPath string) {
 	// 使用带缓存控制的静态文件服务
-	r.Group(config.Get().Upload.URLPrefix, middleware.StaticCacheMiddleware(appService)).
+	r.Group(config.Get().Upload.URLPrefix, middleware.StaticCacheMiddleware(dbConfig)).
 		StaticFS("", gin.Dir(uploadPath, false))
 
-	r.Group(config.Get().Upload.AvatarURLPrefix, middleware.StaticCacheMiddleware(appService)).
+	r.Group(config.Get().Upload.AvatarURLPrefix, middleware.StaticCacheMiddleware(dbConfig)).
 		StaticFS("", gin.Dir(avatarPath, false))
 }
 

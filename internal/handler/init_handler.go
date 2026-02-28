@@ -9,7 +9,7 @@ import (
 )
 
 func (h *SystemHandler) GetInitState(c *gin.Context) {
-	if h.systemService.IsSystemInitialized() {
+	if h.initService.IsSystemInitialized() {
 		c.JSON(http.StatusOK, gin.H{
 			"initialized": true,
 		})
@@ -26,12 +26,12 @@ func (h *SystemHandler) Init(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数格式错误"})
 		return
 	}
-	if h.systemService.IsSystemInitialized() {
+	if h.initService.IsSystemInitialized() {
 		c.JSON(http.StatusForbidden, gin.H{"error": "已初始化，无法重复初始化"})
 		return
 	}
 
-	if err := h.systemService.InitializeSystem(initInfo); err != nil {
+	if err := h.initService.InitializeSystem(initInfo); err != nil {
 		httpx.WriteServiceError(c, err, "初始化失败")
 		return
 	}

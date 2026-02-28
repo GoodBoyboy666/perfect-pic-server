@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/service"
 	"strconv"
@@ -156,7 +157,7 @@ func (i *IPRateLimiter) cleanupLoop() {
 
 // RateLimitMiddleware 按“每秒速率 + 突发容量”进行限流（令牌桶）。
 // rpsKey/burstKey 分别对应配置中的 RPS 和 Burst。
-func RateLimitMiddleware(appService *service.Service, rpsKey string, burstKey string) gin.HandlerFunc {
+func RateLimitMiddleware(dbConfig *config.DBConfig, rpsKey string, burstKey string) gin.HandlerFunc {
 	// 每个中间件实例共用一个 IPRateLimiter，并按 IP 复用 limiter。
 	// 这样可以避免每次请求都创建新 limiter。
 	var limiter *IPRateLimiter
@@ -164,14 +165,14 @@ func RateLimitMiddleware(appService *service.Service, rpsKey string, burstKey st
 
 	return func(c *gin.Context) {
 		// 检查总开关
-		if !appService.GetBool(consts.ConfigRateLimitEnabled) {
+		if !dbConfig.GetBool(consts.ConfigRateLimitEnabled) {
 			c.Next()
 			return
 		}
 
 		// 获取当前配置
-		currentRPS := appService.GetFloat64(rpsKey)
-		currentBurst := appService.GetInt(burstKey)
+		currentRPS := dbConfig.GetFloat64(rpsKey)
+		currentBurst := dbConfig.GetInt(burstKey)
 
 		// 初始化 Limiter
 		once.Do(func() {
@@ -217,7 +218,7 @@ func RateLimitMiddleware(appService *service.Service, rpsKey string, burstKey st
 
 // IntervalRateMiddleware 按数据库配置的最小调用间隔进行限流。
 // intervalKey 对应设置项，值为秒数（int），例如 120 表示 2 分钟。
-func IntervalRateMiddleware(appService *service.Service, intervalKey string) gin.HandlerFunc {
+func IntervalRateMiddleware(dbConfig *config.DBConfig, intervalKey string) gin.HandlerFunc {
 	// 每个中间件实例维护自己的访问时间表，并通过 sync.Once 确保清理协程只启动一次。
 	var requestTimes sync.Map
 	var cleanupOnce sync.Once
@@ -229,7 +230,7 @@ func IntervalRateMiddleware(appService *service.Service, intervalKey string) gin
 
 			for range ticker.C {
 				now := time.Now()
-				interval := getIntervalBySettingKey(appService, intervalKey)
+				interval := getIntervalBySettingKey(dbConfig, intervalKey)
 				requestTimes.Range(func(key, value interface{}) bool {
 					t, ok := value.(time.Time)
 					if !ok {
@@ -248,14 +249,14 @@ func IntervalRateMiddleware(appService *service.Service, intervalKey string) gin
 
 	return func(c *gin.Context) {
 		// 检查是否开启敏感操作限流
-		if !appService.GetBool(consts.ConfigEnableSensitiveRateLimit) {
+		if !dbConfig.GetBool(consts.ConfigEnableSensitiveRateLimit) {
 			c.Next()
 			return
 		}
 
 		cleanupOnce.Do(startCleanupLoop)
 
-		interval := getIntervalBySettingKey(appService, intervalKey)
+		interval := getIntervalBySettingKey(dbConfig, intervalKey)
 
 		ip := c.ClientIP()
 
@@ -290,8 +291,8 @@ func IntervalRateMiddleware(appService *service.Service, intervalKey string) gin
 	}
 }
 
-func getIntervalBySettingKey(appService *service.Service, intervalKey string) time.Duration {
-	seconds := appService.GetInt(intervalKey)
+func getIntervalBySettingKey(dbConfig *config.DBConfig, intervalKey string) time.Duration {
+	seconds := dbConfig.GetInt(intervalKey)
 	if seconds <= 0 {
 		return defaultSensitiveOperationInterval
 	}
