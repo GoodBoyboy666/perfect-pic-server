@@ -183,11 +183,6 @@ func (h *UserHandler) GetSelfImagesCount(c *gin.Context) {
 		return
 	}
 
-	if h.imageService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "服务不可用"})
-		return
-	}
-
 	count, err := h.imageService.GetUserImageCount(uid)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "获取图片数量失败")
@@ -210,11 +205,6 @@ func (h *UserHandler) BeginPasskeyRegistration(c *gin.Context) {
 	uid, ok := userID.(uint)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
-		return
-	}
-
-	if h.authService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "服务不可用"})
 		return
 	}
 
@@ -250,11 +240,6 @@ func (h *UserHandler) FinishPasskeyRegistration(c *gin.Context) {
 		return
 	}
 
-	if h.authService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "服务不可用"})
-		return
-	}
-
 	if err := h.passkeyUseCase.FinishPasskeyRegistration(uid, req.SessionID, req.Credential); err != nil {
 		httpx.WriteServiceError(c, err, "Passkey 绑定失败")
 		return
@@ -274,11 +259,6 @@ func (h *UserHandler) ListSelfPasskeys(c *gin.Context) {
 	uid, ok := userID.(uint)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
-		return
-	}
-
-	if h.authService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "服务不可用"})
 		return
 	}
 
@@ -309,11 +289,6 @@ func (h *UserHandler) DeleteSelfPasskey(c *gin.Context) {
 	passkeyID, err := strconv.ParseUint(idParam, 10, 64)
 	if err != nil || passkeyID == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "id 参数错误"})
-		return
-	}
-
-	if h.authService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "服务不可用"})
 		return
 	}
 
@@ -349,11 +324,6 @@ func (h *UserHandler) UpdateSelfPasskeyName(c *gin.Context) {
 	var req moduledto.UpdatePasskeyNameRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
-		return
-	}
-
-	if h.authService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "服务不可用"})
 		return
 	}
 

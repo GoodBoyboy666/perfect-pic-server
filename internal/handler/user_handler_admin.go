@@ -131,11 +131,6 @@ func (h *UserHandler) UpdateUserAvatar(c *gin.Context) {
 		return
 	}
 
-	if h.imageService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "服务不可用"})
-		return
-	}
-
 	valid, ext, err := h.imageService.ValidateImageFile(file)
 	if !valid {
 		httpx.WriteServiceError(c, err, "头像文件校验失败")
@@ -171,11 +166,6 @@ func (h *UserHandler) RemoveUserAvatar(c *gin.Context) {
 	user, err := h.userService.AdminGetUserDetail(uint(id))
 	if err != nil {
 		httpx.WriteServiceError(c, err, "获取用户失败")
-		return
-	}
-
-	if h.imageService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "服务不可用"})
 		return
 	}
 
