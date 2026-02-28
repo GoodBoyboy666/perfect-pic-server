@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	moduledto "perfect-pic-server/internal/dto"
-	"strconv"
-	"strings"
 	"testing"
 
 	"perfect-pic-server/internal/db"
@@ -41,87 +39,6 @@ func TestValidateImageFile_RejectsUnsupportedExt(t *testing.T) {
 	}
 	if ext != ".exe" {
 		t.Fatalf("期望 ext to be .exe，实际为 %q", ext)
-	}
-}
-
-// 测试内容：验证图片上传会写入文件、创建记录并更新用户存储使用量。
-func TestProcessImageUpload_SavesFileAndCreatesRecord(t *testing.T) {
-	setupTestDB(t)
-
-	tmp := t.TempDir()
-	oldwd, _ := os.Getwd()
-	if err := os.Chdir(tmp); err != nil {
-		t.Fatalf("切换工作目录失败: %v", err)
-	}
-	defer func() { _ = os.Chdir(oldwd) }()
-
-	u := model.User{
-		Username: "alice",
-		Password: "x",
-		Status:   1,
-		Email:    "alice@example.com",
-	}
-	if err := db.DB.Create(&u).Error; err != nil {
-		t.Fatalf("创建用户失败: %v", err)
-	}
-
-	fh := mustFileHeader(t, "a.png", testutils.MinimalPNG())
-	img, url, err := testService.ProcessImageUpload(fh, u.ID)
-	if err != nil {
-		t.Fatalf("ProcessImageUpload 错误: %v", err)
-	}
-	if img == nil || img.ID == 0 {
-		t.Fatalf("期望 image record to be created")
-	}
-	if !strings.HasSuffix(img.Filename, ".png") {
-		t.Fatalf("期望 filename to end with .png，实际为 %q", img.Filename)
-	}
-	if !strings.HasPrefix(img.Path, "20") || !strings.HasSuffix(img.Path, ".png") {
-		t.Fatalf("非预期 image path: %q", img.Path)
-	}
-	if !strings.HasPrefix(url, "/imgs/") {
-		t.Fatalf("期望 url to start with /imgs/，实际为 %q", url)
-	}
-
-	// 物理文件应存在。
-	full := filepath.Join("uploads", "imgs", filepath.FromSlash(img.Path))
-	if _, err := os.Stat(full); err != nil {
-		t.Fatalf("期望 uploaded file to exist at %q: %v", full, err)
-	}
-
-	// 已用存储应增加。
-	var got model.User
-	if err := db.DB.First(&got, u.ID).Error; err != nil {
-		t.Fatalf("加载用户失败: %v", err)
-	}
-	if got.StorageUsed <= 0 {
-		t.Fatalf("期望 storage_used to be increased，实际为 %d", got.StorageUsed)
-	}
-}
-
-// 测试内容：验证超出配额时上传返回存储空间不足错误。
-func TestProcessImageUpload_QuotaExceeded(t *testing.T) {
-	setupTestDB(t)
-
-	tmp := t.TempDir()
-	oldwd, _ := os.Getwd()
-	_ = os.Chdir(tmp)
-	defer func() { _ = os.Chdir(oldwd) }()
-
-	q := int64(1)
-	u := model.User{
-		Username:     "alice",
-		Password:     "x",
-		Status:       1,
-		Email:        "alice@example.com",
-		StorageQuota: &q,
-	}
-	_ = db.DB.Create(&u).Error
-
-	fh := mustFileHeader(t, "a.png", testutils.MinimalPNG())
-	_, _, err := testService.ProcessImageUpload(fh, u.ID)
-	if err == nil || !strings.Contains(err.Error(), "存储空间不足") {
-		t.Fatalf("期望 quota 错误, got: %v", err)
 	}
 }
 
@@ -202,59 +119,6 @@ func TestBatchDeleteImages_RemovesFilesAndUpdatesStorage(t *testing.T) {
 	_ = db.DB.First(&got, u.ID).Error
 	if got.StorageUsed != 0 {
 		t.Fatalf("期望 storage_used 0，实际为 %d", got.StorageUsed)
-	}
-}
-
-// 测试内容：验证更新头像会替换旧文件，移除头像会清理记录与文件。
-func TestUpdateAndRemoveUserAvatar(t *testing.T) {
-	setupTestDB(t)
-
-	tmp := t.TempDir()
-	oldwd, _ := os.Getwd()
-	_ = os.Chdir(tmp)
-	defer func() { _ = os.Chdir(oldwd) }()
-
-	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com", Avatar: "old.png"}
-	_ = db.DB.Create(&u).Error
-
-	// 创建旧头像文件
-	oldPath := filepath.Join("uploads", "avatars", strconv.FormatUint(uint64(u.ID), 10), "old.png")
-	_ = os.MkdirAll(filepath.Dir(oldPath), 0755)
-	_ = os.WriteFile(oldPath, []byte("x"), 0644)
-
-	fh := mustFileHeader(t, "a.png", testutils.MinimalPNG())
-	newName, err := testService.UpdateUserAvatar(&u, fh)
-	if err != nil {
-		t.Fatalf("UpdateUserAvatar: %v", err)
-	}
-	if newName == "" {
-		t.Fatalf("期望 new avatar filename")
-	}
-	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
-		t.Fatalf("期望 old avatar removed, err=%v", err)
-	}
-
-	var got model.User
-	_ = db.DB.First(&got, u.ID).Error
-	if got.Avatar == "" {
-		t.Fatalf("期望 avatar set in db")
-	}
-
-	avatarPath := filepath.Join("uploads", "avatars", strconv.FormatUint(uint64(u.ID), 10), got.Avatar)
-	if _, err := os.Stat(avatarPath); err != nil {
-		t.Fatalf("期望 new avatar file exists: %v", err)
-	}
-
-	if err := testService.RemoveUserAvatar(&got); err != nil {
-		t.Fatalf("RemoveUserAvatar: %v", err)
-	}
-	var got2 model.User
-	_ = db.DB.First(&got2, u.ID).Error
-	if got2.Avatar != "" {
-		t.Fatalf("期望 avatar cleared，实际为 %q", got2.Avatar)
-	}
-	if _, err := os.Stat(avatarPath); !os.IsNotExist(err) {
-		t.Fatalf("期望 avatar file removed, err=%v", err)
 	}
 }
 

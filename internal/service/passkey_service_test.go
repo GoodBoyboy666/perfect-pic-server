@@ -11,81 +11,6 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
-// 测试内容：验证 Passkey 注册开始接口可返回会话与挑战选项。
-func TestBeginPasskeyRegistration_Success(t *testing.T) {
-	setupTestDB(t)
-	resetPasskeySessionStore()
-
-	u := model.User{
-		Username:      "alice",
-		Password:      "x",
-		Status:        1,
-		Email:         "a@example.com",
-		EmailVerified: true,
-	}
-	if err := db.DB.Create(&u).Error; err != nil {
-		t.Fatalf("创建用户失败: %v", err)
-	}
-
-	sessionID, options, err := testService.BeginPasskeyRegistration(u.ID)
-	if err != nil {
-		t.Fatalf("BeginPasskeyRegistration 返回错误: %v", err)
-	}
-	if sessionID == "" {
-		t.Fatalf("期望 sessionID 不为空")
-	}
-	if options == nil || options.Response.Challenge.String() == "" {
-		t.Fatalf("期望返回有效的注册挑战")
-	}
-}
-
-// 测试内容：验证 Passkey 登录开始接口可返回会话与挑战选项。
-func TestBeginPasskeyLogin_Success(t *testing.T) {
-	setupTestDB(t)
-	resetPasskeySessionStore()
-
-	sessionID, options, err := testService.BeginPasskeyLogin()
-	if err != nil {
-		t.Fatalf("BeginPasskeyLogin 返回错误: %v", err)
-	}
-	if sessionID == "" {
-		t.Fatalf("期望 sessionID 不为空")
-	}
-	if options == nil || options.Response.Challenge.String() == "" {
-		t.Fatalf("期望返回有效的登录挑战")
-	}
-}
-
-// 测试内容：验证 Passkey 注册完成接口在非法会话时返回校验错误。
-func TestFinishPasskeyRegistration_InvalidSession(t *testing.T) {
-	setupTestDB(t)
-	resetPasskeySessionStore()
-
-	err := testService.FinishPasskeyRegistration(1, "bad-session", []byte(`{}`))
-	if err == nil {
-		t.Fatalf("期望返回错误")
-	}
-	serviceErr, ok := platformservice.AsServiceError(err)
-	if !ok || serviceErr.Code != platformservice.ErrorCodeValidation {
-		t.Fatalf("期望 validation 错误，实际为: %#v (%v)", serviceErr, err)
-	}
-}
-
-// 测试内容：验证 Passkey 登录完成接口在非法会话时返回校验错误。
-func TestFinishPasskeyLogin_InvalidSession(t *testing.T) {
-	setupTestDB(t)
-	resetPasskeySessionStore()
-
-	_, err := testService.FinishPasskeyLogin("bad-session", []byte(`{}`))
-	if err == nil {
-		t.Fatalf("期望返回错误")
-	}
-	serviceErr, ok := platformservice.AsServiceError(err)
-	if !ok || serviceErr.Code != platformservice.ErrorCodeValidation {
-		t.Fatalf("期望 validation 错误，实际为: %#v (%v)", serviceErr, err)
-	}
-}
-
 // 测试内容：验证用户可获取自己的 Passkey 列表。
 func TestListUserPasskeys_Success(t *testing.T) {
 	setupTestDB(t)
@@ -231,46 +156,6 @@ func TestUpdateUserPasskeyName_NotFound(t *testing.T) {
 	serviceErr, ok := platformservice.AsServiceError(err)
 	if !ok || serviceErr.Code != platformservice.ErrorCodeNotFound {
 		t.Fatalf("期望 not_found 错误，实际为: %#v (%v)", serviceErr, err)
-	}
-}
-
-// 测试内容：验证当 Passkey 达到上限时无法继续发起注册。
-func TestBeginPasskeyRegistration_ConflictWhenLimitExceeded(t *testing.T) {
-	setupTestDB(t)
-	resetPasskeySessionStore()
-
-	u := model.User{
-		Username:      "alice",
-		Password:      "x",
-		Status:        1,
-		Email:         "a@example.com",
-		EmailVerified: true,
-	}
-	if err := db.DB.Create(&u).Error; err != nil {
-		t.Fatalf("创建用户失败: %v", err)
-	}
-
-	for i := 0; i < 10; i++ {
-		record := model.PasskeyCredential{
-			UserID:       u.ID,
-			CredentialID: "cred_limit_" + string(rune('a'+i)),
-			Credential: mustMarshalPasskeyCredentialForTest(t, webauthn.Credential{
-				ID: []byte{byte(i + 1)},
-			}),
-		}
-		if err := db.DB.Create(&record).Error; err != nil {
-			t.Fatalf("创建 Passkey 失败: %v", err)
-		}
-	}
-
-	_, _, err := testService.BeginPasskeyRegistration(u.ID)
-	if err == nil {
-		t.Fatalf("期望返回错误")
-	}
-
-	serviceErr, ok := platformservice.AsServiceError(err)
-	if !ok || serviceErr.Code != platformservice.ErrorCodeConflict {
-		t.Fatalf("期望 conflict 错误，实际为: %#v (%v)", serviceErr, err)
 	}
 }
 

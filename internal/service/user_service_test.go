@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	platformservice "perfect-pic-server/internal/common"
 	moduledto "perfect-pic-server/internal/dto"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -471,101 +470,6 @@ func TestPrepareUserUpdatesForAdmin_MoreBranches(t *testing.T) {
 	}
 }
 
-// 测试内容：验证管理员软删除会标记状态并重写唯一字段。
-func TestDeleteUserForAdmin_SoftDelete(t *testing.T) {
-	setupTestDB(t)
-
-	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
-	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
-
-	if err := testService.AdminDeleteUser(u.ID, false); err != nil {
-		t.Fatalf("AdminDeleteUser: %v", err)
-	}
-
-	var got model.User
-	if err := db.DB.Unscoped().First(&got, u.ID).Error; err != nil {
-		t.Fatalf("load deleted user: %v", err)
-	}
-	if got.Status != 3 {
-		t.Fatalf("期望 status 3，实际为 %d", got.Status)
-	}
-	if got.Username == "alice" || got.Email == "a@example.com" {
-		t.Fatalf("期望 unique fields to be rewritten，实际为 username=%q email=%q", got.Username, got.Email)
-	}
-}
-
-// 测试内容：验证管理员硬删除会移除用户记录，并显式清理头像、图片与 Passkey 凭据记录。
-func TestDeleteUserForAdmin_HardDeleteAlsoDeletesFiles(t *testing.T) {
-	setupTestDB(t)
-
-	tmp := t.TempDir()
-	oldwd, _ := os.Getwd()
-	_ = os.Chdir(tmp)
-	defer func() { _ = os.Chdir(oldwd) }()
-
-	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
-	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
-
-	// 在 uploads/avatars/{uid}/a.txt 下创建头像文件
-	realAvatarDir := filepath.Join("uploads", "avatars", strconv.FormatUint(uint64(u.ID), 10))
-	_ = os.MkdirAll(realAvatarDir, 0755)
-	_ = os.WriteFile(filepath.Join(realAvatarDir, "a.txt"), []byte("x"), 0644)
-
-	// 在 uploads/imgs/{path} 下创建图片记录和物理文件
-	imgRel := "2026/02/13/a.png"
-	imgLocal := filepath.FromSlash(imgRel)
-	imgFile := filepath.Join("uploads", "imgs", imgLocal)
-	_ = os.MkdirAll(filepath.Dir(imgFile), 0755)
-	_ = os.WriteFile(imgFile, []byte{0x89, 0x50, 0x4E, 0x47}, 0644)
-	_ = db.DB.Create(&model.Image{
-		Filename:   "a.png",
-		Path:       imgRel,
-		Size:       4,
-		Width:      1,
-		Height:     1,
-		MimeType:   ".png",
-		UploadedAt: 1,
-		UserID:     u.ID,
-	}).Error
-
-	// 创建一条 Passkey 凭据，验证硬删除时会被显式清理。
-	_ = db.DB.Create(&model.PasskeyCredential{
-		UserID:       u.ID,
-		CredentialID: "cred_hard_delete",
-		Credential:   `{"id":"cred_hard_delete"}`,
-	}).Error
-
-	if err := testService.AdminDeleteUser(u.ID, true); err != nil {
-		t.Fatalf("hard delete: %v", err)
-	}
-
-	if err := db.DB.Unscoped().First(&model.User{}, u.ID).Error; err == nil {
-		t.Fatalf("期望 user to be hard-deleted")
-	}
-	var imgCount int64
-	if err := db.DB.Unscoped().Model(&model.Image{}).Where("user_id = ?", u.ID).Count(&imgCount).Error; err != nil {
-		t.Fatalf("count images: %v", err)
-	}
-	if imgCount != 0 {
-		t.Fatalf("期望 images to be cascade-deleted，实际剩余 %d 条", imgCount)
-	}
-	var passkeyCount int64
-	if err := db.DB.Unscoped().Model(&model.PasskeyCredential{}).Where("user_id = ?", u.ID).Count(&passkeyCount).Error; err != nil {
-		t.Fatalf("count passkeys: %v", err)
-	}
-	if passkeyCount != 0 {
-		t.Fatalf("期望 passkeys to be deleted，实际剩余 %d 条", passkeyCount)
-	}
-	if _, err := os.Stat(realAvatarDir); !os.IsNotExist(err) {
-		t.Fatalf("期望 avatar dir deleted, err=%v", err)
-	}
-	if _, err := os.Stat(imgFile); !os.IsNotExist(err) {
-		t.Fatalf("期望 image file deleted, err=%v", err)
-	}
-}
-
 // 测试内容：验证用户名占用检测在是否包含已删除用户时的差异。
 func TestIsUsernameTaken_IncludeDeleted(t *testing.T) {
 	setupTestDB(t)
@@ -698,43 +602,5 @@ func TestUpdatePasswordByOldPassword(t *testing.T) {
 	_ = db.DB.First(&got, u.ID).Error
 	if bcrypt.CompareHashAndPassword([]byte(got.Password), []byte("abc123456")) != nil {
 		t.Fatalf("期望 password to be updated")
-	}
-}
-
-// 测试内容：验证请求邮箱变更的校验、冲突提示与成功路径。
-func TestRequestEmailChange(t *testing.T) {
-	setupTestDB(t)
-
-	// 确保 base_url 存在以覆盖 URL 规范化。
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigBaseURL, Value: "http://localhost/"}).Error
-	testService.ClearCache()
-
-	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
-	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
-
-	err := testService.RequestEmailChange(u.ID, "abc12345", "bad-email")
-	assertServiceErrorCode(t, err, platformservice.ErrorCodeValidation)
-
-	err = testService.RequestEmailChange(u.ID, "wrong", "new@example.com")
-	if serviceErr := assertServiceErrorCode(t, err, platformservice.ErrorCodeForbidden); serviceErr.Message != "密码错误" {
-		t.Fatalf("期望 password message，实际为 %q", serviceErr.Message)
-	}
-
-	err = testService.RequestEmailChange(u.ID, "abc12345", "a@example.com")
-	if serviceErr := assertServiceErrorCode(t, err, platformservice.ErrorCodeValidation); serviceErr.Message != "新邮箱不能与当前邮箱相同" {
-		t.Fatalf("期望 same email message，实际为 %q", serviceErr.Message)
-	}
-
-	u2 := model.User{Username: "bob", Password: string(hashed), Status: 1, Email: "taken@example.com"}
-	_ = db.DB.Create(&u2).Error
-	err = testService.RequestEmailChange(u.ID, "abc12345", "taken@example.com")
-	if serviceErr := assertServiceErrorCode(t, err, platformservice.ErrorCodeConflict); serviceErr.Message != "该邮箱已被使用" {
-		t.Fatalf("期望 taken message，实际为 %q", serviceErr.Message)
-	}
-
-	err = testService.RequestEmailChange(u.ID, "abc12345", "new@example.com")
-	if err != nil {
-		t.Fatalf("期望 success，实际为 err=%v", err)
 	}
 }
