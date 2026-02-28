@@ -1,6 +1,7 @@
 package service
 
 import (
+	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/model"
 	"sort"
 )
@@ -53,16 +54,16 @@ func sortSettingsForAdmin(settings []model.Setting) {
 }
 
 func buildDefaultSettingOrderByKey() map[string]int {
-	order := make(map[string]int, len(DefaultSettings))
-	for i, setting := range DefaultSettings {
+	order := make(map[string]int, len(config.DefaultSettings))
+	for i, setting := range config.DefaultSettings {
 		order[setting.Key] = i
 	}
 	return order
 }
 
 func buildDefaultCategoryOrder() map[string]int {
-	order := make(map[string]int, len(DefaultSettings))
-	for _, setting := range DefaultSettings {
+	order := make(map[string]int, len(config.DefaultSettings))
+	for _, setting := range config.DefaultSettings {
 		if _, exists := order[setting.Category]; exists {
 			continue
 		}

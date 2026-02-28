@@ -6,17 +6,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"math"
-	"os"
-	"path/filepath"
-	platformservice "perfect-pic-server/internal/common"
+	commonpkg "perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
 	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/model"
-	userrepo "perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/utils"
 	"strconv"
 	"sync"
@@ -46,7 +42,7 @@ var (
 var errRedisTokenCASMismatch = errors.New("redis token cas mismatch")
 
 // GenerateForgetPasswordToken 生成忘记密码 Token，有效期 15 分钟
-func (s *Service) GenerateForgetPasswordToken(userID uint) (string, error) {
+func (s *UserService) GenerateForgetPasswordToken(userID uint) (string, error) {
 	// 使用 crypto/rand 生成 32 字节的高熵随机字符串 (64字符Hex)
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -97,7 +93,7 @@ func (s *Service) GenerateForgetPasswordToken(userID uint) (string, error) {
 }
 
 // VerifyForgetPasswordToken 验证忘记密码 Token
-func (s *Service) VerifyForgetPasswordToken(token string) (uint, bool) {
+func (s *UserService) VerifyForgetPasswordToken(token string) (uint, bool) {
 	if redisClient := GetRedisClient(); redisClient != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
@@ -159,7 +155,7 @@ func (s *Service) VerifyForgetPasswordToken(token string) (uint, bool) {
 }
 
 // GenerateEmailChangeToken 生成修改邮箱 Token，有效期 30 分钟。
-func (s *Service) GenerateEmailChangeToken(userID uint, oldEmail, newEmail string) (string, error) {
+func (s *UserService) GenerateEmailChangeToken(userID uint, oldEmail, newEmail string) (string, error) {
 	// 使用 crypto/rand 生成 32 字节的高熵随机字符串 (64字符Hex)
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -223,7 +219,7 @@ func (s *Service) GenerateEmailChangeToken(userID uint, oldEmail, newEmail strin
 // VerifyEmailChangeToken 验证并消费修改邮箱 Token。
 //
 //nolint:gocyclo
-func (s *Service) VerifyEmailChangeToken(token string) (*moduledto.EmailChangeToken, bool) {
+func (s *UserService) VerifyEmailChangeToken(token string) (*moduledto.EmailChangeToken, bool) {
 	if token == "" {
 		return nil, false
 	}
@@ -288,119 +284,39 @@ func (s *Service) VerifyEmailChangeToken(token string) (*moduledto.EmailChangeTo
 }
 
 // GetSystemDefaultStorageQuota 获取系统默认存储配额
-func (s *Service) GetSystemDefaultStorageQuota() int64 {
-	return s.GetDefaultStorageQuota()
-}
-
-// DeleteUserFiles 删除指定用户的所有关联文件（头像、上传的照片）
-// 此函数只负责删除物理文件，不处理数据库记录的清理
-//
-//nolint:gocyclo
-func (s *Service) DeleteUserFiles(userID uint) error {
-	cfg := config.Get()
-
-	// 1. 删除头像目录
-	// 头像存储结构: data/avatars/{userID}/filename
-	avatarRoot := cfg.Upload.AvatarPath
-	if avatarRoot == "" {
-		avatarRoot = "uploads/avatars"
-	}
-	avatarRootAbs, err := filepath.Abs(avatarRoot)
-	if err != nil {
-		return fmt.Errorf("failed to resolve avatar root: %w", err)
-	}
-	// 先校验头像根目录节点本身，避免根目录直接是符号链接。
-	if err := utils.EnsurePathNotSymlink(avatarRootAbs); err != nil {
-		return fmt.Errorf("avatar root symlink risk: %w", err)
-	}
-
-	userAvatarDir, err := utils.SecureJoin(avatarRootAbs, fmt.Sprintf("%d", userID))
-	if err != nil {
-		return fmt.Errorf("failed to build avatar dir: %w", err)
-	}
-	// 在执行 RemoveAll 前再做一次链路检查，确保目标目录链路未被并发替换为符号链接。
-	if err := utils.EnsureNoSymlinkBetween(avatarRootAbs, userAvatarDir); err != nil {
-		return fmt.Errorf("avatar dir symlink risk: %w", err)
-	}
-
-	// RemoveAll 删除路径及其包含的任何子项。如果路径不存在，RemoveAll 返回 nil（无错误）。
-	if err := os.RemoveAll(userAvatarDir); err != nil {
-		// 记录日志或打印错误，但不中断后续操作
-		log.Printf("Warning: Failed to delete avatar directory for user %d: %v\n", userID, err)
-	}
-
-	if s.imageStore == nil {
-		return fmt.Errorf("图片服务未初始化")
-	}
-
-	// 2. 查找并删除用户上传的所有图片
-	// Unscoped() 确保即使是软删除的图片也能被查出来删除文件
-	images, err := s.imageStore.FindUnscopedByUserID(userID)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve user images: %w", err)
-	}
-
-	uploadRoot := cfg.Upload.Path
-	if uploadRoot == "" {
-		uploadRoot = "uploads/imgs"
-	}
-	uploadRootAbs, err := filepath.Abs(uploadRoot)
-	if err != nil {
-		return fmt.Errorf("failed to resolve upload root: %w", err)
-	}
-	// 先校验上传根目录节点本身，避免根目录直接是符号链接。
-	if err := utils.EnsurePathNotSymlink(uploadRootAbs); err != nil {
-		return fmt.Errorf("upload root symlink risk: %w", err)
-	}
-
-	for _, img := range images {
-		// 转换路径分隔符以适配当前系统 (DB中存储的是 web 格式 '/')
-		localPath := filepath.FromSlash(img.Path)
-		fullPath, secureErr := utils.SecureJoin(uploadRootAbs, localPath)
-		if secureErr != nil {
-			log.Printf("Warning: Skip unsafe image path for user %d (%s): %v\n", userID, img.Path, secureErr)
-			continue
-		}
-
-		if err := os.Remove(fullPath); err != nil {
-			if !os.IsNotExist(err) {
-				log.Printf("Warning: Failed to delete image file %s: %v\n", fullPath, err)
-			}
-		}
-	}
-
-	return nil
+func (s *UserService) GetSystemDefaultStorageQuota() int64 {
+	return s.dbConfig.GetDefaultStorageQuota()
 }
 
 // IsUsernameTaken 检查用户名是否已被占用。
 // excludeUserID 用于更新场景下排除当前用户；includeDeleted 为 true 时会包含软删除用户。
-func (s *Service) IsUsernameTaken(username string, excludeUserID *uint, includeDeleted bool) (bool, error) {
-	return s.userStore.FieldExists(userrepo.UserFieldUsername, username, excludeUserID, includeDeleted)
+func (s *UserService) IsUsernameTaken(username string, excludeUserID *uint, includeDeleted bool) (bool, error) {
+	return s.userStore.FieldExists(consts.UserFieldUsername, username, excludeUserID, includeDeleted)
 }
 
 // IsEmailTaken 检查邮箱是否已被占用。
 // excludeUserID 用于更新场景下排除当前用户；includeDeleted 为 true 时会包含软删除用户。
-func (s *Service) IsEmailTaken(email string, excludeUserID *uint, includeDeleted bool) (bool, error) {
-	return s.userStore.FieldExists(userrepo.UserFieldEmail, email, excludeUserID, includeDeleted)
+func (s *UserService) IsEmailTaken(email string, excludeUserID *uint, includeDeleted bool) (bool, error) {
+	return s.userStore.FieldExists(consts.UserFieldEmail, email, excludeUserID, includeDeleted)
 }
 
 // GetUserByID 按用户 ID 获取用户模型。
-func (s *Service) GetUserByID(userID uint) (*model.User, error) {
+func (s *UserService) GetUserByID(userID uint) (*model.User, error) {
 	user, err := s.userStore.FindByID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, platformservice.NewNotFoundError("用户不存在")
+			return nil, commonpkg.NewNotFoundError("用户不存在")
 		}
-		return nil, platformservice.NewInternalError("获取用户信息失败")
+		return nil, commonpkg.NewInternalError("获取用户信息失败")
 	}
 	return user, nil
 }
 
 // GetUserProfile 获取用户个人资料。
-func (s *Service) GetUserProfile(userID uint) (*moduledto.UserProfileResponse, error) {
+func (s *UserService) GetUserProfile(userID uint) (*moduledto.UserProfileResponse, error) {
 	user, err := s.GetUserByID(userID)
 	if err != nil {
-		return nil, platformservice.NewNotFoundError("用户不存在")
+		return nil, commonpkg.NewNotFoundError("用户不存在")
 	}
 
 	return &moduledto.UserProfileResponse{
@@ -415,106 +331,56 @@ func (s *Service) GetUserProfile(userID uint) (*moduledto.UserProfileResponse, e
 }
 
 // UpdateUsernameAndGenerateToken 更新用户名并签发新登录令牌。
-func (s *Service) UpdateUsernameAndGenerateToken(userID uint, newUsername string, isAdmin bool) (string, error) {
+func (s *UserService) UpdateUsernameAndGenerateToken(userID uint, newUsername string, isAdmin bool) (string, error) {
 	// Profile 路径统一禁止保留用户名；管理员后台修改用户名走 AdminPrepareUserUpdates（允许保留词）。
 	if ok, msg := utils.ValidateUsername(newUsername); !ok {
-		return "", platformservice.NewValidationError(msg)
+		return "", commonpkg.NewValidationError(msg)
 	}
 
 	excludeID := userID
 	usernameTaken, err := s.IsUsernameTaken(newUsername, &excludeID, true)
 	if err != nil {
-		return "", platformservice.NewInternalError("更新失败")
+		return "", commonpkg.NewInternalError("更新失败")
 	}
 	if usernameTaken {
-		return "", platformservice.NewConflictError("用户名已存在")
+		return "", commonpkg.NewConflictError("用户名已存在")
 	}
 
 	if err := s.userStore.UpdateUsernameByID(userID, newUsername); err != nil {
-		return "", platformservice.NewInternalError("更新失败")
+		return "", commonpkg.NewInternalError("更新失败")
 	}
 
 	cfg := config.Get()
 	token, err := utils.GenerateLoginToken(userID, newUsername, isAdmin, time.Hour*time.Duration(cfg.JWT.ExpirationHours))
 	if err != nil {
-		return "", platformservice.NewInternalError("更新失败")
+		return "", commonpkg.NewInternalError("更新失败")
 	}
 
 	return token, nil
 }
 
 // UpdatePasswordByOldPassword 使用旧密码校验后更新新密码。
-func (s *Service) UpdatePasswordByOldPassword(userID uint, oldPassword, newPassword string) error {
+func (s *UserService) UpdatePasswordByOldPassword(userID uint, oldPassword, newPassword string) error {
 	if ok, msg := utils.ValidatePassword(newPassword); !ok {
-		return platformservice.NewValidationError(msg)
+		return commonpkg.NewValidationError(msg)
 	}
 
 	user, err := s.userStore.FindByID(userID)
 	if err != nil {
-		return platformservice.NewNotFoundError("用户不存在")
+		return commonpkg.NewNotFoundError("用户不存在")
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword)); err != nil {
-		return platformservice.NewValidationError("旧密码错误")
+		return commonpkg.NewValidationError("旧密码错误")
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
-		return platformservice.NewInternalError("更新失败")
+		return commonpkg.NewInternalError("更新失败")
 	}
 
 	if err := s.userStore.UpdatePasswordByID(userID, string(hashedPassword)); err != nil {
-		return platformservice.NewInternalError("更新失败")
-	}
-
-	return nil
-}
-
-// RequestEmailChange 发起邮箱修改流程并异步发送验证邮件。
-func (s *Service) RequestEmailChange(userID uint, password, newEmail string) error {
-	if ok, msg := utils.ValidateEmail(newEmail); !ok {
-		return platformservice.NewValidationError(msg)
-	}
-
-	user, err := s.userStore.FindByID(userID)
-	if err != nil {
-		return platformservice.NewNotFoundError("用户不存在")
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		return platformservice.NewForbiddenError("密码错误")
-	}
-
-	if user.Email == newEmail {
-		return platformservice.NewValidationError("新邮箱不能与当前邮箱相同")
-	}
-
-	emailTaken, err := s.IsEmailTaken(newEmail, nil, true)
-	if err != nil {
-		return platformservice.NewInternalError("生成验证链接失败")
-	}
-	if emailTaken {
-		return platformservice.NewConflictError("该邮箱已被使用")
-	}
-
-	token, err := s.GenerateEmailChangeToken(user.ID, user.Email, newEmail)
-	if err != nil {
-		return platformservice.NewInternalError("生成验证链接失败")
-	}
-
-	baseURL := s.GetString(consts.ConfigBaseURL)
-	if baseURL == "" {
-		baseURL = "http://localhost"
-	}
-	if len(baseURL) > 0 && baseURL[len(baseURL)-1] == '/' {
-		baseURL = baseURL[:len(baseURL)-1]
-	}
-	verifyURL := fmt.Sprintf("%s/auth/email-change-verify?token=%s", baseURL, token)
-
-	if s.ShouldSendEmail() {
-		go func() {
-			_ = s.SendEmailChangeVerification(newEmail, user.Username, user.Email, newEmail, verifyURL)
-		}()
+		return commonpkg.NewInternalError("更新失败")
 	}
 
 	return nil

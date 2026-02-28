@@ -10,7 +10,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	platformservice "perfect-pic-server/internal/common"
+	commonpkg "perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/consts"
 	"strconv"
 	"strings"
@@ -23,39 +23,18 @@ import (
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/redis/go-redis/v9"
-	"gorm.io/gorm"
 )
 
-type passkeySessionType string
 
-type passkeyWebAuthnUserLoadMode string
-
-const (
-	passkeySessionRegistration passkeySessionType = "registration"
-	passkeySessionLogin        passkeySessionType = "login"
-	passkeySessionTTL                             = 5 * time.Minute
-	maxUserPasskeyCount                           = 10
-	passkeyNameMaxRunes                           = 64
-)
-
-const (
-	passkeyWebAuthnUserLoadModeRegistration passkeyWebAuthnUserLoadMode = "registration"
-	passkeyWebAuthnUserLoadModeLogin        passkeyWebAuthnUserLoadMode = "login"
-)
 
 type passkeySessionEntry struct {
-	PasskeySessionType passkeySessionType
+	PasskeySessionType consts.PasskeySessionType
 	UserID             uint
 	SessionData        webauthn.SessionData
 	ExpiresAt          time.Time
 }
 
-type passkeyWebAuthnUser struct {
-	userID      uint
-	username    string
-	id          []byte
-	credentials []webauthn.Credential
-}
+
 
 type passkeyStoredCredential struct {
 	ID              []byte                            `json:"id"`
@@ -74,25 +53,9 @@ var passkeyAllowedCOSEAlgorithms = map[webauthncose.COSEAlgorithmIdentifier]stru
 	webauthncose.AlgRS256: {},
 }
 
-func (u *passkeyWebAuthnUser) WebAuthnID() []byte {
-	return u.id
-}
-
-func (u *passkeyWebAuthnUser) WebAuthnName() string {
-	return u.username
-}
-
-func (u *passkeyWebAuthnUser) WebAuthnDisplayName() string {
-	return u.username
-}
-
-func (u *passkeyWebAuthnUser) WebAuthnCredentials() []webauthn.Credential {
-	return u.credentials
-}
-
-// createPasskeyWebAuthnClient 根据系统配置构建 WebAuthn 客户端。
-func (s *Service) createPasskeyWebAuthnClient() (*webauthn.WebAuthn, error) {
-	baseURL := strings.TrimSpace(s.GetString(consts.ConfigBaseURL))
+// CreatePasskeyWebAuthnClient 根据系统配置构建 WebAuthn 客户端。
+func (s *PasskeyService) CreatePasskeyWebAuthnClient() (*webauthn.WebAuthn, error) {
+	baseURL := strings.TrimSpace(s.dbConfig.GetString(consts.ConfigBaseURL))
 	if baseURL == "" {
 		baseURL = "http://localhost"
 	}
@@ -100,10 +63,10 @@ func (s *Service) createPasskeyWebAuthnClient() (*webauthn.WebAuthn, error) {
 	// base_url 同时决定 RP ID 与 Origin，必须是完整可解析的绝对 URL。
 	parsedBaseURL, err := url.Parse(baseURL)
 	if err != nil || parsedBaseURL.Scheme == "" || parsedBaseURL.Host == "" || parsedBaseURL.Hostname() == "" {
-		return nil, platformservice.NewValidationError("系统 base_url 配置无效，无法启用 Passkey")
+		return nil, commonpkg.NewValidationError("系统 base_url 配置无效，无法启用 Passkey")
 	}
 
-	siteName := strings.TrimSpace(s.GetString(consts.ConfigSiteName))
+	siteName := strings.TrimSpace(s.dbConfig.GetString(consts.ConfigSiteName))
 	if siteName == "" {
 		siteName = "Perfect Pic"
 	}
@@ -117,50 +80,11 @@ func (s *Service) createPasskeyWebAuthnClient() (*webauthn.WebAuthn, error) {
 	})
 }
 
-// loadPasskeyWebAuthnUser 加载并构造 WebAuthn User，按场景决定是否附带用户资料。
-func (s *Service) loadPasskeyWebAuthnUser(
-	userID uint,
-	loadMode passkeyWebAuthnUserLoadMode,
-) (*passkeyWebAuthnUser, error) {
-	resolvedUserID := userID
-	username := ""
-
-	switch loadMode {
-	case passkeyWebAuthnUserLoadModeRegistration:
-		user, err := s.findUserByID(userID)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, platformservice.NewNotFoundError("用户不存在")
-			}
-			return nil, platformservice.NewInternalError("读取用户信息失败")
-		}
-		resolvedUserID = user.ID
-		username = user.Username
-	case passkeyWebAuthnUserLoadModeLogin:
-		// 登录校验只需要稳定 userHandle 与凭据集合，不依赖用户名展示信息。
-	default:
-		return nil, platformservice.NewInternalError("Passkey 用户加载模式无效")
-	}
-
-	credentials, err := s.loadUserPasskeyCredentials(resolvedUserID)
+// LoadUserPasskeyCredentials 读取并反序列化用户的 Passkey 凭据集合。
+func (s *PasskeyService) LoadUserPasskeyCredentials(userID uint) ([]webauthn.Credential, error) {
+	records, err := s.passkeyStore.ListPasskeyCredentialsByUserID(userID)
 	if err != nil {
-		return nil, err
-	}
-
-	return &passkeyWebAuthnUser{
-		userID:   resolvedUserID,
-		username: username,
-		// userHandle 使用十进制 userID 字节串，登录回调中可无歧义反解析。
-		id:          []byte(strconv.FormatUint(uint64(resolvedUserID), 10)),
-		credentials: credentials,
-	}, nil
-}
-
-// loadUserPasskeyCredentials 读取并反序列化用户的 Passkey 凭据集合。
-func (s *Service) loadUserPasskeyCredentials(userID uint) ([]webauthn.Credential, error) {
-	records, err := s.listPasskeyCredentialsByUserID(userID)
-	if err != nil {
-		return nil, platformservice.NewInternalError("读取 Passkey 失败")
+		return nil, commonpkg.NewInternalError("读取 Passkey 失败")
 	}
 
 	credentials := make([]webauthn.Credential, 0, len(records))
@@ -168,7 +92,7 @@ func (s *Service) loadUserPasskeyCredentials(userID uint) ([]webauthn.Credential
 		var credential webauthn.Credential
 		// DB 中保存的是完整 credential JSON，登录/注册排除都依赖其完整反序列化结果。
 		if err := json.Unmarshal([]byte(record.Credential), &credential); err != nil {
-			return nil, platformservice.NewInternalError("Passkey 数据损坏，请重新绑定")
+			return nil, commonpkg.NewInternalError("Passkey 数据损坏，请重新绑定")
 		}
 		credentials = append(credentials, credential)
 	}
@@ -176,8 +100,8 @@ func (s *Service) loadUserPasskeyCredentials(userID uint) ([]webauthn.Credential
 	return credentials, nil
 }
 
-// storePasskeySession 保存 Passkey 挑战会话并返回一次性会话 ID。
-func storePasskeySession(sessionType passkeySessionType, userID uint, session *webauthn.SessionData) (string, error) {
+// StorePasskeySession 保存 Passkey 挑战会话并返回一次性会话 ID。
+func (s *PasskeyService) StorePasskeySession(sessionType consts.PasskeySessionType, userID uint, session *webauthn.SessionData) (string, error) {
 	if session == nil {
 		return "", errors.New("passkey session is nil")
 	}
@@ -187,7 +111,7 @@ func storePasskeySession(sessionType passkeySessionType, userID uint, session *w
 		return "", err
 	}
 
-	expireAt := time.Now().Add(passkeySessionTTL)
+	expireAt := time.Now().Add(consts.PasskeySessionTTL)
 	// 显式同步 Expires，确保后续库侧校验与本地过期策略一致。
 	session.Expires = expireAt
 	entry := passkeySessionEntry{
@@ -223,7 +147,7 @@ func storePasskeySessionInRedis(sessionID string, entry passkeySessionEntry) boo
 	defer cancel()
 
 	key := RedisKey("passkey", "session", sessionID)
-	if err := redisClient.Set(ctx, key, payload, passkeySessionTTL).Err(); err != nil {
+	if err := redisClient.Set(ctx, key, payload, consts.PasskeySessionTTL).Err(); err != nil {
 		log.Printf("⚠️ Redis 写入 Passkey 会话失败，回退内存会话: %v", err)
 		return false
 	}
@@ -237,32 +161,32 @@ func storePasskeySessionInMemory(sessionID string, entry passkeySessionEntry) {
 	passkeySessionStore.Store(sessionID, entry)
 }
 
-// consumePasskeyLoginSession 读取并消费登录会话，仅返回 WebAuthn 校验所需的 SessionData。
-func consumePasskeyLoginSession(sessionID string) (*webauthn.SessionData, error) {
-	entry, err := consumePasskeySessionEntry(sessionID, passkeySessionLogin)
+// ConsumePasskeyLoginSession 读取并消费登录会话，仅返回 WebAuthn 校验所需的 SessionData。
+func (s *PasskeyService) ConsumePasskeyLoginSession(sessionID string) (*webauthn.SessionData, error) {
+	entry, err := consumePasskeySessionEntry(sessionID,consts. PasskeySessionLogin)
 	if err != nil {
 		return nil, err
 	}
 	return &entry.SessionData, nil
 }
 
-// consumePasskeyRegistrationSession 读取并消费注册会话，并校验会话归属用户。
-func consumePasskeyRegistrationSession(sessionID string, userID uint) (*webauthn.SessionData, error) {
-	entry, err := consumePasskeySessionEntry(sessionID, passkeySessionRegistration)
+// ConsumePasskeyRegistrationSession 读取并消费注册会话，并校验会话归属用户。
+func (s *PasskeyService) ConsumePasskeyRegistrationSession(sessionID string, userID uint) (*webauthn.SessionData, error) {
+	entry, err := consumePasskeySessionEntry(sessionID, consts.PasskeySessionRegistration)
 	if err != nil {
 		return nil, err
 	}
 	// 注册会话必须与当前登录用户一致，避免跨账号完成绑定。
 	if entry.UserID != userID {
-		return nil, platformservice.NewForbiddenError("无权完成该 Passkey 注册会话")
+		return nil, commonpkg.NewForbiddenError("无权完成该 Passkey 注册会话")
 	}
 	return &entry.SessionData, nil
 }
 
 // consumePasskeySessionEntry 读取并消费底层会话条目，负责类型与过期校验。
-func consumePasskeySessionEntry(sessionID string, expectedType passkeySessionType) (*passkeySessionEntry, error) {
+func consumePasskeySessionEntry(sessionID string, expectedType consts.PasskeySessionType) (*passkeySessionEntry, error) {
 	if strings.TrimSpace(sessionID) == "" {
-		return nil, platformservice.NewValidationError("session_id 不能为空")
+		return nil, commonpkg.NewValidationError("session_id 不能为空")
 	}
 
 	// Redis 可用时优先从 Redis 原子读取并删除；未命中再回退本地内存。
@@ -279,10 +203,10 @@ func consumePasskeySessionEntry(sessionID string, expectedType passkeySessionTyp
 
 	// 防止把“注册会话”拿去走“登录校验”或反向混用。
 	if entry.PasskeySessionType != expectedType {
-		return nil, platformservice.NewValidationError("Passkey 会话类型不匹配")
+		return nil, commonpkg.NewValidationError("Passkey 会话类型不匹配")
 	}
 	if time.Now().After(entry.ExpiresAt) {
-		return nil, platformservice.NewValidationError("Passkey 会话已过期，请重新发起")
+		return nil, commonpkg.NewValidationError("Passkey 会话已过期，请重新发起")
 	}
 
 	return entry, nil
@@ -314,7 +238,7 @@ func consumePasskeySessionEntryFromRedis(sessionID string) (*passkeySessionEntry
 
 	var entry passkeySessionEntry
 	if err := json.Unmarshal([]byte(payload), &entry); err != nil {
-		return nil, platformservice.NewInternalError("Passkey 会话数据异常")
+		return nil, commonpkg.NewInternalError("Passkey 会话数据异常")
 	}
 
 	return &entry, nil
@@ -324,12 +248,12 @@ func consumePasskeySessionEntryFromMemory(sessionID string) (*passkeySessionEntr
 	// LoadAndDelete 保证会话只可使用一次，天然抵御挑战重放。
 	raw, ok := passkeySessionStore.LoadAndDelete(sessionID)
 	if !ok {
-		return nil, platformservice.NewValidationError("Passkey 会话不存在或已过期，请重新发起")
+		return nil, commonpkg.NewValidationError("Passkey 会话不存在或已过期，请重新发起")
 	}
 
 	entry, ok := raw.(passkeySessionEntry)
 	if !ok {
-		return nil, platformservice.NewInternalError("Passkey 会话数据异常")
+		return nil, commonpkg.NewInternalError("Passkey 会话数据异常")
 	}
 
 	return &entry, nil
@@ -356,23 +280,23 @@ func generatePasskeySessionID() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(randomBytes), nil
 }
 
-// buildPasskeyCredentialRequest 将前端凭据 JSON 包装成 WebAuthn 库可处理的 HTTP 请求。
-func buildPasskeyCredentialRequest(credentialJSON []byte) (*http.Request, error) {
+// BuildPasskeyCredentialRequest 将前端凭据 JSON 包装成 WebAuthn 库可处理的 HTTP 请求。
+func (s *PasskeyService) BuildPasskeyCredentialRequest(credentialJSON []byte) (*http.Request, error) {
 	trimmed := bytes.TrimSpace(credentialJSON)
 	if len(trimmed) == 0 {
-		return nil, platformservice.NewValidationError("credential 不能为空")
+		return nil, commonpkg.NewValidationError("credential 不能为空")
 	}
 
 	request, err := http.NewRequest(http.MethodPost, "/", bytes.NewReader(trimmed))
 	if err != nil {
-		return nil, platformservice.NewInternalError("Passkey 请求构造失败")
+		return nil, commonpkg.NewInternalError("Passkey 请求构造失败")
 	}
 	request.Header.Set("Content-Type", "application/json")
 	return request, nil
 }
 
-// parsePasskeyUserHandle 将 discoverable 登录返回的 userHandle 解析为用户 ID。
-func parsePasskeyUserHandle(userHandle []byte) (uint, error) {
+// ParsePasskeyUserHandle 将 discoverable 登录返回的 userHandle 解析为用户 ID。
+func (s *PasskeyService) ParsePasskeyUserHandle(userHandle []byte) (uint, error) {
 	if len(userHandle) == 0 {
 		return 0, errors.New("user handle is empty")
 	}
@@ -388,25 +312,25 @@ func parsePasskeyUserHandle(userHandle []byte) (uint, error) {
 	return uint(parsed), nil
 }
 
-// encodePasskeyCredentialID 将凭据 ID 编码为可存储字符串。
-func encodePasskeyCredentialID(credentialID []byte) string {
+// EncodePasskeyCredentialID 将凭据 ID 编码为可存储字符串。
+func (s *PasskeyService) EncodePasskeyCredentialID(credentialID []byte) string {
 	return base64.RawURLEncoding.EncodeToString(credentialID)
 }
 
-// getPasskeyRecommendedCredentialParameters 返回注册阶段允许的签名算法列表。
-func getPasskeyRecommendedCredentialParameters() []protocol.CredentialParameter {
+// GetPasskeyRecommendedCredentialParameters 返回注册阶段允许的签名算法列表。
+func (s *PasskeyService) GetPasskeyRecommendedCredentialParameters() []protocol.CredentialParameter {
 	return webauthn.CredentialParametersRecommendedL3()
 }
 
-// isPasskeyAlgorithmAllowed 判断凭据算法是否在系统允许的安全白名单中。
-func isPasskeyAlgorithmAllowed(algorithm int64) bool {
+// IsPasskeyAlgorithmAllowed 判断凭据算法是否在系统允许的安全白名单中。
+func (s *PasskeyService) IsPasskeyAlgorithmAllowed(algorithm int64) bool {
 	_, ok := passkeyAllowedCOSEAlgorithms[webauthncose.COSEAlgorithmIdentifier(algorithm)]
 	return ok
 }
 
-// extractPasskeyCredentialAlgorithm 从凭据中提取 COSE 算法标识。
+// ExtractPasskeyCredentialAlgorithm 从凭据中提取 COSE 算法标识。
 // 部分浏览器不会回填 Attestation.PublicKeyAlgorithm，因此需要回退解析 credential.PublicKey。
-func extractPasskeyCredentialAlgorithm(credential *webauthn.Credential) (webauthncose.COSEAlgorithmIdentifier, error) {
+func (s *PasskeyService) ExtractPasskeyCredentialAlgorithm(credential *webauthn.Credential) (webauthncose.COSEAlgorithmIdentifier, error) {
 	if credential == nil {
 		return 0, errors.New("credential is nil")
 	}
@@ -422,8 +346,8 @@ func extractPasskeyCredentialAlgorithm(credential *webauthn.Credential) (webauth
 	return webauthncose.COSEAlgorithmIdentifier(publicKey.Algorithm), nil
 }
 
-// buildDefaultPasskeyName 根据凭据 ID 构造默认名称，便于用户首次识别。
-func buildDefaultPasskeyName(credentialID string) string {
+// BuildDefaultPasskeyName 根据凭据 ID 构造默认名称，便于用户首次识别。
+func (s *PasskeyService) BuildDefaultPasskeyName(credentialID string) string {
 	short := credentialID
 	if len(short) > 8 {
 		short = short[:8]
@@ -435,16 +359,16 @@ func buildDefaultPasskeyName(credentialID string) string {
 func normalizePasskeyName(name string) (string, error) {
 	normalized := strings.TrimSpace(name)
 	if normalized == "" {
-		return "", platformservice.NewValidationError("Passkey 名称不能为空")
+		return "", commonpkg.NewValidationError("Passkey 名称不能为空")
 	}
-	if utf8.RuneCountInString(normalized) > passkeyNameMaxRunes {
-		return "", platformservice.NewValidationError("Passkey 名称长度不能超过 64 个字符")
+	if utf8.RuneCountInString(normalized) > consts.PasskeyNameMaxRunes {
+		return "", commonpkg.NewValidationError("Passkey 名称长度不能超过 64 个字符")
 	}
 	return normalized, nil
 }
 
-// marshalPasskeyCredential 将凭据对象序列化为存储用 JSON（不包含 Attestation 大字段）。
-func marshalPasskeyCredential(credential *webauthn.Credential) (string, error) {
+// MarshalPasskeyCredential 将凭据对象序列化为存储用 JSON（不包含 Attestation 大字段）。
+func (s *PasskeyService) MarshalPasskeyCredential(credential *webauthn.Credential) (string, error) {
 	if credential == nil {
 		return "", errors.New("credential is nil")
 	}
@@ -465,24 +389,11 @@ func marshalPasskeyCredential(credential *webauthn.Credential) (string, error) {
 	return string(raw), nil
 }
 
-// isPasskeyUniqueConstraintConflict 判断数据库错误是否属于唯一约束冲突。
-func isPasskeyUniqueConstraintConflict(err error) bool {
+// IsPasskeyUniqueConstraintConflict 判断数据库错误是否属于唯一约束冲突。
+func (s *PasskeyService) IsPasskeyUniqueConstraintConflict(err error) bool {
 	if err == nil {
 		return false
 	}
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "unique") || strings.Contains(msg, "duplicate")
-}
-
-// ensureUserPasskeyCapacity 检查用户 Passkey 是否达到上限。
-func (s *Service) ensureUserPasskeyCapacity(userID uint) error {
-	// 以数据库实时计数为准，避免依赖客户端状态导致上限失效。
-	count, err := s.countPasskeyCredentialsByUserID(userID)
-	if err != nil {
-		return platformservice.NewInternalError("校验 Passkey 数量失败")
-	}
-	if count >= maxUserPasskeyCount {
-		return platformservice.NewConflictError("Passkey 数量已达上限（最多 10 个）")
-	}
-	return nil
 }

@@ -63,7 +63,7 @@ type geetestConfig struct {
 }
 
 // GetCaptchaProviderInfo 获取当前验证码提供方与前端可见配置。
-func (s *Service) GetCaptchaProviderInfo() moduledto.CaptchaProviderResponse {
+func (s *CaptchaService) GetCaptchaProviderInfo() moduledto.CaptchaProviderResponse {
 	provider := s.loadCaptchaProvider()
 
 	switch provider {
@@ -105,7 +105,7 @@ func (s *Service) GetCaptchaProviderInfo() moduledto.CaptchaProviderResponse {
 }
 
 // VerifyCaptchaChallenge 按当前 provider 校验验证码。
-func (s *Service) VerifyCaptchaChallenge(captchaID, captchaAnswer, captchaToken, remoteIP string) (bool, string) {
+func (s *CaptchaService) VerifyCaptchaChallenge(captchaID, captchaAnswer, captchaToken, remoteIP string) (bool, string) {
 	provider := s.loadCaptchaProvider()
 
 	switch provider {
@@ -127,8 +127,8 @@ func (s *Service) VerifyCaptchaChallenge(captchaID, captchaAnswer, captchaToken,
 }
 
 // loadCaptchaProvider 读取并标准化验证码提供方。
-func (s *Service) loadCaptchaProvider() string {
-	provider := strings.ToLower(strings.TrimSpace(s.GetString(consts.ConfigCaptchaProvider)))
+func (s *CaptchaService) loadCaptchaProvider() string {
+	provider := strings.ToLower(strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaProvider)))
 	switch provider {
 	case consts.CaptchaProviderDisabled, consts.CaptchaProviderImage, consts.CaptchaProviderTurnstile, consts.CaptchaProviderRecaptcha, consts.CaptchaProviderHcaptcha, consts.CaptchaProviderGeetest:
 		return provider
@@ -138,60 +138,60 @@ func (s *Service) loadCaptchaProvider() string {
 }
 
 // getTurnstileConfig 读取 Turnstile 配置。
-func (s *Service) getTurnstileConfig() turnstileConfig {
-	verifyURL := strings.TrimSpace(s.GetString(consts.ConfigCaptchaTurnstileVerifyURL))
+func (s *CaptchaService) getTurnstileConfig() turnstileConfig {
+	verifyURL := strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaTurnstileVerifyURL))
 	if verifyURL == "" {
 		verifyURL = defaultTurnstileVerifyURL
 	}
 
 	return turnstileConfig{
-		SiteKey:          strings.TrimSpace(s.GetString(consts.ConfigCaptchaTurnstileSiteKey)),
-		SecretKey:        strings.TrimSpace(s.GetString(consts.ConfigCaptchaTurnstileSecretKey)),
+		SiteKey:          strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaTurnstileSiteKey)),
+		SecretKey:        strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaTurnstileSecretKey)),
 		VerifyURL:        verifyURL,
-		ExpectedHostname: strings.TrimSpace(s.GetString(consts.ConfigCaptchaTurnstileExpectedHostname)),
+		ExpectedHostname: strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaTurnstileExpectedHostname)),
 	}
 }
 
 // getRecaptchaConfig 读取 reCAPTCHA 配置。
-func (s *Service) getRecaptchaConfig() recaptchaConfig {
-	verifyURL := strings.TrimSpace(s.GetString(consts.ConfigCaptchaRecaptchaVerifyURL))
+func (s *CaptchaService) getRecaptchaConfig() recaptchaConfig {
+	verifyURL := strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaRecaptchaVerifyURL))
 	if verifyURL == "" {
 		verifyURL = defaultRecaptchaVerifyURL
 	}
 
 	return recaptchaConfig{
-		SiteKey:          strings.TrimSpace(s.GetString(consts.ConfigCaptchaRecaptchaSiteKey)),
-		SecretKey:        strings.TrimSpace(s.GetString(consts.ConfigCaptchaRecaptchaSecretKey)),
+		SiteKey:          strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaRecaptchaSiteKey)),
+		SecretKey:        strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaRecaptchaSecretKey)),
 		VerifyURL:        verifyURL,
-		ExpectedHostname: strings.TrimSpace(s.GetString(consts.ConfigCaptchaRecaptchaExpectedHostname)),
+		ExpectedHostname: strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaRecaptchaExpectedHostname)),
 	}
 }
 
 // getHcaptchaConfig 读取 hCaptcha 配置。
-func (s *Service) getHcaptchaConfig() hcaptchaConfig {
-	verifyURL := strings.TrimSpace(s.GetString(consts.ConfigCaptchaHcaptchaVerifyURL))
+func (s *CaptchaService) getHcaptchaConfig() hcaptchaConfig {
+	verifyURL := strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaHcaptchaVerifyURL))
 	if verifyURL == "" {
 		verifyURL = defaultHcaptchaVerifyURL
 	}
 
 	return hcaptchaConfig{
-		SiteKey:          strings.TrimSpace(s.GetString(consts.ConfigCaptchaHcaptchaSiteKey)),
-		SecretKey:        strings.TrimSpace(s.GetString(consts.ConfigCaptchaHcaptchaSecretKey)),
+		SiteKey:          strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaHcaptchaSiteKey)),
+		SecretKey:        strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaHcaptchaSecretKey)),
 		VerifyURL:        verifyURL,
-		ExpectedHostname: strings.TrimSpace(s.GetString(consts.ConfigCaptchaHcaptchaExpectedHostname)),
+		ExpectedHostname: strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaHcaptchaExpectedHostname)),
 	}
 }
 
 // getGeetestConfig 读取 GeeTest 配置。
-func (s *Service) getGeetestConfig() geetestConfig {
-	verifyURL := strings.TrimSpace(s.GetString(consts.ConfigCaptchaGeetestVerifyURL))
+func (s *CaptchaService) getGeetestConfig() geetestConfig {
+	verifyURL := strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaGeetestVerifyURL))
 	if verifyURL == "" {
 		verifyURL = defaultGeetestVerifyURL
 	}
 
 	return geetestConfig{
-		CaptchaID:  strings.TrimSpace(s.GetString(consts.ConfigCaptchaGeetestCaptchaID)),
-		CaptchaKey: strings.TrimSpace(s.GetString(consts.ConfigCaptchaGeetestCaptchaKey)),
+		CaptchaID:  strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaGeetestCaptchaID)),
+		CaptchaKey: strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaGeetestCaptchaKey)),
 		VerifyURL:  verifyURL,
 	}
 }

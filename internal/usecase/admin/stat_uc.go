@@ -1,4 +1,4 @@
-package service
+package admin
 
 import (
 	platformservice "perfect-pic-server/internal/common"
@@ -7,18 +7,18 @@ import (
 )
 
 // AdminGetServerStats 获取后台仪表盘统计数据。
-func (s *Service) AdminGetServerStats() (*moduledto.ServerStatsResponse, error) {
-	imageCount, err := s.imageStore.CountAll()
+func (c *StatUseCase) AdminGetServerStats() (*moduledto.ServerStatsResponse, error) {
+	imageCount, err := c.imageStore.CountAll()
 	if err != nil {
 		return nil, platformservice.NewInternalError("统计图片数据失败")
 	}
 
-	totalSize, err := s.imageStore.SumAllSize()
+	totalSize, err := c.imageStore.SumAllSize()
 	if err != nil {
 		return nil, platformservice.NewInternalError("统计图片数据失败")
 	}
 
-	userCount, err := s.userStore.CountAll()
+	userCount, err := c.userStore.CountAll()
 	if err != nil {
 		return nil, platformservice.NewInternalError("统计用户数据失败")
 	}

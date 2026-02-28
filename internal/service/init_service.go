@@ -2,7 +2,7 @@ package service
 
 import (
 	"errors"
-	platformservice "perfect-pic-server/internal/common"
+	commonpkg "perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/consts"
 	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/model"
@@ -14,31 +14,31 @@ import (
 )
 
 // IsSystemInitialized 返回系统是否已完成初始化。
-func (s *Service) IsSystemInitialized() bool {
-	return !s.GetBool(consts.ConfigAllowInit)
+func (s *InitService) IsSystemInitialized() bool {
+	return !s.dbConfig.GetBool(consts.ConfigAllowInit)
 }
 
 // InitializeSystem 执行系统初始化：写入站点设置并创建管理员账号。
-func (s *Service) InitializeSystem(payload moduledto.InitRequest) error {
+func (s *InitService) InitializeSystem(payload moduledto.InitRequest) error {
 	if s.IsSystemInitialized() {
-		return platformservice.NewForbiddenError("已初始化，无法重复初始化")
+		return commonpkg.NewForbiddenError("已初始化，无法重复初始化")
 	}
 	if ok, msg := utils.ValidateUsernameAllowReserved(payload.Username); !ok {
-		return platformservice.NewValidationError(msg)
+		return commonpkg.NewValidationError(msg)
 	}
 	if ok, msg := utils.ValidatePassword(payload.Password); !ok {
-		return platformservice.NewValidationError(msg)
+		return commonpkg.NewValidationError(msg)
 	}
 	if strings.TrimSpace(payload.SiteName) == "" {
-		return platformservice.NewValidationError("站点名称不能为空")
+		return commonpkg.NewValidationError("站点名称不能为空")
 	}
 	if strings.TrimSpace(payload.SiteDescription) == "" {
-		return platformservice.NewValidationError("站点描述不能为空")
+		return commonpkg.NewValidationError("站点描述不能为空")
 	}
 
 	passwordHashed, err := bcrypt.GenerateFromPassword([]byte(payload.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return platformservice.NewInternalError("初始化失败")
+		return commonpkg.NewInternalError("初始化失败")
 	}
 
 	settingsToUpdate := map[string]string{
@@ -56,12 +56,12 @@ func (s *Service) InitializeSystem(payload moduledto.InitRequest) error {
 	if err != nil {
 		if errors.Is(err, systemrepo.ErrSystemAlreadyInitialized) {
 			// 其他实例已完成初始化时，立即清理缓存并返回业务态冲突。
-			s.ClearCache()
-			return platformservice.NewForbiddenError("已初始化，无法重复初始化")
+			s.dbConfig.ClearCache()
+			return commonpkg.NewForbiddenError("已初始化，无法重复初始化")
 		}
-		return platformservice.NewInternalError("初始化失败")
+		return commonpkg.NewInternalError("初始化失败")
 	}
 
-	s.ClearCache()
+	s.dbConfig.ClearCache()
 	return nil
 }

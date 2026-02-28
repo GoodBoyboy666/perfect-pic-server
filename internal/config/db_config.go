@@ -1,14 +1,11 @@
-package service
+package config
 
 import (
-	settingsrepo "perfect-pic-server/internal/repository"
-	"strconv"
-	"sync"
-
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
+	"strconv"
+	"sync"
 )
-
 const defaultValueNotFound = "||__NOT_FOUND__||"
 const defaultStorageQuotaBytes int64 = 1073741824
 
@@ -55,64 +52,20 @@ var DefaultSettings = []model.Setting{
 	{Key: consts.ConfigCaptchaGeetestVerifyURL, Value: "", Desc: "GeeTest 校验地址，留空使用官方默认", Category: "验证码"},
 }
 
-type Service struct {
-	userStore     settingsrepo.UserStore
-	imageStore    settingsrepo.ImageStore
-	settingStore  settingsrepo.SettingStore
-	systemStore   settingsrepo.SystemStore
-	settingsCache sync.Map
-}
+var settingsCache sync.Map
 
-// AppService is kept as a compatibility alias for middleware/main usage.
-type AppService = Service
-
-func New(settingStore settingsrepo.SettingStore) *Service {
-	return &Service{settingStore: settingStore}
-}
-
-func NewAppService(
-	userStore settingsrepo.UserStore,
-	imageStore settingsrepo.ImageStore,
-	settingStore settingsrepo.SettingStore,
-	systemStore settingsrepo.SystemStore,
-) *Service {
-	return &Service{
-		userStore:    userStore,
-		imageStore:   imageStore,
-		settingStore: settingStore,
-		systemStore:  systemStore,
-	}
-}
-
-func (s *Service) ClearCache() {
-	s.settingsCache.Range(func(key, value interface{}) bool {
-		s.settingsCache.Delete(key)
+func (s *DBConfig) ClearCache() {
+	settingsCache.Range(func(key, value interface{}) bool {
+		settingsCache.Delete(key)
 		return true
 	})
 }
 
-func (s *Service) InitializeSettings() error {
-	if err := s.settingStore.InitializeDefaults(DefaultSettings); err != nil {
-		return err
-	}
-
-	allowedKeys := make([]string, 0, len(DefaultSettings))
-	for _, def := range DefaultSettings {
-		allowedKeys = append(allowedKeys, def.Key)
-	}
-	if err := s.settingStore.DeleteNotInKeys(allowedKeys); err != nil {
-		return err
-	}
-
-	s.ClearCache()
-	return nil
-}
-
-func (s *Service) GetString(key string) string {
-	if val, ok := s.settingsCache.Load(key); ok {
+func (s *DBConfig) GetString(key string) string {
+	if val, ok := settingsCache.Load(key); ok {
 		strVal, ok := val.(string)
 		if !ok {
-			s.settingsCache.Delete(key)
+			settingsCache.Delete(key)
 		} else {
 			if strVal == defaultValueNotFound {
 				return ""
@@ -128,20 +81,20 @@ func (s *Service) GetString(key string) string {
 				newSetting := def
 				_ = s.settingStore.Create(&newSetting)
 
-				s.settingsCache.Store(key, newSetting.Value)
+				settingsCache.Store(key, newSetting.Value)
 				return newSetting.Value
 			}
 		}
 
-		s.settingsCache.Store(key, defaultValueNotFound)
+		settingsCache.Store(key, defaultValueNotFound)
 		return ""
 	}
-	s.settingsCache.Store(key, setting.Value)
+	settingsCache.Store(key, setting.Value)
 
 	return setting.Value
 }
 
-func (s *Service) GetInt(key string) int {
+func (s *DBConfig) GetInt(key string) int {
 	valStr := s.GetString(key)
 	if valStr == "" {
 		return 0
@@ -154,7 +107,7 @@ func (s *Service) GetInt(key string) int {
 	return val
 }
 
-func (s *Service) GetInt64(key string) int64 {
+func (s *DBConfig) GetInt64(key string) int64 {
 	valStr := s.GetString(key)
 	if valStr == "" {
 		return 0
@@ -167,7 +120,7 @@ func (s *Service) GetInt64(key string) int64 {
 	return val
 }
 
-func (s *Service) GetFloat64(key string) float64 {
+func (s *DBConfig) GetFloat64(key string) float64 {
 	valStr := s.GetString(key)
 	if valStr == "" {
 		return 0
@@ -180,7 +133,7 @@ func (s *Service) GetFloat64(key string) float64 {
 	return val
 }
 
-func (s *Service) GetBool(key string) bool {
+func (s *DBConfig) GetBool(key string) bool {
 	valStr := s.GetString(key)
 	if valStr == "" {
 		return false
@@ -195,10 +148,27 @@ func (s *Service) GetBool(key string) bool {
 
 // GetDefaultStorageQuota 获取默认存储配额（字节）。
 // 当配置值非法（<= 0）时回退到 1GB。
-func (s *Service) GetDefaultStorageQuota() int64 {
+func (s *DBConfig) GetDefaultStorageQuota() int64 {
 	quota := s.GetInt64(consts.ConfigDefaultStorageQuota)
 	if quota <= 0 {
 		return defaultStorageQuotaBytes
 	}
 	return quota
+}
+
+func (s *DBConfig) InitializeSettings() error {
+	if err := s.settingStore.InitializeDefaults(DefaultSettings); err != nil {
+		return err
+	}
+
+	allowedKeys := make([]string, 0, len(DefaultSettings))
+	for _, def := range DefaultSettings {
+		allowedKeys = append(allowedKeys, def.Key)
+	}
+	if err := s.settingStore.DeleteNotInKeys(allowedKeys); err != nil {
+		return err
+	}
+
+	s.ClearCache()
+	return nil
 }

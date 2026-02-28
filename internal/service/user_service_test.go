@@ -286,7 +286,7 @@ func TestListUsersForAdmin_FilterAndShowDeleted(t *testing.T) {
 
 	users, total, err := testService.AdminListUsers(moduledto.AdminUserListRequest{Page: 1, PageSize: 10, Keyword: "ali"})
 	if err != nil {
-		t.Fatalf("AdminListUsers: %v", err)
+		t.Fatalf("ListUsers: %v", err)
 	}
 	if total != 1 || len(users) != 1 || users[0].Username != "alice" {
 		t.Fatalf("非预期: total=%d len=%d users=%v", total, len(users), users)
@@ -294,7 +294,7 @@ func TestListUsersForAdmin_FilterAndShowDeleted(t *testing.T) {
 
 	users2, total2, err := testService.AdminListUsers(moduledto.AdminUserListRequest{Page: 1, PageSize: 10, ShowDeleted: true})
 	if err != nil {
-		t.Fatalf("testService.AdminListUsers(showDeleted): %v", err)
+		t.Fatalf("testService.ListUsers(showDeleted): %v", err)
 	}
 	if total2 != 2 || len(users2) != 2 {
 		t.Fatalf("期望 2 users with deleted，实际为 total=%d len=%d", total2, len(users2))

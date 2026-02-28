@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"errors"
-	platformservice "perfect-pic-server/internal/common"
+	commonpkg "perfect-pic-server/internal/common"
 	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/utils"
@@ -32,33 +32,33 @@ func resolveAdminUserSortOrder(order string) string {
 }
 
 // validateAdminCreateUserInput 校验管理员创建用户输入是否合法。
-func (s *Service) validateAdminCreateUserInput(input moduledto.AdminCreateUserRequest) error {
+func (s *UserService) validateAdminCreateUserInput(input moduledto.AdminCreateUserRequest) error {
 	if ok, msg := utils.ValidatePassword(input.Password); !ok {
-		return platformservice.NewValidationError(msg)
+		return commonpkg.NewValidationError(msg)
 	}
 	// 管理员后台创建用户允许使用保留用户名（与后台修改用户名规则一致）。
 	if ok, msg := utils.ValidateUsernameAllowReserved(input.Username); !ok {
-		return platformservice.NewValidationError(msg)
+		return commonpkg.NewValidationError(msg)
 	}
 
 	usernameTaken, err := s.IsUsernameTaken(input.Username, nil, true)
 	if err != nil {
-		return platformservice.NewInternalError("创建用户失败")
+		return commonpkg.NewInternalError("创建用户失败")
 	}
 	if usernameTaken {
-		return platformservice.NewConflictError("用户名已存在")
+		return commonpkg.NewConflictError("用户名已存在")
 	}
 
 	if input.Email != nil && *input.Email != "" {
 		if ok, msg := utils.ValidateEmail(*input.Email); !ok {
-			return platformservice.NewValidationError(msg)
+			return commonpkg.NewValidationError(msg)
 		}
 		emailTaken, err := s.IsEmailTaken(*input.Email, nil, true)
 		if err != nil {
-			return platformservice.NewInternalError("创建用户失败")
+			return commonpkg.NewInternalError("创建用户失败")
 		}
 		if emailTaken {
-			return platformservice.NewConflictError("邮箱已被注册")
+			return commonpkg.NewConflictError("邮箱已被注册")
 		}
 	}
 
@@ -75,7 +75,7 @@ func hashPassword(password string) (string, error) {
 }
 
 // applyAdminCreateUserOptionals 将管理员创建用户的可选字段应用到模型。
-func (s *Service) applyAdminCreateUserOptionals(user *model.User, input moduledto.AdminCreateUserRequest) error {
+func (s *UserService) applyAdminCreateUserOptionals(user *model.User, input moduledto.AdminCreateUserRequest) error {
 	if input.Email != nil {
 		user.Email = *input.Email
 	}
@@ -91,7 +91,7 @@ func (s *Service) applyAdminCreateUserOptionals(user *model.User, input moduledt
 			quota := *input.StorageQuota
 			user.StorageQuota = &quota
 		} else {
-			return platformservice.NewValidationError("存储配额不能为负数（-1除外）")
+			return commonpkg.NewValidationError("存储配额不能为负数（-1除外）")
 		}
 	}
 
@@ -99,7 +99,7 @@ func (s *Service) applyAdminCreateUserOptionals(user *model.User, input moduledt
 		if *input.Status == 1 || *input.Status == 2 {
 			user.Status = *input.Status
 		} else {
-			return platformservice.NewValidationError("无效的用户状态")
+			return commonpkg.NewValidationError("无效的用户状态")
 		}
 	}
 
@@ -107,21 +107,21 @@ func (s *Service) applyAdminCreateUserOptionals(user *model.User, input moduledt
 }
 
 // prepareAdminUsernameUpdate 校验并准备用户名更新字段。
-func (s *Service) prepareAdminUsernameUpdate(userID uint, username *string, updates map[string]interface{}) error {
+func (s *UserService) prepareAdminUsernameUpdate(userID uint, username *string, updates map[string]interface{}) error {
 	if username == nil || *username == "" {
 		return nil
 	}
 	if ok, msg := utils.ValidateUsernameAllowReserved(*username); !ok {
-		return platformservice.NewValidationError(msg)
+		return commonpkg.NewValidationError(msg)
 	}
 
 	excludeID := userID
 	usernameTaken, err := s.IsUsernameTaken(*username, &excludeID, true)
 	if err != nil {
-		return platformservice.NewInternalError("更新用户失败")
+		return commonpkg.NewInternalError("更新用户失败")
 	}
 	if usernameTaken {
-		return platformservice.NewConflictError("该用户名已被其他用户占用")
+		return commonpkg.NewConflictError("该用户名已被其他用户占用")
 	}
 
 	updates["username"] = *username
@@ -129,17 +129,17 @@ func (s *Service) prepareAdminUsernameUpdate(userID uint, username *string, upda
 }
 
 // prepareAdminPasswordUpdate 校验并准备密码更新字段。
-func (s *Service) prepareAdminPasswordUpdate(password *string, updates map[string]interface{}) error {
+func (s *UserService) prepareAdminPasswordUpdate(password *string, updates map[string]interface{}) error {
 	if password == nil || *password == "" {
 		return nil
 	}
 	if ok, msg := utils.ValidatePassword(*password); !ok {
-		return platformservice.NewValidationError(msg)
+		return commonpkg.NewValidationError(msg)
 	}
 
 	hashedPassword, err := hashPassword(*password)
 	if err != nil {
-		return platformservice.NewInternalError("更新用户失败")
+		return commonpkg.NewInternalError("更新用户失败")
 	}
 
 	updates["password"] = hashedPassword
@@ -147,21 +147,21 @@ func (s *Service) prepareAdminPasswordUpdate(password *string, updates map[strin
 }
 
 // prepareAdminEmailUpdate 校验并准备邮箱更新字段。
-func (s *Service) prepareAdminEmailUpdate(userID uint, email *string, updates map[string]interface{}) error {
+func (s *UserService) prepareAdminEmailUpdate(userID uint, email *string, updates map[string]interface{}) error {
 	if email == nil || *email == "" {
 		return nil
 	}
 	if ok, msg := utils.ValidateEmail(*email); !ok {
-		return platformservice.NewValidationError(msg)
+		return commonpkg.NewValidationError(msg)
 	}
 
 	excludeID := userID
 	emailTaken, err := s.IsEmailTaken(*email, &excludeID, true)
 	if err != nil {
-		return platformservice.NewInternalError("更新用户失败")
+		return commonpkg.NewInternalError("更新用户失败")
 	}
 	if emailTaken {
-		return platformservice.NewConflictError("该邮箱已被其他用户占用")
+		return commonpkg.NewConflictError("该邮箱已被其他用户占用")
 	}
 
 	updates["email"] = *email
@@ -169,14 +169,14 @@ func (s *Service) prepareAdminEmailUpdate(userID uint, email *string, updates ma
 }
 
 // prepareAdminEmailVerifiedUpdate 准备邮箱验证状态更新字段。
-func (s *Service) prepareAdminEmailVerifiedUpdate(emailVerified *bool, updates map[string]interface{}) {
+func (s *UserService) prepareAdminEmailVerifiedUpdate(emailVerified *bool, updates map[string]interface{}) {
 	if emailVerified != nil {
 		updates["email_verified"] = *emailVerified
 	}
 }
 
 // prepareAdminStorageQuotaUpdate 校验并准备存储配额更新字段。
-func (s *Service) prepareAdminStorageQuotaUpdate(storageQuota *int64, updates map[string]interface{}) error {
+func (s *UserService) prepareAdminStorageQuotaUpdate(storageQuota *int64, updates map[string]interface{}) error {
 	if storageQuota == nil {
 		return nil
 	}
@@ -188,11 +188,11 @@ func (s *Service) prepareAdminStorageQuotaUpdate(storageQuota *int64, updates ma
 		updates["storage_quota"] = *storageQuota
 		return nil
 	}
-	return platformservice.NewValidationError("存储配额不能为负数（-1除外）")
+	return commonpkg.NewValidationError("存储配额不能为负数（-1除外）")
 }
 
 // prepareAdminStatusUpdate 校验并准备用户状态更新字段。
-func (s *Service) prepareAdminStatusUpdate(status *int, updates map[string]interface{}) error {
+func (s *UserService) prepareAdminStatusUpdate(status *int, updates map[string]interface{}) error {
 	if status == nil {
 		return nil
 	}
@@ -200,7 +200,7 @@ func (s *Service) prepareAdminStatusUpdate(status *int, updates map[string]inter
 		updates["status"] = *status
 		return nil
 	}
-	return platformservice.NewValidationError("无效的用户状态")
+	return commonpkg.NewValidationError("无效的用户状态")
 }
 
 // verifyAndConsumeRedisTokenPair 使用 Redis WATCH/CAS 原子校验并消费 token 对。

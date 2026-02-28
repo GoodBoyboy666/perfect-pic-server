@@ -1,4 +1,4 @@
-package service
+package httpx
 
 import (
 	platformservice "perfect-pic-server/internal/common"
@@ -16,7 +16,7 @@ const (
 	AuthErrorInternal     = AuthErrorCode(platformservice.ErrorCodeInternal)
 )
 
-func newAuthError(code AuthErrorCode, message string) error {
+func NewAuthError(code AuthErrorCode, message string) error {
 	return platformservice.NewServiceError(platformservice.ErrorCode(code), message)
 }
 

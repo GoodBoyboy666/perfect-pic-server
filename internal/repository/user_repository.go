@@ -1,12 +1,8 @@
 package repository
 
-import "perfect-pic-server/internal/model"
-
-type UserField string
-
-const (
-	UserFieldUsername UserField = "username"
-	UserFieldEmail    UserField = "email"
+import (
+	"perfect-pic-server/internal/consts"
+	"perfect-pic-server/internal/model"
 )
 
 type UserStore interface {
@@ -21,17 +17,9 @@ type UserStore interface {
 	UpdateAvatar(user *model.User, filename string) error
 	ClearAvatar(user *model.User) error
 	UpdateByID(userID uint, updates map[string]interface{}) error
-	FieldExists(field UserField, value string, excludeUserID *uint, includeDeleted bool) (bool, error)
-	ListPasskeyCredentialsByUserID(userID uint) ([]model.PasskeyCredential, error)
-	CountPasskeyCredentialsByUserID(userID uint) (int64, error)
-	FindPasskeyCredentialByCredentialID(credentialID string) (*model.PasskeyCredential, error)
-	CreatePasskeyCredential(credential *model.PasskeyCredential) error
-	UpdatePasskeyCredentialData(userID uint, credentialID string, credentialJSON string) error
-	DeletePasskeyCredentialByID(userID uint, passkeyID uint) error
-	UpdatePasskeyCredentialNameByID(userID uint, passkeyID uint, name string) error
-	DeletePasskeyCredentialsByUserID(userID uint) error
-	AdminListUsers(keyword string, showDeleted bool, order string, offset int, limit int) ([]model.User, int64, error)
+	FieldExists(field consts.UserField, value string, excludeUserID *uint, includeDeleted bool) (bool, error)
+	ListUsers(keyword string, showDeleted bool, order string, offset int, limit int) ([]model.User, int64, error)
 	HardDeleteUserWithImages(userID uint) error
-	AdminSoftDeleteUser(userID uint, timestamp int64) error
+	SoftDeleteUser(userID uint, timestamp int64) error
 	CountAll() (int64, error)
 }

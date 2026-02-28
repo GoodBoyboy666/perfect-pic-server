@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
 	"strings"
 
@@ -76,7 +77,7 @@ func (r *UserRepository) UpdateByID(userID uint, updates map[string]interface{})
 	return r.db.Model(&user).Updates(updates).Error
 }
 
-func (r *UserRepository) FieldExists(field UserField, value string, excludeUserID *uint, includeDeleted bool) (bool, error) {
+func (r *UserRepository) FieldExists(field consts.UserField, value string, excludeUserID *uint, includeDeleted bool) (bool, error) {
 	query := r.db.Model(&model.User{})
 	if includeDeleted {
 		query = query.Unscoped()
@@ -92,84 +93,7 @@ func (r *UserRepository) FieldExists(field UserField, value string, excludeUserI
 	return count > 0, nil
 }
 
-// ListPasskeyCredentialsByUserID 返回指定用户的全部 Passkey 凭据记录。
-func (r *UserRepository) ListPasskeyCredentialsByUserID(userID uint) ([]model.PasskeyCredential, error) {
-	var credentials []model.PasskeyCredential
-	if err := r.db.Where("user_id = ?", userID).Order("id asc").Find(&credentials).Error; err != nil {
-		return nil, err
-	}
-	return credentials, nil
-}
-
-// CountPasskeyCredentialsByUserID 统计指定用户已绑定的 Passkey 数量。
-func (r *UserRepository) CountPasskeyCredentialsByUserID(userID uint) (int64, error) {
-	var count int64
-	if err := r.db.Model(&model.PasskeyCredential{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
-		return 0, err
-	}
-	return count, nil
-}
-
-// FindPasskeyCredentialByCredentialID 通过 credential_id 查找凭据。
-func (r *UserRepository) FindPasskeyCredentialByCredentialID(credentialID string) (*model.PasskeyCredential, error) {
-	var credential model.PasskeyCredential
-	if err := r.db.Where("credential_id = ?", credentialID).First(&credential).Error; err != nil {
-		return nil, err
-	}
-	return &credential, nil
-}
-
-// CreatePasskeyCredential 创建 Passkey 凭据记录。
-func (r *UserRepository) CreatePasskeyCredential(credential *model.PasskeyCredential) error {
-	return r.db.Create(credential).Error
-}
-
-// UpdatePasskeyCredentialData 更新指定凭据的序列化内容（例如登录后 signCount 变化）。
-func (r *UserRepository) UpdatePasskeyCredentialData(userID uint, credentialID string, credentialJSON string) error {
-	tx := r.db.Model(&model.PasskeyCredential{}).
-		Where("user_id = ? AND credential_id = ?", userID, credentialID).
-		Update("credential", credentialJSON)
-	if tx.Error != nil {
-		return tx.Error
-	}
-	if tx.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
-}
-
-// DeletePasskeyCredentialByID 删除指定用户下的某条 Passkey 凭据记录。
-func (r *UserRepository) DeletePasskeyCredentialByID(userID uint, passkeyID uint) error {
-	tx := r.db.Where("user_id = ? AND id = ?", userID, passkeyID).Delete(&model.PasskeyCredential{})
-	if tx.Error != nil {
-		return tx.Error
-	}
-	if tx.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
-}
-
-// UpdatePasskeyCredentialNameByID 更新指定用户下某条 Passkey 凭据的人类可读名称。
-func (r *UserRepository) UpdatePasskeyCredentialNameByID(userID uint, passkeyID uint, name string) error {
-	tx := r.db.Model(&model.PasskeyCredential{}).
-		Where("user_id = ? AND id = ?", userID, passkeyID).
-		Update("name", name)
-	if tx.Error != nil {
-		return tx.Error
-	}
-	if tx.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
-}
-
-// DeletePasskeyCredentialsByUserID 删除指定用户下的全部 Passkey 凭据记录。
-func (r *UserRepository) DeletePasskeyCredentialsByUserID(userID uint) error {
-	return r.db.Where("user_id = ?", userID).Delete(&model.PasskeyCredential{}).Error
-}
-
-func (r *UserRepository) AdminListUsers(
+func (r *UserRepository) ListUsers(
 	keyword string,
 	showDeleted bool,
 	order string,
@@ -212,7 +136,7 @@ func (r *UserRepository) HardDeleteUserWithImages(userID uint) error {
 	})
 }
 
-func (r *UserRepository) AdminSoftDeleteUser(userID uint, timestamp int64) error {
+func (r *UserRepository) SoftDeleteUser(userID uint, timestamp int64) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		var user model.User
 		if err := tx.First(&user, userID).Error; err != nil {
