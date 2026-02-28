@@ -1,10 +1,12 @@
 package config
 
 import (
+	"errors"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
 	"strconv"
-	"sync"
+
+	"gorm.io/gorm"
 )
 
 const defaultValueNotFound = "||__NOT_FOUND__||"
@@ -53,20 +55,18 @@ var DefaultSettings = []model.Setting{
 	{Key: consts.ConfigCaptchaGeetestVerifyURL, Value: "", Desc: "GeeTest 校验地址，留空使用官方默认", Category: "验证码"},
 }
 
-var settingsCache sync.Map
-
 func (s *DBConfig) ClearCache() {
-	settingsCache.Range(func(key, value interface{}) bool {
-		settingsCache.Delete(key)
+	s.settingsCache.Range(func(key, value interface{}) bool {
+		s.settingsCache.Delete(key)
 		return true
 	})
 }
 
 func (s *DBConfig) GetString(key string) string {
-	if val, ok := settingsCache.Load(key); ok {
+	if val, ok := s.settingsCache.Load(key); ok {
 		strVal, ok := val.(string)
 		if !ok {
-			settingsCache.Delete(key)
+			s.settingsCache.Delete(key)
 		} else {
 			if strVal == defaultValueNotFound {
 				return ""
@@ -77,20 +77,25 @@ func (s *DBConfig) GetString(key string) string {
 
 	setting, err := s.settingStore.FindByKey(key)
 	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			// 非“记录不存在”错误（如连接失败/SQL 错误）不应被当作未找到处理。
+			return ""
+		}
+
 		for _, def := range DefaultSettings {
 			if def.Key == key {
 				newSetting := def
 				_ = s.settingStore.Create(&newSetting)
 
-				settingsCache.Store(key, newSetting.Value)
+				s.settingsCache.Store(key, newSetting.Value)
 				return newSetting.Value
 			}
 		}
 
-		settingsCache.Store(key, defaultValueNotFound)
+		s.settingsCache.Store(key, defaultValueNotFound)
 		return ""
 	}
-	settingsCache.Store(key, setting.Value)
+	s.settingsCache.Store(key, setting.Value)
 
 	return setting.Value
 }
