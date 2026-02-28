@@ -6,51 +6,45 @@ import (
 	"perfect-pic-server/internal/service"
 )
 
-type AppUseCase struct {
-	Auth    *AuthUseCase
-	User    *UserUseCase
-	Image   *ImageUseCase
-	Passkey *PasskeyUseCase
-}
 type AuthUseCase struct {
-	authService  service.AuthService
+	authService  *service.AuthService
 	userStore    repository.UserStore
-	userService  service.UserService
-	emailService service.EmailService
-	initService  service.InitService
+	userService  *service.UserService
+	emailService *service.EmailService
+	initService  *service.InitService
 	dbConfig     config.DBConfig
 }
 
 type UserUseCase struct {
-	userService  service.UserService
+	userService  *service.UserService
 	userStore    repository.UserStore
-	emailService service.EmailService
+	emailService *service.EmailService
 	dbConfig     config.DBConfig
 }
 
 type ImageUseCase struct {
-	imageService service.ImageService
-	userService  service.UserService
+	imageService *service.ImageService
+	userService  *service.UserService
 	userStore    repository.UserStore
 	dbConfig     config.DBConfig
 }
 
 type PasskeyUseCase struct {
-	passkeyService service.PasskeyService
+	passkeyService *service.PasskeyService
 	passkeyStore   repository.PasskeyStore
-	authService    service.AuthService
+	authService    *service.AuthService
 	userStore      repository.UserStore
 }
 
 func NewAuthUseCase(
-	authService service.AuthService,
+	authService *service.AuthService,
 	userStore repository.UserStore,
-	userService service.UserService,
-	emailService service.EmailService,
-	initService service.InitService,
+	userService *service.UserService,
+	emailService *service.EmailService,
+	initService *service.InitService,
 	dbConfig *config.DBConfig,
-) AuthUseCase {
-	return AuthUseCase{
+) *AuthUseCase {
+	return &AuthUseCase{
 		authService:  authService,
 		userStore:    userStore,
 		userService:  userService,
@@ -61,12 +55,12 @@ func NewAuthUseCase(
 }
 
 func NewUserUseCase(
-	userService service.UserService,
+	userService *service.UserService,
 	userStore repository.UserStore,
-	emailService service.EmailService,
+	emailService *service.EmailService,
 	dbConfig *config.DBConfig,
-) UserUseCase {
-	return UserUseCase{
+) *UserUseCase {
+	return &UserUseCase{
 		userService:  userService,
 		userStore:    userStore,
 		emailService: emailService,
@@ -75,12 +69,12 @@ func NewUserUseCase(
 }
 
 func NewImageUseCase(
-	imageService service.ImageService,
-	userService service.UserService,
+	imageService *service.ImageService,
+	userService *service.UserService,
 	userStore repository.UserStore,
 	dbConfig *config.DBConfig,
-) ImageUseCase {
-	return ImageUseCase{
+) *ImageUseCase {
+	return &ImageUseCase{
 		imageService: imageService,
 		userService:  userService,
 		userStore:    userStore,
@@ -89,29 +83,15 @@ func NewImageUseCase(
 }
 
 func NewPasskeyUseCase(
-	passkeyService service.PasskeyService,
+	passkeyService *service.PasskeyService,
 	passkeyStore repository.PasskeyStore,
-	authService service.AuthService,
+	authService *service.AuthService,
 	userStore repository.UserStore,
-) PasskeyUseCase {
-	return PasskeyUseCase{
+) *PasskeyUseCase {
+	return &PasskeyUseCase{
 		passkeyService: passkeyService,
 		passkeyStore:   passkeyStore,
 		authService:    authService,
 		userStore:      userStore,
-	}
-}
-
-func NewAppUseCase(
-	authUseCase *AuthUseCase,
-	userUseCase *UserUseCase,
-	imageUseCase *ImageUseCase,
-	passkeyUseCase *PasskeyUseCase,
-) AppUseCase {
-	return AppUseCase{
-		Auth:    authUseCase,
-		User:    userUseCase,
-		Image:   imageUseCase,
-		Passkey: passkeyUseCase,
 	}
 }

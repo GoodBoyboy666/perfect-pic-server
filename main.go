@@ -47,7 +47,7 @@ func main() {
 	if err != nil {
 		log.Fatal("❌ 依赖注入初始化失败: ", err)
 	}
-	if err := app.d.InitializeSettings(); err != nil {
+	if err := app.DbConfig.InitializeSettings(); err != nil {
 		log.Fatal("❌ 初始化默认系统设置失败: ", err)
 	}
 
@@ -59,7 +59,7 @@ func main() {
 	applyTrustedProxies(r)
 	app.Router.Init(r)
 
-	setupStaticFiles(r, app.db, uploadPath, avatarPath)
+	setupStaticFiles(r, app.DbConfig, uploadPath, avatarPath)
 
 	distFS := GetFrontendAssets()
 	indexData := setupFrontend(r, distFS)

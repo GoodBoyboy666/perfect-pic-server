@@ -5,19 +5,14 @@ import (
 	"perfect-pic-server/internal/service"
 )
 
-type AdminUseCase struct {
-	userManage *UserManageUseCase
-	settings   *SettingsUseCase
-	stat       *StatUseCase
-}
 type UserManageUseCase struct {
-	userService    service.UserService
-	imageService   service.ImageService
-	passkeyService service.PasskeyService
+	userService    *service.UserService
+	imageService   *service.ImageService
+	passkeyService *service.PasskeyService
 }
 
 type SettingsUseCase struct {
-	emailService service.EmailService
+	emailService *service.EmailService
 }
 
 type StatUseCase struct {
@@ -26,33 +21,22 @@ type StatUseCase struct {
 }
 
 func NewUserManageUseCase(
-	userService service.UserService,
-	imageService service.ImageService,
-	passkeyService service.PasskeyService,
-) UserManageUseCase {
-	return UserManageUseCase{
+	userService *service.UserService,
+	imageService *service.ImageService,
+	passkeyService *service.PasskeyService,
+) *UserManageUseCase {
+	return &UserManageUseCase{
 		userService:    userService,
 		imageService:   imageService,
 		passkeyService: passkeyService,
 	}
 }
 
-func NewSettingsUseCase(emailService service.EmailService) SettingsUseCase {
-	return SettingsUseCase{emailService: emailService}
+func NewSettingsUseCase(emailService *service.EmailService) *SettingsUseCase {
+	return &SettingsUseCase{emailService: emailService}
 }
 
-func NewStatUseCase(imageStore repository.ImageStore, userStore repository.UserStore) StatUseCase {
-	return StatUseCase{imageStore: imageStore, userStore: userStore}
+func NewStatUseCase(imageStore repository.ImageStore, userStore repository.UserStore) *StatUseCase {
+	return &StatUseCase{imageStore: imageStore, userStore: userStore}
 }
 
-func NewAdminUseCase(
-	userManage *UserManageUseCase,
-	settings *SettingsUseCase,
-	stat *StatUseCase,
-) AdminUseCase {
-	return AdminUseCase{
-		userManage: userManage,
-		settings:   settings,
-		stat:       stat,
-	}
-}

@@ -6,6 +6,6 @@ type DBConfig struct {
 	settingStore settingsrepo.SettingStore
 }
 
-func NewDBConfig(settingStore settingsrepo.SettingStore) DBConfig {
-	return DBConfig{settingStore: settingStore}
+func NewDBConfig(settingStore settingsrepo.SettingStore) *DBConfig {
+	return &DBConfig{settingStore: settingStore}
 }
