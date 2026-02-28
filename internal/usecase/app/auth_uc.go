@@ -52,10 +52,6 @@ func (c *AuthUseCase) RegisterUser(username, password, email string) error {
 		return httpx.NewAuthError(httpx.AuthErrorForbidden, "注册功能已关闭")
 	}
 
-	if c.userStore == nil {
-		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
-	}
-
 	usernameTaken, err := c.userService.IsUsernameTaken(username, nil, true)
 	if err != nil {
 		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
@@ -151,10 +147,6 @@ func (c *AuthUseCase) VerifyEmail(token string) (bool, error) {
 
 // VerifyEmailChange 验证邮箱变更令牌并更新邮箱。
 func (c *AuthUseCase) VerifyEmailChange(token string) error {
-	if c.userStore == nil {
-		return httpx.NewAuthError(httpx.AuthErrorInternal, "邮箱修改失败，请稍后重试")
-	}
-
 	payload, ok := c.userService.VerifyEmailChangeToken(token)
 	if !ok {
 		return httpx.NewAuthError(httpx.AuthErrorValidation, "验证链接已失效或不正确")
@@ -204,10 +196,6 @@ func (c *AuthUseCase) RequestPasswordReset(email string) error {
 		return httpx.NewAuthError(httpx.AuthErrorForbidden, "该账号已被封禁或停用，无法重置密码")
 	}
 
-	if c.userStore == nil {
-		return httpx.NewAuthError(httpx.AuthErrorInternal, "生成重置链接失败，请稍后重试")
-	}
-
 	token, err := c.userService.GenerateForgetPasswordToken(user.ID)
 	if err != nil {
 		return httpx.NewAuthError(httpx.AuthErrorInternal, "生成重置链接失败，请稍后重试")
@@ -235,10 +223,6 @@ func (c *AuthUseCase) RequestPasswordReset(email string) error {
 func (c *AuthUseCase) ResetPassword(token, newPassword string) error {
 	if ok, msg := utils.ValidatePassword(newPassword); !ok {
 		return httpx.NewAuthError(httpx.AuthErrorValidation, msg)
-	}
-
-	if c.userStore == nil {
-		return httpx.NewAuthError(httpx.AuthErrorInternal, "密码重置失败")
 	}
 
 	userID, valid := c.userService.VerifyForgetPasswordToken(token)

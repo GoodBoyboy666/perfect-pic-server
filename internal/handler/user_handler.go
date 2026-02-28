@@ -142,11 +142,6 @@ func (h *UserHandler) UpdateSelfAvatar(c *gin.Context) {
 		return
 	}
 
-	if h.imageService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "服务不可用"})
-		return
-	}
-
 	valid, ext, err := h.imageService.ValidateImageFile(file)
 	if !valid {
 		httpx.WriteServiceError(c, err, "头像文件校验失败")
