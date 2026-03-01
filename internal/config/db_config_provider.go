@@ -1,7 +1,9 @@
 package config
 
-import settingsrepo "perfect-pic-server/internal/repository"
-import "sync"
+import (
+	settingsrepo "perfect-pic-server/internal/repository"
+	"sync"
+)
 
 type DBConfig struct {
 	settingStore  settingsrepo.SettingStore

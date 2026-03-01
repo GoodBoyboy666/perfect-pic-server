@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	commonpkg "perfect-pic-server/internal/common"
@@ -302,7 +303,7 @@ func (s *PasskeyService) ParsePasskeyUserHandle(userHandle []byte) (uint, error)
 	if err != nil || parsed == 0 {
 		return 0, errors.New("invalid user handle")
 	}
-	if parsed > uint64(^uint(0)) {
+	if parsed > math.MaxUint32 {
 		return 0, errors.New("user handle overflows uint")
 	}
 	return uint(parsed), nil

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"log"
+	"math"
 	"net/http"
 	platformservice "perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/common/httpx"
@@ -72,7 +73,7 @@ func (h *ImageHandler) GetMyImages(c *gin.Context) {
 	var imageID *uint
 	if idStr != "" {
 		parsed, err := strconv.ParseUint(idStr, 10, 64)
-		if err != nil || parsed == 0 {
+		if err != nil || parsed == 0 || parsed > math.MaxUint32 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "id 参数错误"})
 			return
 		}
@@ -110,7 +111,7 @@ func (h *ImageHandler) DeleteMyImage(c *gin.Context) {
 	}
 
 	id, err := strconv.ParseUint(idParam, 10, 64)
-	if err != nil || id == 0 {
+	if err != nil || id == 0 || id > math.MaxUint32 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "id 参数错误"})
 		return
 	}
