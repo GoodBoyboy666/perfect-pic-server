@@ -303,7 +303,7 @@ func (s *PasskeyService) ParsePasskeyUserHandle(userHandle []byte) (uint, error)
 	if err != nil || parsed == 0 {
 		return 0, errors.New("invalid user handle")
 	}
-	if parsed > math.MaxUint32 {
+	if parsed > math.MaxUint {
 		return 0, errors.New("user handle overflows uint")
 	}
 	return uint(parsed), nil

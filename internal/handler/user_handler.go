@@ -288,7 +288,7 @@ func (h *UserHandler) DeleteSelfPasskey(c *gin.Context) {
 
 	idParam := c.Param("id")
 	passkeyID, err := strconv.ParseUint(idParam, 10, 64)
-	if err != nil || passkeyID == 0 || passkeyID > math.MaxUint32 {
+	if err != nil || passkeyID == 0 || passkeyID > math.MaxUint {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "id 参数错误"})
 		return
 	}
@@ -317,7 +317,7 @@ func (h *UserHandler) UpdateSelfPasskeyName(c *gin.Context) {
 
 	idParam := c.Param("id")
 	passkeyID, err := strconv.ParseUint(idParam, 10, 64)
-	if err != nil || passkeyID == 0 || passkeyID > math.MaxUint32 {
+	if err != nil || passkeyID == 0 || passkeyID > math.MaxUint {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "id 参数错误"})
 		return
 	}

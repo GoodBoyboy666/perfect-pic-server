@@ -73,7 +73,7 @@ func (h *ImageHandler) GetMyImages(c *gin.Context) {
 	var imageID *uint
 	if idStr != "" {
 		parsed, err := strconv.ParseUint(idStr, 10, 64)
-		if err != nil || parsed == 0 || parsed > math.MaxUint32 {
+		if err != nil || parsed == 0 || parsed > math.MaxUint {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "id 参数错误"})
 			return
 		}
@@ -111,7 +111,7 @@ func (h *ImageHandler) DeleteMyImage(c *gin.Context) {
 	}
 
 	id, err := strconv.ParseUint(idParam, 10, 64)
-	if err != nil || id == 0 || id > math.MaxUint32 {
+	if err != nil || id == 0 || id > math.MaxUint {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "id 参数错误"})
 		return
 	}
