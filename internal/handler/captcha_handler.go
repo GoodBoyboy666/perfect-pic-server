@@ -2,23 +2,23 @@ package handler
 
 import (
 	"net/http"
-	"perfect-pic-server/internal/service"
+	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )
 
 // GetCaptcha 获取验证码
-func GetCaptcha(c *gin.Context) {
-	providerInfo := service.GetCaptchaProviderInfo()
-	if providerInfo.Provider == service.CaptchaProviderDisabled {
+func (h *AuthHandler) GetCaptcha(c *gin.Context) {
+	providerInfo := h.captchaService.GetCaptchaProviderInfo()
+	if providerInfo.Provider == consts.CaptchaProviderDisabled {
 		c.JSON(http.StatusOK, gin.H{
 			"provider": providerInfo.Provider,
 		})
 		return
 	}
 
-	if providerInfo.Provider == service.CaptchaProviderTurnstile {
+	if providerInfo.Provider == consts.CaptchaProviderTurnstile {
 		c.JSON(http.StatusOK, gin.H{
 			"provider":      providerInfo.Provider,
 			"public_config": providerInfo.PublicConfig,
@@ -26,7 +26,7 @@ func GetCaptcha(c *gin.Context) {
 		return
 	}
 
-	if providerInfo.Provider == service.CaptchaProviderRecaptcha {
+	if providerInfo.Provider == consts.CaptchaProviderRecaptcha {
 		c.JSON(http.StatusOK, gin.H{
 			"provider":      providerInfo.Provider,
 			"public_config": providerInfo.PublicConfig,
@@ -34,7 +34,7 @@ func GetCaptcha(c *gin.Context) {
 		return
 	}
 
-	if providerInfo.Provider == service.CaptchaProviderHcaptcha {
+	if providerInfo.Provider == consts.CaptchaProviderHcaptcha {
 		c.JSON(http.StatusOK, gin.H{
 			"provider":      providerInfo.Provider,
 			"public_config": providerInfo.PublicConfig,
@@ -42,7 +42,7 @@ func GetCaptcha(c *gin.Context) {
 		return
 	}
 
-	if providerInfo.Provider == service.CaptchaProviderGeetest {
+	if providerInfo.Provider == consts.CaptchaProviderGeetest {
 		c.JSON(http.StatusOK, gin.H{
 			"provider":      providerInfo.Provider,
 			"public_config": providerInfo.PublicConfig,
@@ -56,9 +56,9 @@ func GetCaptcha(c *gin.Context) {
 }
 
 // GetCaptchaImage 获取图形验证码图片
-func GetCaptchaImage(c *gin.Context) {
-	providerInfo := service.GetCaptchaProviderInfo()
-	if providerInfo.Provider != service.CaptchaProviderImage {
+func (h *AuthHandler) GetCaptchaImage(c *gin.Context) {
+	providerInfo := h.captchaService.GetCaptchaProviderInfo()
+	if providerInfo.Provider != consts.CaptchaProviderImage {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "当前验证码模式非图形验证码"})
 		return
 	}

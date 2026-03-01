@@ -3,7 +3,9 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
+	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/service"
 	"strconv"
@@ -27,7 +29,18 @@ type client struct {
 	lastSeen time.Time
 }
 
-const defaultSensitiveOperationInterval = 2 * time.Minute
+type redisFallbackLogState struct {
+	mu         sync.Mutex
+	degraded   bool
+	lastWarnAt time.Time
+}
+
+const (
+	defaultSensitiveOperationInterval = 2 * time.Minute
+	redisFallbackLogInterval          = 1 * time.Minute
+)
+
+var redisFallbackLogStates sync.Map
 
 func NewIPRateLimiter(r rate.Limit, b int) *IPRateLimiter {
 	i := &IPRateLimiter{
@@ -38,6 +51,66 @@ func NewIPRateLimiter(r rate.Limit, b int) *IPRateLimiter {
 	go i.cleanupLoop()
 
 	return i
+}
+
+func getRedisFallbackLogState(scope string) *redisFallbackLogState {
+	state, _ := redisFallbackLogStates.LoadOrStore(scope, &redisFallbackLogState{})
+	typedState, ok := state.(*redisFallbackLogState)
+	if !ok {
+		fallbackState := &redisFallbackLogState{}
+		redisFallbackLogStates.Store(scope, fallbackState)
+		return fallbackState
+	}
+	return typedState
+}
+
+func logRedisFallbackDegraded(scope string, err error) {
+	logRedisFallbackDegradedWithTarget(scope, "内存限流", err)
+}
+
+func logRedisFallbackDegradedWithTarget(scope string, fallbackTarget string, err error) {
+	state := getRedisFallbackLogState(scope)
+	now := time.Now()
+
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	if !state.degraded {
+		state.degraded = true
+		state.lastWarnAt = now
+		log.Printf(
+			"⚠️ Redis %s 检查失败，已降级到%s（后续每 %s 最多记录一次）: %v",
+			scope,
+			fallbackTarget,
+			redisFallbackLogInterval,
+			err,
+		)
+		return
+	}
+
+	if now.Sub(state.lastWarnAt) >= redisFallbackLogInterval {
+		state.lastWarnAt = now
+		log.Printf("⚠️ Redis %s 仍不可用，继续使用%s: %v", scope, fallbackTarget, err)
+	}
+}
+
+func logRedisFallbackRecovered(scope string) {
+	logRedisFallbackRecoveredWithTarget(scope, "Redis 限流")
+}
+
+func logRedisFallbackRecoveredWithTarget(scope string, recoveredTarget string) {
+	state := getRedisFallbackLogState(scope)
+
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	if !state.degraded {
+		return
+	}
+
+	state.degraded = false
+	state.lastWarnAt = time.Time{}
+	log.Printf("✅ Redis %s 已恢复，切回%s", scope, recoveredTarget)
 }
 
 func (i *IPRateLimiter) getLimiter(ip string) *rate.Limiter {
@@ -84,7 +157,7 @@ func (i *IPRateLimiter) cleanupLoop() {
 
 // RateLimitMiddleware 按“每秒速率 + 突发容量”进行限流（令牌桶）。
 // rpsKey/burstKey 分别对应配置中的 RPS 和 Burst。
-func RateLimitMiddleware(rpsKey string, burstKey string) gin.HandlerFunc {
+func RateLimitMiddleware(dbConfig *config.DBConfig, rpsKey string, burstKey string) gin.HandlerFunc {
 	// 每个中间件实例共用一个 IPRateLimiter，并按 IP 复用 limiter。
 	// 这样可以避免每次请求都创建新 limiter。
 	var limiter *IPRateLimiter
@@ -92,14 +165,14 @@ func RateLimitMiddleware(rpsKey string, burstKey string) gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		// 检查总开关
-		if !service.GetBool(consts.ConfigRateLimitEnabled) {
+		if !dbConfig.GetBool(consts.ConfigRateLimitEnabled) {
 			c.Next()
 			return
 		}
 
 		// 获取当前配置
-		currentRPS := service.GetFloat64(rpsKey)
-		currentBurst := service.GetInt(burstKey)
+		currentRPS := dbConfig.GetFloat64(rpsKey)
+		currentBurst := dbConfig.GetInt(burstKey)
 
 		// 初始化 Limiter
 		once.Do(func() {
@@ -112,6 +185,7 @@ func RateLimitMiddleware(rpsKey string, burstKey string) gin.HandlerFunc {
 		if redisClient := service.GetRedisClient(); redisClient != nil {
 			allowed, err := allowByRedisRateLimit(redisClient, "rate", rpsKey, burstKey, ip, currentRPS, currentBurst)
 			if err == nil {
+				logRedisFallbackRecovered("令牌桶限流")
 				if !allowed {
 					c.JSON(http.StatusTooManyRequests, gin.H{"error": "请求过于频繁，请稍后再试"})
 					c.Abort()
@@ -120,6 +194,7 @@ func RateLimitMiddleware(rpsKey string, burstKey string) gin.HandlerFunc {
 				c.Next()
 				return
 			}
+			logRedisFallbackDegraded("令牌桶限流", err)
 		}
 
 		l := limiter.getLimiter(ip)
@@ -143,7 +218,7 @@ func RateLimitMiddleware(rpsKey string, burstKey string) gin.HandlerFunc {
 
 // IntervalRateMiddleware 按数据库配置的最小调用间隔进行限流。
 // intervalKey 对应设置项，值为秒数（int），例如 120 表示 2 分钟。
-func IntervalRateMiddleware(intervalKey string) gin.HandlerFunc {
+func IntervalRateMiddleware(dbConfig *config.DBConfig, intervalKey string) gin.HandlerFunc {
 	// 每个中间件实例维护自己的访问时间表，并通过 sync.Once 确保清理协程只启动一次。
 	var requestTimes sync.Map
 	var cleanupOnce sync.Once
@@ -155,7 +230,7 @@ func IntervalRateMiddleware(intervalKey string) gin.HandlerFunc {
 
 			for range ticker.C {
 				now := time.Now()
-				interval := getIntervalBySettingKey(intervalKey)
+				interval := getIntervalBySettingKey(dbConfig, intervalKey)
 				requestTimes.Range(func(key, value interface{}) bool {
 					t, ok := value.(time.Time)
 					if !ok {
@@ -174,20 +249,21 @@ func IntervalRateMiddleware(intervalKey string) gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		// 检查是否开启敏感操作限流
-		if !service.GetBool(consts.ConfigEnableSensitiveRateLimit) {
+		if !dbConfig.GetBool(consts.ConfigEnableSensitiveRateLimit) {
 			c.Next()
 			return
 		}
 
 		cleanupOnce.Do(startCleanupLoop)
 
-		interval := getIntervalBySettingKey(intervalKey)
+		interval := getIntervalBySettingKey(dbConfig, intervalKey)
 
 		ip := c.ClientIP()
 
 		if redisClient := service.GetRedisClient(); redisClient != nil {
 			ok, err := allowByRedisInterval(redisClient, intervalKey, ip, interval)
 			if err == nil {
+				logRedisFallbackRecovered("间隔限流")
 				if !ok {
 					c.JSON(http.StatusTooManyRequests, gin.H{"error": fmt.Sprintf("操作过于频繁，请等待 %v 后再试", interval)})
 					c.Abort()
@@ -196,6 +272,7 @@ func IntervalRateMiddleware(intervalKey string) gin.HandlerFunc {
 				c.Next()
 				return
 			}
+			logRedisFallbackDegraded("间隔限流", err)
 		}
 
 		val, ok := requestTimes.Load(ip)
@@ -214,8 +291,8 @@ func IntervalRateMiddleware(intervalKey string) gin.HandlerFunc {
 	}
 }
 
-func getIntervalBySettingKey(intervalKey string) time.Duration {
-	seconds := service.GetInt(intervalKey)
+func getIntervalBySettingKey(dbConfig *config.DBConfig, intervalKey string) time.Duration {
+	seconds := dbConfig.GetInt(intervalKey)
 	if seconds <= 0 {
 		return defaultSensitiveOperationInterval
 	}
@@ -227,11 +304,17 @@ func allowByRedisInterval(client *redis.Client, namespace, ip string, interval t
 	defer cancel()
 
 	key := service.RedisKey("middleware", namespace, ip)
-	ok, err := client.SetNX(ctx, key, "1", interval).Result()
+	result, err := client.SetArgs(ctx, key, "1", redis.SetArgs{
+		Mode: "NX",
+		TTL:  interval,
+	}).Result()
 	if err != nil {
+		if err == redis.Nil {
+			return false, nil
+		}
 		return false, err
 	}
-	return ok, nil
+	return result == "OK", nil
 }
 
 func allowByRedisRateLimit(client *redis.Client, namespace, rpsKey, burstKey, ip string, rps float64, burst int) (bool, error) {

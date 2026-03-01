@@ -74,9 +74,6 @@ const (
 	// ConfigStaticCacheControl 静态资源缓存设置 (Cache-Control header value)
 	ConfigStaticCacheControl = "static_cache_control"
 
-	// ConfigTrustedProxies 可信代理列表 (逗号分隔，留空表示不信任代理头)
-	ConfigTrustedProxies = "trusted_proxies"
-
 	// ConfigCaptchaProvider 验证码提供方 (image, turnstile, recaptcha, hcaptcha, geetest)
 	ConfigCaptchaProvider = "captcha_provider"
 

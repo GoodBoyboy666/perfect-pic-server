@@ -45,8 +45,8 @@ type PasswordResetData struct {
 
 var strictEmailRegex = regexp.MustCompile(`[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z0-9]+`)
 
-func shouldSendEmail() bool {
-	if !GetBool(consts.ConfigEnableSMTP) {
+func (s *EmailService) ShouldSendEmail() bool {
+	if !s.dbConfig.GetBool(consts.ConfigEnableSMTP) {
 		return false
 	}
 	cfg := config.Get()
@@ -54,9 +54,9 @@ func shouldSendEmail() bool {
 }
 
 // SendVerificationEmail 发送验证邮件
-func SendVerificationEmail(toEmail, username, verifyUrl string) error {
+func (s *EmailService) SendVerificationEmail(toEmail, username, verifyUrl string) error {
 	// 检查是否开启 SMTP
-	if !GetBool(consts.ConfigEnableSMTP) {
+	if !s.dbConfig.GetBool(consts.ConfigEnableSMTP) {
 		return nil
 	}
 
@@ -67,7 +67,7 @@ func SendVerificationEmail(toEmail, username, verifyUrl string) error {
 
 	auth := smtp.PlainAuth("", cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.Host)
 
-	siteName := GetString(consts.ConfigSiteName)
+	siteName := s.dbConfig.GetString(consts.ConfigSiteName)
 	if siteName == "" {
 		siteName = "Perfect Pic"
 	}
@@ -126,7 +126,7 @@ func SendVerificationEmail(toEmail, username, verifyUrl string) error {
 }
 
 // SendTestEmail 发送测试邮件
-func SendTestEmail(toEmail string) error {
+func (s *EmailService) SendTestEmail(toEmail string) error {
 	cfg := config.Get()
 	if cfg.SMTP.Host == "" {
 		return fmt.Errorf("SMTP Host 未配置")
@@ -134,7 +134,7 @@ func SendTestEmail(toEmail string) error {
 
 	auth := smtp.PlainAuth("", cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.Host)
 
-	siteName := GetString(consts.ConfigSiteName)
+	siteName := s.dbConfig.GetString(consts.ConfigSiteName)
 	if siteName == "" {
 		siteName = "Perfect Pic"
 	}
@@ -185,9 +185,9 @@ func SendTestEmail(toEmail string) error {
 }
 
 // SendEmailChangeVerification 发送修改邮箱验证邮件
-func SendEmailChangeVerification(toEmail, username, oldEmail, newEmail, verifyUrl string) error {
+func (s *EmailService) SendEmailChangeVerification(toEmail, username, oldEmail, newEmail, verifyUrl string) error {
 	// 检查是否开启 SMTP
-	if !GetBool(consts.ConfigEnableSMTP) {
+	if !s.dbConfig.GetBool(consts.ConfigEnableSMTP) {
 		return nil
 	}
 
@@ -198,7 +198,7 @@ func SendEmailChangeVerification(toEmail, username, oldEmail, newEmail, verifyUr
 
 	auth := smtp.PlainAuth("", cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.Host)
 
-	siteName := GetString(consts.ConfigSiteName)
+	siteName := s.dbConfig.GetString(consts.ConfigSiteName)
 	if siteName == "" {
 		siteName = "Perfect Pic"
 	}
@@ -257,9 +257,9 @@ func SendEmailChangeVerification(toEmail, username, oldEmail, newEmail, verifyUr
 }
 
 // SendPasswordResetEmail 发送重置密码邮件
-func SendPasswordResetEmail(toEmail, username, resetUrl string) error {
+func (s *EmailService) SendPasswordResetEmail(toEmail, username, resetUrl string) error {
 	// 检查是否开启 SMTP
-	if !GetBool(consts.ConfigEnableSMTP) {
+	if !s.dbConfig.GetBool(consts.ConfigEnableSMTP) {
 		return nil
 	}
 
@@ -270,7 +270,7 @@ func SendPasswordResetEmail(toEmail, username, resetUrl string) error {
 
 	auth := smtp.PlainAuth("", cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.Host)
 
-	siteName := GetString(consts.ConfigSiteName)
+	siteName := s.dbConfig.GetString(consts.ConfigSiteName)
 	if siteName == "" {
 		siteName = "Perfect Pic"
 	}
@@ -343,14 +343,14 @@ func sendMailWithSSL(addr string, auth smtp.Auth, from string, to []string, msg 
 		log.Printf("[Email] TLS 连接失败: %v", err)
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	client, err := smtp.NewClient(conn, cfg.SMTP.Host)
 	if err != nil {
 		log.Printf("[Email] 创建 SMTP 客户端失败: %v", err)
 		return err
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// 认证
 	if auth != nil {

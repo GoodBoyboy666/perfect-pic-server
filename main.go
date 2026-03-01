@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -12,10 +13,9 @@ import (
 	"os/signal"
 	"path/filepath"
 	"perfect-pic-server/internal/config"
-	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/db"
+	"perfect-pic-server/internal/di"
 	"perfect-pic-server/internal/middleware"
-	"perfect-pic-server/internal/router"
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/utils"
 	"strings"
@@ -43,7 +43,13 @@ func main() {
 	_ = service.GetRedisClient()
 	defer func() { _ = service.CloseRedisClient() }()
 	db.InitDB()
-	service.InitializeSettings()
+	app, err := di.InitializeApplication(db.DB)
+	if err != nil {
+		log.Fatal("❌ 依赖注入初始化失败: ", err)
+	}
+	if err := app.DbConfig.InitializeSettings(); err != nil {
+		log.Fatal("❌ 初始化默认系统设置失败: ", err)
+	}
 
 	uploadPath, avatarPath := ensureDirectories()
 
@@ -51,9 +57,9 @@ func main() {
 
 	r := gin.Default()
 	applyTrustedProxies(r)
-	router.InitRouter(r)
+	app.Router.Init(r)
 
-	setupStaticFiles(r, uploadPath, avatarPath)
+	setupStaticFiles(r, app.DbConfig, uploadPath, avatarPath)
 
 	distFS := GetFrontendAssets()
 	indexData := setupFrontend(r, distFS)
@@ -87,12 +93,12 @@ func ensureDirectories() (string, string) {
 	return uploadPath, avatarPath
 }
 
-func setupStaticFiles(r *gin.Engine, uploadPath, avatarPath string) {
+func setupStaticFiles(r *gin.Engine, dbConfig *config.DBConfig, uploadPath, avatarPath string) {
 	// 使用带缓存控制的静态文件服务
-	r.Group(config.Get().Upload.URLPrefix, middleware.StaticCacheMiddleware()).
+	r.Group(config.Get().Upload.URLPrefix, middleware.StaticCacheMiddleware(dbConfig)).
 		StaticFS("", gin.Dir(uploadPath, false))
 
-	r.Group(config.Get().Upload.AvatarURLPrefix, middleware.StaticCacheMiddleware()).
+	r.Group(config.Get().Upload.AvatarURLPrefix, middleware.StaticCacheMiddleware(dbConfig)).
 		StaticFS("", gin.Dir(avatarPath, false))
 }
 
@@ -151,7 +157,7 @@ func startServer(r *gin.Engine) {
 	go func() {
 		// 服务连接
 		log.Printf("🚀 服务启动成功，运行在 :%s\n", config.Get().Server.Port)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("❌ 服务启动失败: %s\n", err)
 		}
 	}()
@@ -267,7 +273,7 @@ func checkSecurePath(path string) {
 }
 
 func applyTrustedProxies(r *gin.Engine) {
-	raw := strings.TrimSpace(service.GetString(consts.ConfigTrustedProxies))
+	raw := strings.TrimSpace(config.Get().Server.TrustedProxies)
 	if raw == "" {
 		if err := r.SetTrustedProxies(nil); err != nil {
 			log.Printf("⚠️ 设置可信代理失败: %v", err)

@@ -2,15 +2,17 @@ package handler
 
 import (
 	"log"
+	"math"
 	"net/http"
-	"perfect-pic-server/internal/service"
+	platformservice "perfect-pic-server/internal/common"
+	"perfect-pic-server/internal/common/httpx"
+	moduledto "perfect-pic-server/internal/dto"
 	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-func UploadImage(c *gin.Context) {
+func (h *ImageHandler) UploadImage(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择文件"})
@@ -29,18 +31,12 @@ func UploadImage(c *gin.Context) {
 		return
 	}
 
-	imageRecord, url, err := service.ProcessImageUpload(file, uid)
+	imageRecord, url, err := h.imageUseCase.ProcessImageUpload(file, uid)
 	if err != nil {
-		errStr := err.Error()
-		if strings.Contains(errStr, "存储空间不足") {
-			c.JSON(http.StatusForbidden, gin.H{"error": errStr})
-		} else if strings.Contains(errStr, "不支持的文件类型") || strings.Contains(errStr, "文件大小") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": errStr})
-		} else {
-			// 对于其他错误（包括系统错误），记录日志并返回通用错误信息
+		if _, ok := platformservice.AsServiceError(err); !ok {
 			log.Printf("Upload failed: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "上传失败，请稍后重试"})
 		}
+		httpx.WriteServiceError(c, err, "上传失败，请稍后重试")
 		return
 	}
 
@@ -51,13 +47,13 @@ func UploadImage(c *gin.Context) {
 	})
 }
 
-func GetMyImages(c *gin.Context) {
+func (h *ImageHandler) GetMyImages(c *gin.Context) {
 	userID, _ := c.Get("id")
 
 	pageStr := c.DefaultQuery("page", "1")
 	pageSizeStr := c.DefaultQuery("page_size", "10")
 	filename := c.Query("filename")
-	id := c.Query("id")
+	idStr := c.Query("id")
 
 	page, _ := strconv.Atoi(pageStr)
 	pageSize, _ := strconv.Atoi(pageSizeStr)
@@ -74,11 +70,22 @@ func GetMyImages(c *gin.Context) {
 		return
 	}
 
-	images, total, page, pageSize, err := service.ListUserImages(service.UserImageListParams{
-		PaginationQuery: service.PaginationQuery{Page: page, PageSize: pageSize},
-		UserID:          uid,
-		Filename:        filename,
-		ID:              id,
+	var imageID *uint
+	if idStr != "" {
+		parsed, err := strconv.ParseUint(idStr, 10, 64)
+		if err != nil || parsed == 0 || parsed > math.MaxUint {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "id 参数错误"})
+			return
+		}
+		id := uint(parsed)
+		imageID = &id
+	}
+
+	images, total, page, pageSize, err := h.imageService.ListUserImages(moduledto.UserImageListRequest{
+		PaginationRequest: moduledto.PaginationRequest{Page: page, PageSize: pageSize},
+		UserID:            uid,
+		Filename:          filename,
+		ID:                imageID,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取图片列表失败"})
@@ -94,23 +101,29 @@ func GetMyImages(c *gin.Context) {
 }
 
 // DeleteMyImage 用户删除自己的图片
-func DeleteMyImage(c *gin.Context) {
+func (h *ImageHandler) DeleteMyImage(c *gin.Context) {
 	userID, _ := c.Get("id")
-	id := c.Param("id")
+	idParam := c.Param("id")
 	uid, ok := userID.(uint)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的用户ID类型"})
 		return
 	}
 
-	image, err := service.GetUserOwnedImage(id, uid)
+	id, err := strconv.ParseUint(idParam, 10, 64)
+	if err != nil || id == 0 || id > math.MaxUint {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id 参数错误"})
+		return
+	}
+
+	image, err := h.imageService.GetUserOwnedImage(uint(id), uid)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "图片不存在或无权删除"})
 		return
 	}
 
-	if err := service.DeleteImage(image); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
+	if err := h.imageService.DeleteImage(image); err != nil {
+		httpx.WriteServiceError(c, err, "删除失败")
 		return
 	}
 
@@ -118,7 +131,7 @@ func DeleteMyImage(c *gin.Context) {
 }
 
 // BatchDeleteMyImages 批量删除用户自己的图片
-func BatchDeleteMyImages(c *gin.Context) {
+func (h *ImageHandler) BatchDeleteMyImages(c *gin.Context) {
 	userID, _ := c.Get("id")
 	uid, ok := userID.(uint)
 	if !ok {
@@ -126,25 +139,23 @@ func BatchDeleteMyImages(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		Ids []uint `json:"ids" binding:"required"`
-	}
+	var req moduledto.BatchDeleteImagesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
 
-	if len(req.Ids) == 0 {
+	if len(req.IDs) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请选择要删除的图片"})
 		return
 	}
 
-	if len(req.Ids) > 50 {
+	if len(req.IDs) > 50 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "一次最多只能删除 50 张图片"})
 		return
 	}
 
-	images, err := service.GetImagesByIDsForUser(req.Ids, uid)
+	images, err := h.imageService.GetImagesByIDsForUser(req.IDs, uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查找图片失败"})
 		return
@@ -155,8 +166,8 @@ func BatchDeleteMyImages(c *gin.Context) {
 		return
 	}
 
-	if err := service.BatchDeleteImages(images); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除失败"})
+	if err := h.imageService.BatchDeleteImages(images); err != nil {
+		httpx.WriteServiceError(c, err, "删除失败")
 		return
 	}
 

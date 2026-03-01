@@ -45,9 +45,13 @@ RUN apk add --no-cache git
 # 先复制 go.mod 和 go.sum 以利用层缓存
 COPY go.mod go.sum ./
 RUN go mod download
+RUN go install github.com/google/wire/cmd/wire@v0.7.0
 
 # 复制后端源码
 COPY . .
+
+# 生成依赖注入代码
+RUN /go/bin/wire ./internal/di
 
 # 复制构建好的前端资源
 # 注意：我们将构建产物直接复制到 frontend 目录，这与 build.sh 中的逻辑一致

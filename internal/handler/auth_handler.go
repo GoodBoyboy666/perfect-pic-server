@@ -2,44 +2,28 @@ package handler
 
 import (
 	"net/http"
+	"perfect-pic-server/internal/common/httpx"
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/service"
+	moduledto "perfect-pic-server/internal/dto"
 
 	"github.com/gin-gonic/gin"
 )
 
-func Login(c *gin.Context) {
-	var req struct {
-		Username      string `json:"username" binding:"required"`
-		Password      string `json:"password" binding:"required"`
-		CaptchaID     string `json:"captcha_id"`
-		CaptchaAnswer string `json:"captcha_answer"`
-		CaptchaToken  string `json:"captcha_token"`
-	}
+func (h *AuthHandler) Login(c *gin.Context) {
+	var req moduledto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
 
-	if verified, msg := service.VerifyCaptchaChallenge(req.CaptchaID, req.CaptchaAnswer, req.CaptchaToken, c.ClientIP()); !verified {
+	if verified, msg := h.captchaService.VerifyCaptchaChallenge(req.CaptchaID, req.CaptchaAnswer, req.CaptchaToken, c.ClientIP()); !verified {
 		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
 		return
 	}
 
-	token, err := service.LoginUser(req.Username, req.Password)
+	token, err := h.authUseCase.LoginUser(req.Username, req.Password)
 	if err != nil {
-		if authErr, ok := service.AsAuthError(err); ok {
-			switch authErr.Code {
-			case service.AuthErrorUnauthorized:
-				c.JSON(http.StatusUnauthorized, gin.H{"error": authErr.Message})
-			case service.AuthErrorForbidden:
-				c.JSON(http.StatusForbidden, gin.H{"error": authErr.Message})
-			default:
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "登录失败，请稍后重试"})
-			}
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "登录失败，请稍后重试"})
+		httpx.WriteServiceError(c, err, "登录失败，请稍后重试")
 		return
 	}
 
@@ -49,70 +33,37 @@ func Login(c *gin.Context) {
 	})
 }
 
-func Register(c *gin.Context) {
-	var req struct {
-		Username      string `json:"username" binding:"required"`
-		Password      string `json:"password" binding:"required"`
-		Email         string `json:"email" binding:"required"`
-		CaptchaID     string `json:"captcha_id"`
-		CaptchaAnswer string `json:"captcha_answer"`
-		CaptchaToken  string `json:"captcha_token"`
-	}
+func (h *AuthHandler) Register(c *gin.Context) {
+	var req moduledto.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数格式错误"})
 		return
 	}
 
-	if verified, msg := service.VerifyCaptchaChallenge(req.CaptchaID, req.CaptchaAnswer, req.CaptchaToken, c.ClientIP()); !verified {
+	if verified, msg := h.captchaService.VerifyCaptchaChallenge(req.CaptchaID, req.CaptchaAnswer, req.CaptchaToken, c.ClientIP()); !verified {
 		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
 		return
 	}
 
-	if err := service.RegisterUser(req.Username, req.Password, req.Email); err != nil {
-		if authErr, ok := service.AsAuthError(err); ok {
-			switch authErr.Code {
-			case service.AuthErrorValidation:
-				c.JSON(http.StatusBadRequest, gin.H{"error": authErr.Message})
-			case service.AuthErrorForbidden:
-				c.JSON(http.StatusForbidden, gin.H{"error": authErr.Message})
-			case service.AuthErrorConflict:
-				c.JSON(http.StatusConflict, gin.H{"error": authErr.Message})
-			default:
-				c.JSON(http.StatusInternalServerError, gin.H{"error": authErr.Message})
-			}
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "注册失败，请稍后重试"})
+	if err := h.authUseCase.RegisterUser(req.Username, req.Password, req.Email); err != nil {
+		httpx.WriteServiceError(c, err, "注册失败，请稍后重试")
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "注册成功，请前往邮箱验证"})
 }
 
-func EmailVerify(c *gin.Context) {
-	var req struct {
-		Token string `json:"token" binding:"required"`
-	}
+func (h *AuthHandler) EmailVerify(c *gin.Context) {
+	var req moduledto.TokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
 	tokenString := req.Token
 
-	alreadyVerified, err := service.VerifyEmail(tokenString)
+	alreadyVerified, err := h.authUseCase.VerifyEmail(tokenString)
 	if err != nil {
-		if authErr, ok := service.AsAuthError(err); ok {
-			switch authErr.Code {
-			case service.AuthErrorValidation:
-				c.JSON(http.StatusBadRequest, gin.H{"error": authErr.Message})
-			case service.AuthErrorNotFound:
-				c.JSON(http.StatusNotFound, gin.H{"error": authErr.Message})
-			default:
-				c.JSON(http.StatusInternalServerError, gin.H{"error": authErr.Message})
-			}
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "验证失败，请稍后重试"})
+		httpx.WriteServiceError(c, err, "验证失败，请稍后重试")
 		return
 	}
 
@@ -124,31 +75,16 @@ func EmailVerify(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "邮箱验证成功，现在可以登录了"})
 }
 
-func EmailChangeVerify(c *gin.Context) {
-	var req struct {
-		Token string `json:"token" binding:"required"`
-	}
+func (h *AuthHandler) EmailChangeVerify(c *gin.Context) {
+	var req moduledto.TokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
 	tokenString := req.Token
 
-	if err := service.VerifyEmailChange(tokenString); err != nil {
-		if authErr, ok := service.AsAuthError(err); ok {
-			switch authErr.Code {
-			case service.AuthErrorValidation:
-				c.JSON(http.StatusBadRequest, gin.H{"error": authErr.Message})
-			case service.AuthErrorConflict:
-				c.JSON(http.StatusConflict, gin.H{"error": authErr.Message})
-			case service.AuthErrorNotFound:
-				c.JSON(http.StatusNotFound, gin.H{"error": authErr.Message})
-			default:
-				c.JSON(http.StatusInternalServerError, gin.H{"error": authErr.Message})
-			}
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "邮箱修改失败，请稍后重试"})
+	if err := h.authUseCase.VerifyEmailChange(tokenString); err != nil {
+		httpx.WriteServiceError(c, err, "邮箱修改失败，请稍后重试")
 		return
 	}
 
@@ -156,33 +92,20 @@ func EmailChangeVerify(c *gin.Context) {
 }
 
 // RequestPasswordReset 请求重置密码
-func RequestPasswordReset(c *gin.Context) {
-	var req struct {
-		Email         string `json:"email" binding:"required,email"`
-		CaptchaID     string `json:"captcha_id"`
-		CaptchaAnswer string `json:"captcha_answer"`
-		CaptchaToken  string `json:"captcha_token"`
-	}
+func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
+	var req moduledto.RequestPasswordResetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
 
-	if verified, msg := service.VerifyCaptchaChallenge(req.CaptchaID, req.CaptchaAnswer, req.CaptchaToken, c.ClientIP()); !verified {
+	if verified, msg := h.captchaService.VerifyCaptchaChallenge(req.CaptchaID, req.CaptchaAnswer, req.CaptchaToken, c.ClientIP()); !verified {
 		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
 		return
 	}
 
-	if err := service.RequestPasswordReset(req.Email); err != nil {
-		if authErr, ok := service.AsAuthError(err); ok {
-			if authErr.Code == service.AuthErrorForbidden {
-				c.JSON(http.StatusForbidden, gin.H{"error": authErr.Message})
-				return
-			}
-			c.JSON(http.StatusInternalServerError, gin.H{"error": authErr.Message})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成重置链接失败，请稍后重试"})
+	if err := h.authUseCase.RequestPasswordReset(req.Email); err != nil {
+		httpx.WriteServiceError(c, err, "生成重置链接失败，请稍后重试")
 		return
 	}
 
@@ -190,41 +113,70 @@ func RequestPasswordReset(c *gin.Context) {
 }
 
 // ResetPassword 执行重置密码
-func ResetPassword(c *gin.Context) {
-	var req struct {
-		Token       string `json:"token" binding:"required"`
-		NewPassword string `json:"new_password" binding:"required"`
-	}
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var req moduledto.ResetPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
 
-	if err := service.ResetPassword(req.Token, req.NewPassword); err != nil {
-		if authErr, ok := service.AsAuthError(err); ok {
-			switch authErr.Code {
-			case service.AuthErrorValidation:
-				c.JSON(http.StatusBadRequest, gin.H{"error": authErr.Message})
-			case service.AuthErrorForbidden:
-				c.JSON(http.StatusForbidden, gin.H{"error": authErr.Message})
-			case service.AuthErrorNotFound:
-				c.JSON(http.StatusNotFound, gin.H{"error": authErr.Message})
-			default:
-				c.JSON(http.StatusInternalServerError, gin.H{"error": authErr.Message})
-			}
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "密码重置失败"})
+	if err := h.authUseCase.ResetPassword(req.Token, req.NewPassword); err != nil {
+		httpx.WriteServiceError(c, err, "密码重置失败")
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "密码重置成功，请使用新密码登录"})
 }
 
-func GetRegisterState(c *gin.Context) {
-	initialized := service.IsSystemInitialized()
-	allowRegister := initialized && service.GetBool(consts.ConfigAllowRegister)
+func (h *AuthHandler) GetRegisterState(c *gin.Context) {
+	initialized := h.initService.IsSystemInitialized()
+	allowRegister := initialized && h.dbConfig.GetBool(consts.ConfigAllowRegister)
 	c.JSON(http.StatusOK, gin.H{
 		"allow_register": allowRegister,
+	})
+}
+
+// BeginPasskeyLogin 创建 Passkey 登录挑战并返回会话 ID。
+func (h *AuthHandler) BeginPasskeyLogin(c *gin.Context) {
+	var req moduledto.BeginPasskeyLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	if verified, msg := h.captchaService.VerifyCaptchaChallenge(req.CaptchaID, req.CaptchaAnswer, req.CaptchaToken, c.ClientIP()); !verified {
+		c.JSON(http.StatusBadRequest, gin.H{"error": msg})
+		return
+	}
+
+	sessionID, assertion, err := h.passkeyUseCase.BeginPasskeyLogin()
+	if err != nil {
+		httpx.WriteServiceError(c, err, "创建 Passkey 登录挑战失败")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"session_id":        sessionID,
+		"assertion_options": assertion,
+	})
+}
+
+// FinishPasskeyLogin 完成 Passkey 登录校验并返回 JWT。
+func (h *AuthHandler) FinishPasskeyLogin(c *gin.Context) {
+	var req moduledto.FinishPasskeyLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+
+	token, err := h.passkeyUseCase.FinishPasskeyLogin(req.SessionID, req.Credential)
+	if err != nil {
+		httpx.WriteServiceError(c, err, "Passkey 登录失败")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"token":   token,
+		"message": "登录成功",
 	})
 }

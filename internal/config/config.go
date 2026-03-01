@@ -1,16 +1,16 @@
 package config
 
 import (
+	"errors"
 	"log"
 	"strings"
 	"sync"
 	"sync/atomic"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
 )
 
-// 用于管理应用配置，支持热重载
+// 用于管理应用配置
 
 var (
 	// 使用 atomic.Value 存储 *Config，实现无锁读取
@@ -29,8 +29,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port string `mapstructure:"port"`
-	Mode string `mapstructure:"mode"`
+	Port           string `mapstructure:"port"`
+	Mode           string `mapstructure:"mode"`
+	TrustedProxies string `mapstructure:"trusted_proxies"`
 }
 
 type DatabaseConfig struct {
@@ -94,21 +95,6 @@ func InitConfig(customConfigDir string) {
 	v := initViper(customConfigDir)
 	loadAndStore(v)
 	enforceJWTSecretSafety()
-
-	v.WatchConfig()
-	v.OnConfigChange(func(e fsnotify.Event) {
-		log.Println("🔄 检测到配置文件变化:", e.Name)
-		loadAndStore(v)
-	})
-
-	log.Println("✅ 配置加载成功")
-}
-
-// InitConfigWithoutWatch 初始化配置但不启用热重载监听（用于测试场景）。
-func InitConfigWithoutWatch(customConfigDir string) {
-	v := initViper(customConfigDir)
-	loadAndStore(v)
-	enforceJWTSecretSafety()
 	log.Println("✅ 配置加载成功")
 }
 
@@ -134,6 +120,7 @@ func initViper(customConfigDir string) *viper.Viper {
 	v.SetDefault("upload.avatar_url_prefix", "/avatars/")
 	v.SetDefault("server.port", "8080")
 	v.SetDefault("server.mode", "debug")
+	v.SetDefault("server.trusted_proxies", "")
 	v.SetDefault("database.type", "sqlite")
 	v.SetDefault("database.filename", "database/perfect_pic.db")
 	v.SetDefault("database.host", "127.0.0.1")
@@ -158,7 +145,8 @@ func initViper(customConfigDir string) *viper.Viper {
 
 	// 读取配置文件
 	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if errors.As(err, &configFileNotFoundError) {
 			log.Println("⚠️  未找到配置文件，将仅使用环境变量或默认值")
 		} else {
 			log.Fatalf("❌ 读取配置文件失败: %v", err)

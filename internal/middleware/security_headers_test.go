@@ -5,7 +5,6 @@ import (
 	"net/http/httptest"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/service"
 	"strings"
 	"testing"
 
@@ -25,7 +24,7 @@ func TestSecurityHeaders_DynamicCSP(t *testing.T) {
 	}{
 		{
 			name:     "Geetest",
-			provider: service.CaptchaProviderGeetest,
+			provider: consts.CaptchaProviderGeetest,
 			wantCSP: []string{
 				"https://*.geetest.com",
 				"script-src 'self' https://*.geetest.com",
@@ -33,7 +32,7 @@ func TestSecurityHeaders_DynamicCSP(t *testing.T) {
 		},
 		{
 			name:     "Turnstile",
-			provider: service.CaptchaProviderTurnstile,
+			provider: consts.CaptchaProviderTurnstile,
 			wantCSP: []string{
 				"https://challenges.cloudflare.com",
 				"script-src 'self' https://challenges.cloudflare.com",
@@ -41,7 +40,7 @@ func TestSecurityHeaders_DynamicCSP(t *testing.T) {
 		},
 		{
 			name:     "Recaptcha",
-			provider: service.CaptchaProviderRecaptcha,
+			provider: consts.CaptchaProviderRecaptcha,
 			wantCSP: []string{
 				"https://www.google.com",
 				"https://www.gstatic.com",
@@ -50,7 +49,7 @@ func TestSecurityHeaders_DynamicCSP(t *testing.T) {
 		},
 		{
 			name:     "hCaptcha",
-			provider: service.CaptchaProviderHcaptcha,
+			provider: consts.CaptchaProviderHcaptcha,
 			wantCSP: []string{
 				"https://*.hcaptcha.com",
 				"https://hcaptcha.com",
@@ -59,7 +58,7 @@ func TestSecurityHeaders_DynamicCSP(t *testing.T) {
 		},
 		{
 			name:     "Image (Default)",
-			provider: service.CaptchaProviderImage,
+			provider: consts.CaptchaProviderImage,
 			wantCSP: []string{
 				"default-src 'self'",
 				// 默认只允许同源脚本
@@ -69,7 +68,7 @@ func TestSecurityHeaders_DynamicCSP(t *testing.T) {
 		},
 		{
 			name:     "Disabled",
-			provider: service.CaptchaProviderDisabled,
+			provider: consts.CaptchaProviderDisabled,
 			wantCSP: []string{
 				"default-src 'self'",
 				"script-src 'self';",
@@ -93,11 +92,11 @@ func TestSecurityHeaders_DynamicCSP(t *testing.T) {
 			}
 
 			// 2. 清除 service 层的缓存，强制下一次读取从 DB 获取最新值
-			service.ClearCache()
+			testService.ClearCache()
 
 			// 3. 构建 Gin Engine 并应用中间件
 			r := gin.New()
-			r.Use(SecurityHeaders())
+			r.Use(SecurityHeaders(testService))
 			r.GET("/ping", func(c *gin.Context) {
 				c.Status(http.StatusOK)
 			})

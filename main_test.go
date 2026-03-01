@@ -13,8 +13,7 @@ import (
 
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/db"
-	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/service"
+	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/testutils"
 
 	"github.com/gin-gonic/gin"
@@ -38,7 +37,7 @@ func TestMain(m *testing.M) {
 		testutils.SetEnv("PERFECT_PIC_UPLOAD_AVATAR_URL_PREFIX", "/avatars/"),
 		testutils.SetEnv("PERFECT_PIC_REDIS_ENABLED", "false"),
 	}
-	config.InitConfigWithoutWatch(tmpDir)
+	config.InitConfig(tmpDir)
 
 	code := m.Run()
 
@@ -157,10 +156,9 @@ func TestEnsureDirectories_CreatesUploadAndAvatarDirs(t *testing.T) {
 	}
 }
 
-// 测试内容：验证 trusted_proxies 设置对信任代理的影响：空值禁用、有效列表生效、无效列表回退。
-func TestApplyTrustedProxies_UsesSettingValue(t *testing.T) {
+// 测试内容：验证 server.trusted_proxies 静态配置对信任代理的影响：空值禁用、有效列表生效、无效列表回退。
+func TestApplyTrustedProxies_UsesStaticConfigValue(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	setupTestDBForMain(t)
 
 	getClientIP := func(r *gin.Engine, remoteAddr, xff string) string {
 		r.GET("/ip", func(c *gin.Context) {
@@ -178,12 +176,11 @@ func TestApplyTrustedProxies_UsesSettingValue(t *testing.T) {
 
 	remoteAddr := "10.0.0.1:1234"
 	xff := "203.0.113.10, 10.0.0.1"
+	configDir := config.GetConfigDir()
 
 	// 空值会禁用信任，ClientIP 应为 RemoteAddr。
-	if err := db.DB.Save(&model.Setting{Key: "trusted_proxies", Value: ""}).Error; err != nil {
-		t.Fatalf("保存 trusted_proxies 失败: %v", err)
-	}
-	service.ClearCache()
+	t.Setenv("PERFECT_PIC_SERVER_TRUSTED_PROXIES", "")
+	config.InitConfig(configDir)
 	r := gin.New()
 	applyTrustedProxies(r)
 	if got := getClientIP(r, remoteAddr, xff); got != "10.0.0.1" {
@@ -191,10 +188,8 @@ func TestApplyTrustedProxies_UsesSettingValue(t *testing.T) {
 	}
 
 	// 有效的代理列表应启用信任，ClientIP 应取 X-Forwarded-For。
-	if err := db.DB.Save(&model.Setting{Key: "trusted_proxies", Value: "127.0.0.1,10.0.0.0/8"}).Error; err != nil {
-		t.Fatalf("保存 trusted_proxies 失败: %v", err)
-	}
-	service.ClearCache()
+	t.Setenv("PERFECT_PIC_SERVER_TRUSTED_PROXIES", "127.0.0.1,10.0.0.0/8")
+	config.InitConfig(configDir)
 	r2 := gin.New()
 	applyTrustedProxies(r2)
 	if got := getClientIP(r2, remoteAddr, xff); got != "203.0.113.10" {
@@ -202,10 +197,8 @@ func TestApplyTrustedProxies_UsesSettingValue(t *testing.T) {
 	}
 
 	// 无效的代理列表应回退为禁用，ClientIP 仍为 RemoteAddr。
-	if err := db.DB.Save(&model.Setting{Key: "trusted_proxies", Value: "not-a-cidr"}).Error; err != nil {
-		t.Fatalf("保存 trusted_proxies 失败: %v", err)
-	}
-	service.ClearCache()
+	t.Setenv("PERFECT_PIC_SERVER_TRUSTED_PROXIES", "not-a-cidr")
+	config.InitConfig(configDir)
 	r3 := gin.New()
 	applyTrustedProxies(r3)
 	if got := getClientIP(r3, remoteAddr, xff); got != "10.0.0.1" {
@@ -247,7 +240,7 @@ func TestSetupStaticFiles_ServesUploadsAndAvatars(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(avatarPath, "b.txt"), []byte("a"), 0644)
 
 	r := gin.New()
-	setupStaticFiles(r, uploadPath, avatarPath)
+	setupStaticFiles(r, buildTestDBConfigForMain(), uploadPath, avatarPath)
 
 	w1 := httptest.NewRecorder()
 	r.ServeHTTP(w1, httptest.NewRequest(http.MethodGet, "/imgs/a.txt", nil))
@@ -264,8 +257,13 @@ func TestSetupStaticFiles_ServesUploadsAndAvatars(t *testing.T) {
 
 func setupTestDBForMain(t *testing.T) *gorm.DB {
 	gdb := testutils.SetupDB(t)
-	service.ClearCache()
+	buildTestDBConfigForMain().ClearCache()
 	return gdb
 }
 
 var _ fs.FS = fstest.MapFS{}
+
+func buildTestDBConfigForMain() *config.DBConfig {
+	settingStore := repository.NewSettingRepository(db.DB)
+	return config.NewDBConfig(settingStore)
+}

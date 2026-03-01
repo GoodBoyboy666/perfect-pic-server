@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 )
 
 var (
@@ -74,6 +76,8 @@ func JWTAuth() gin.HandlerFunc {
 }
 
 // UserStatusCheck 检查用户状态是否被封禁
+//
+//nolint:gocyclo
 func UserStatusCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID, exists := c.Get("id")
@@ -111,7 +115,14 @@ func UserStatusCheck() gin.HandlerFunc {
 						Status:    currentStatus,
 						ExpiresAt: time.Now().Add(statusCacheTTL),
 					})
+					logRedisFallbackRecoveredWithTarget("用户状态缓存", "Redis 缓存")
+				} else {
+					logRedisFallbackDegradedWithTarget("用户状态缓存", "本地缓存", parseErr)
 				}
+			} else if errors.Is(err, redis.Nil) {
+				logRedisFallbackRecoveredWithTarget("用户状态缓存", "Redis 缓存")
+			} else {
+				logRedisFallbackDegradedWithTarget("用户状态缓存", "本地缓存", err)
 			}
 		}
 

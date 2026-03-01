@@ -9,7 +9,6 @@ import (
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,10 +19,10 @@ func TestGetCaptcha_DisabledProvider(t *testing.T) {
 	setupTestDB(t)
 
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
-	service.ClearCache()
+	testService.ClearCache()
 
 	r := gin.New()
-	r.GET("/captcha", GetCaptcha)
+	r.GET("/captcha", testHandler.GetCaptcha)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/captcha", nil))
@@ -37,7 +36,7 @@ func TestGetCaptcha_DisabledProvider(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("解析失败: %v", err)
 	}
-	if resp.Provider != service.CaptchaProviderDisabled {
+	if resp.Provider != consts.CaptchaProviderDisabled {
 		t.Fatalf("期望 disabled provider，实际为 %q", resp.Provider)
 	}
 }
@@ -48,7 +47,7 @@ func TestGetCaptcha_ProvidersWithPublicConfig(t *testing.T) {
 	setupTestDB(t)
 
 	r := gin.New()
-	r.GET("/captcha", GetCaptcha)
+	r.GET("/captcha", testHandler.GetCaptcha)
 
 	cases := []struct {
 		provider string
@@ -63,7 +62,7 @@ func TestGetCaptcha_ProvidersWithPublicConfig(t *testing.T) {
 	for _, tc := range cases {
 		_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: tc.provider}).Error
 		_ = db.DB.Save(&model.Setting{Key: tc.key, Value: "pub"}).Error
-		service.ClearCache()
+		testService.ClearCache()
 
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/captcha", nil))
@@ -79,10 +78,10 @@ func TestGetCaptchaImage_ImageProvider(t *testing.T) {
 	setupTestDB(t)
 
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "image"}).Error
-	service.ClearCache()
+	testService.ClearCache()
 
 	r := gin.New()
-	r.GET("/captcha/image", GetCaptchaImage)
+	r.GET("/captcha/image", testHandler.GetCaptchaImage)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/captcha/image", nil))
@@ -108,10 +107,10 @@ func TestGetCaptchaImage_NonImageProviderReturns400(t *testing.T) {
 	setupTestDB(t)
 
 	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
-	service.ClearCache()
+	testService.ClearCache()
 
 	r := gin.New()
-	r.GET("/captcha/image", GetCaptchaImage)
+	r.GET("/captcha/image", testHandler.GetCaptchaImage)
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/captcha/image", nil))

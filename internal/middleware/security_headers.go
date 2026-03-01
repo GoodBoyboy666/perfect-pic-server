@@ -1,15 +1,15 @@
 package middleware
 
 import (
+	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/service"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
 // SecurityHeaders 添加安全相关的 HTTP 响应头
-func SecurityHeaders() gin.HandlerFunc {
+func SecurityHeaders(dbConfig *config.DBConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 防止浏览器猜测内容类型
 		c.Header("X-Content-Type-Options", "nosniff")
@@ -27,10 +27,10 @@ func SecurityHeaders() gin.HandlerFunc {
 			frameSrc   = []string{"'self'"}
 		)
 
-		provider := strings.ToLower(service.GetString(consts.ConfigCaptchaProvider))
+		provider := strings.ToLower(dbConfig.GetString(consts.ConfigCaptchaProvider))
 
 		switch provider {
-		case service.CaptchaProviderGeetest:
+		case consts.CaptchaProviderGeetest:
 			geetest := "https://*.geetest.com"
 			imgSrc = append(imgSrc, geetest)
 			styleSrc = append(styleSrc, geetest)
@@ -38,13 +38,13 @@ func SecurityHeaders() gin.HandlerFunc {
 			connectSrc = append(connectSrc, geetest)
 			frameSrc = append(frameSrc, geetest)
 
-		case service.CaptchaProviderTurnstile:
+		case consts.CaptchaProviderTurnstile:
 			turnstile := "https://challenges.cloudflare.com"
 			scriptSrc = append(scriptSrc, turnstile)
 			connectSrc = append(connectSrc, turnstile)
 			frameSrc = append(frameSrc, turnstile)
 
-		case service.CaptchaProviderRecaptcha:
+		case consts.CaptchaProviderRecaptcha:
 			google := "https://www.google.com"
 			gstatic := "https://www.gstatic.com"
 			imgSrc = append(imgSrc, google, gstatic)
@@ -52,7 +52,7 @@ func SecurityHeaders() gin.HandlerFunc {
 			connectSrc = append(connectSrc, google)
 			frameSrc = append(frameSrc, google)
 
-		case service.CaptchaProviderHcaptcha:
+		case consts.CaptchaProviderHcaptcha:
 			hcaptcha := "https://*.hcaptcha.com"
 			hcaptchaMain := "https://hcaptcha.com"
 			imgSrc = append(imgSrc, hcaptcha, hcaptchaMain)

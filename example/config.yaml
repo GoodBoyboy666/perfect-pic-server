@@ -1,6 +1,7 @@
 server:
   port: "8080"
   mode: "release"
+  trusted_proxies: "" # 逗号分隔或 CIDR；留空表示不信任代理头
 
 database:
   type: "sqlite" # sqlite, mysql, postgres

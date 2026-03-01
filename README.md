@@ -219,6 +219,7 @@ chmod +x build.sh
 server:
   port: "8080"
   mode: "release" # debug / release
+  trusted_proxies: "" # 逗号分隔或 CIDR，留空表示不信任代理头
 
 database:
   type: "sqlite" # sqlite, mysql, postgres
@@ -262,6 +263,7 @@ redis:
 例如：
 
 * `server.port` -> `PERFECT_PIC_SERVER_PORT`
+* `server.trusted_proxies` -> `PERFECT_PIC_SERVER_TRUSTED_PROXIES`
 * `jwt.secret` -> `PERFECT_PIC_JWT_SECRET`
 * `redis.enabled` -> `PERFECT_PIC_REDIS_ENABLED`
 * `redis.addr` -> `PERFECT_PIC_REDIS_ADDR`
@@ -283,18 +285,26 @@ redis:
 ├── example/            # 示例文件 (如邮件模板)
 ├── frontend/           # 前端静态资源 (嵌入式)
 ├── internal/
+│   ├── common/         # 通用错误模型与 HTTP 错误写入
 │   ├── config/         # 配置加载与管理
 │   ├── consts/         # 常量定义
-│   ├── db/             # 数据库初始化 (GORM + SQLite)
-│   ├── handler/        # 业务逻辑控制器 (Controller)
-│   │   └── admin/      # 管理员相关控制器
-│   ├── middleware/     # Gin 中间件 (Auth, CORS, RateLimit, Cache)
-│   ├── model/          # 数据库模型 (User, Image, Setting)
-│   ├── router/         # 路由定义
-│   ├── service/        # 核心业务逻辑服务层
+│   ├── db/             # 数据库初始化与迁移
+│   ├── di/             # Wire 依赖注入装配
+│   ├── dto/            # 请求/响应 DTO
+│   ├── handler/        # HTTP Handler 层
+│   ├── middleware/     # Gin 中间件
+│   ├── model/          # 数据模型
+│   ├── repository/     # 数据访问层
+│   ├── router/         # 顶层路由编排
+│   ├── service/        # 领域服务与基础能力
+│   ├── usecase/        # 应用编排层
+│   │   ├── app/        # 前台业务用例
+│   │   └── admin/      # 后台管理用例
+│   ├── testutils/      # 测试辅助
 │   └── utils/          # 工具函数
 ├── scripts/            # 构建与部署脚本
-├── uploads/            # 图片存储目录 (自动创建)
+├── embed_enabled.go    # embed 构建入口
+├── embed_disabled.go   # 非 embed 构建入口
 ├── main.go             # 程序入口
 └── go.mod
 ```
@@ -307,6 +317,9 @@ redis:
 * `POST /api/init`: 初始化管理员账号
 * `POST /api/login`: 用户登录
 * `POST /api/register`: 用户注册
+* `POST /api/auth/passkey/login/start`: 发起 Passkey 登录挑战
+  * 返回字段：`session_id`、`assertion_options`
+* `POST /api/auth/passkey/login/finish`: 完成 Passkey 登录
 * `GET /api/captcha`: 获取验证码元信息（`provider` + `public_config`，当 provider 为空表示已关闭验证码）
 * `GET /api/webinfo`: 获取站点公开信息
 
@@ -317,6 +330,13 @@ redis:
 * `DELETE /api/user/images/batch`: 批量删除图片
 * `GET /api/user/profile`: 获取个人信息
 * `PATCH /api/user/avatar`: 更新头像
+* `POST /api/user/passkeys/register/start`: 发起 Passkey 绑定挑战
+  * 返回字段：`session_id`、`creation_options`
+* `POST /api/user/passkeys/register/finish`: 完成 Passkey 绑定
+* `GET /api/user/passkeys`: 获取当前用户已绑定 Passkey 列表
+* `PATCH /api/user/passkeys/:id/name`: 更新当前用户指定 Passkey 的名称
+* `DELETE /api/user/passkeys/:id`: 删除当前用户的指定 Passkey
+* 约束：单个用户最多可绑定 10 个 Passkey
 
 ### 管理员接口 (需 Admin 权限)
 

@@ -32,6 +32,30 @@ func TestValidateUsername(t *testing.T) {
 	}
 }
 
+// 测试内容：校验管理员场景允许使用保留用户名，但仍保留其他用户名规则。
+func TestValidateUsernameAllowReserved(t *testing.T) {
+	tests := []struct {
+		name     string
+		username string
+		wantOK   bool
+	}{
+		{name: "reserved_admin_allowed", username: "admin", wantOK: true},
+		{name: "reserved_case_insensitive_allowed", username: "RoOt", wantOK: true},
+		{name: "too_short", username: "abc", wantOK: false},
+		{name: "invalid_charset", username: "ab-cd", wantOK: false},
+		{name: "pure_number", username: "123456", wantOK: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ok, _ := ValidateUsernameAllowReserved(tt.username)
+			if ok != tt.wantOK {
+				t.Fatalf("ValidateUsernameAllowReserved(%q) ok=%v 期望=%v", tt.username, ok, tt.wantOK)
+			}
+		})
+	}
+}
+
 // 测试内容：校验密码长度、字符类型与合法组合。
 func TestValidatePassword(t *testing.T) {
 	tests := []struct {
