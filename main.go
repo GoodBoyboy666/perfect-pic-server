@@ -45,6 +45,15 @@ func main() {
 	if err != nil {
 		log.Fatal("❌ 依赖注入初始化失败: ", err)
 	}
+	sqlDB, err := app.GormDB.DB()
+	if err != nil {
+		log.Fatal("❌ 无法获取 sql.DB: ", err)
+	}
+	defer func() {
+		if closeErr := sqlDB.Close(); closeErr != nil {
+			log.Printf("⚠️ 关闭数据库连接池失败: %v", closeErr)
+		}
+	}()
 	if err := app.DbConfig.InitializeSettings(); err != nil {
 		log.Fatal("❌ 初始化默认系统设置失败: ", err)
 	}
