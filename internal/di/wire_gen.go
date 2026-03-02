@@ -10,6 +10,7 @@ import (
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/handler"
+	"perfect-pic-server/internal/pkg/captcha"
 	"perfect-pic-server/internal/pkg/redis"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
@@ -28,7 +29,7 @@ func InitializeApplication() (*Application, error) {
 	settingStore := repository.NewSettingRepository(gormDB)
 	dbConfig := config.NewDBConfig(settingStore)
 	authService := service.NewAuthService(dbConfig)
-	captchaService := service.NewCaptchaService(dbConfig)
+	captchaCaptcha := captcha.NewCaptcha(dbConfig)
 	userStore := repository.NewUserRepository(gormDB)
 	client := redis.NewRedisClient()
 	userService := service.NewUserService(userStore, dbConfig, client)
@@ -39,7 +40,7 @@ func InitializeApplication() (*Application, error) {
 	passkeyStore := repository.NewPasskeyRepository(gormDB)
 	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, client)
 	passkeyUseCase := app.NewPasskeyUseCase(passkeyService, passkeyStore, authService, userStore)
-	authHandler := handler.NewAuthHandler(authService, captchaService, authUseCase, initService, dbConfig, passkeyUseCase)
+	authHandler := handler.NewAuthHandler(authService, captchaCaptcha, authUseCase, initService, dbConfig, passkeyUseCase)
 	imageStore := repository.NewImageRepository(gormDB)
 	statUseCase := admin.NewStatUseCase(imageStore, userStore)
 	systemHandler := handler.NewSystemHandler(initService, statUseCase, dbConfig, userService)

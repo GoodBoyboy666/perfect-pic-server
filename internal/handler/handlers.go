@@ -2,6 +2,7 @@ package handler
 
 import (
 	"perfect-pic-server/internal/config"
+	pkgcaptcha "perfect-pic-server/internal/pkg/captcha"
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/usecase/admin"
 	"perfect-pic-server/internal/usecase/app"
@@ -11,7 +12,7 @@ import (
 
 type AuthHandler struct {
 	authService    *service.AuthService
-	captchaService *service.CaptchaService
+	captcha        *pkgcaptcha.Captcha
 	authUseCase    *app.AuthUseCase
 	initService    *service.InitService
 	dbConfig       *config.DBConfig
@@ -49,7 +50,7 @@ type SettingsHandler struct {
 
 func NewAuthHandler(
 	authService *service.AuthService,
-	captchaService *service.CaptchaService,
+	captcha *pkgcaptcha.Captcha,
 	authUseCase *app.AuthUseCase,
 	initService *service.InitService,
 	dbConfig *config.DBConfig,
@@ -57,7 +58,7 @@ func NewAuthHandler(
 ) *AuthHandler {
 	return &AuthHandler{
 		authService:    authService,
-		captchaService: captchaService,
+		captcha:        captcha,
 		authUseCase:    authUseCase,
 		initService:    initService,
 		dbConfig:       dbConfig,

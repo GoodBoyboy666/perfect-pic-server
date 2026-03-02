@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"perfect-pic-server/internal/config"
+	pkgcaptcha "perfect-pic-server/internal/pkg/captcha"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/testutils"
@@ -45,7 +46,7 @@ func setupTestDB(t *testing.T) {
 	userService := service.NewUserService(userStore, dbConfig, nil)
 	imageService := service.NewImageService(imageStore, dbConfig)
 	emailService := service.NewEmailService(dbConfig)
-	captchaService := service.NewCaptchaService(dbConfig)
+	captchaService := pkgcaptcha.NewCaptcha(dbConfig)
 	initService := service.NewInitService(systemStore, dbConfig)
 	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, nil)
 	settingsService := service.NewSettingsService(settingStore, dbConfig)

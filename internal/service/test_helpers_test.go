@@ -2,12 +2,14 @@ package service
 
 import (
 	"mime/multipart"
+	"net/http"
 	"sync"
 	"testing"
 
 	"perfect-pic-server/internal/config"
 	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/model"
+	pkgcaptcha "perfect-pic-server/internal/pkg/captcha"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/testutils"
 
@@ -26,7 +28,7 @@ type Service struct {
 	userService    *UserService
 	imageService   *ImageService
 	emailService   *EmailService
-	captchaService *CaptchaService
+	captchaService *pkgcaptcha.Captcha
 	initService    *InitService
 	passkeyService *PasskeyService
 }
@@ -48,7 +50,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	userService := NewUserService(userStore, dbConfig, nil)
 	imageService := NewImageService(imageStore, dbConfig)
 	emailService := NewEmailService(dbConfig)
-	captchaService := NewCaptchaService(dbConfig)
+	captchaService := pkgcaptcha.NewCaptcha(dbConfig)
 	initService := NewInitService(systemStore, dbConfig)
 	passkeyService := NewPasskeyService(passkeyStore, dbConfig, nil)
 
@@ -103,11 +105,15 @@ func (s *Service) SendPasswordResetEmail(toEmail, username, resetURL string) err
 }
 
 func (s *Service) GetCaptchaProviderInfo() moduledto.CaptchaProviderResponse {
-	return s.captchaService.GetCaptchaProviderInfo()
+	return s.captchaService.GetProviderInfo()
 }
 
 func (s *Service) VerifyCaptchaChallenge(captchaID, captchaAnswer, captchaToken, remoteIP string) (bool, string) {
-	return s.captchaService.VerifyCaptchaChallenge(captchaID, captchaAnswer, captchaToken, remoteIP)
+	return s.captchaService.VerifyChallenge(captchaID, captchaAnswer, captchaToken, remoteIP)
+}
+
+func (s *Service) setCaptchaHTTPClient(client *http.Client) {
+	s.captchaService.SetHTTPClient(client)
 }
 
 func (s *Service) ValidateImageFile(fileHeader *multipart.FileHeader) (bool, string, error) {

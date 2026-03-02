@@ -32,10 +32,6 @@ type EmailService struct {
 	dbConfig *config.DBConfig
 }
 
-type CaptchaService struct {
-	dbConfig *config.DBConfig
-}
-
 type InitService struct {
 	systemStore repo.SystemStore
 	dbConfig    *config.DBConfig
@@ -66,10 +62,6 @@ func NewImageService(imageStore repo.ImageStore, dbConfig *config.DBConfig) *Ima
 
 func NewEmailService(dbConfig *config.DBConfig) *EmailService {
 	return &EmailService{dbConfig: dbConfig}
-}
-
-func NewCaptchaService(dbConfig *config.DBConfig) *CaptchaService {
-	return &CaptchaService{dbConfig: dbConfig}
 }
 
 func NewInitService(systemStore repo.SystemStore, dbConfig *config.DBConfig) *InitService {
