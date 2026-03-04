@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func registerSystemRoutes(api *gin.RouterGroup, authLimiter gin.HandlerFunc, h *handler.SystemHandler,bodyLimitMiddleware *middleware.BodyLimitMiddleware) {
+func registerSystemRoutes(api *gin.RouterGroup, authLimiter gin.HandlerFunc, h *handler.SystemHandler, bodyLimitMiddleware *middleware.BodyLimitMiddleware) {
 	bodyLimit := bodyLimitMiddleware.BodyLimitMiddleware()
 
 	api.GET("/init", h.GetInitState)

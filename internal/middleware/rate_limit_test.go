@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"perfect-pic-server/internal/pkg/ratelimit"
 	"testing"
 	"time"
 
@@ -18,6 +19,11 @@ import (
 func TestRateLimitMiddleware_DisabledAllowsRequests(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
+	rateLimitMiddleware := NewRateLimitMiddleware(
+		testService,
+		ratelimit.NewTokenBucketLimiter(nil),
+		ratelimit.NewIntervalLimiter(nil),
+	)
 
 	if err := testGormDB.Save(&model.Setting{Key: consts.ConfigRateLimitEnabled, Value: "false"}).Error; err != nil {
 		t.Fatalf("设置配置项失败: %v", err)
@@ -25,7 +31,7 @@ func TestRateLimitMiddleware_DisabledAllowsRequests(t *testing.T) {
 	testService.ClearCache()
 
 	r := gin.New()
-	r.Use(RateLimitMiddleware(testService, consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst, nil))
+	r.Use(rateLimitMiddleware.RateLimit(consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst))
 	r.GET("/x", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	req1 := httptest.NewRequest(http.MethodGet, "/x", nil)
@@ -49,6 +55,11 @@ func TestRateLimitMiddleware_DisabledAllowsRequests(t *testing.T) {
 func TestRateLimitMiddleware_EnabledBlocksBurst(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
+	rateLimitMiddleware := NewRateLimitMiddleware(
+		testService,
+		ratelimit.NewTokenBucketLimiter(nil),
+		ratelimit.NewIntervalLimiter(nil),
+	)
 
 	// 启用限流器：突发 1 个令牌且不补充（rps=0）。
 	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigRateLimitEnabled, Value: "true"}).Error
@@ -57,7 +68,7 @@ func TestRateLimitMiddleware_EnabledBlocksBurst(t *testing.T) {
 	testService.ClearCache()
 
 	r := gin.New()
-	r.Use(RateLimitMiddleware(testService, consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst, nil))
+	r.Use(rateLimitMiddleware.RateLimit(consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst))
 	r.GET("/x", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	req1 := httptest.NewRequest(http.MethodGet, "/x", nil)
@@ -81,6 +92,11 @@ func TestRateLimitMiddleware_EnabledBlocksBurst(t *testing.T) {
 func TestIntervalRateMiddleware_BlocksSecondRequest(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
+	rateLimitMiddleware := NewRateLimitMiddleware(
+		testService,
+		ratelimit.NewTokenBucketLimiter(nil),
+		ratelimit.NewIntervalLimiter(nil),
+	)
 
 	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigEnableSensitiveRateLimit, Value: "true"}).Error
 	_ = testGormDB.Save(&model.Setting{
@@ -90,7 +106,7 @@ func TestIntervalRateMiddleware_BlocksSecondRequest(t *testing.T) {
 	testService.ClearCache()
 
 	r := gin.New()
-	r.POST("/x", IntervalRateMiddleware(testService, consts.ConfigRateLimitPasswordResetIntervalSeconds, nil), func(c *gin.Context) {
+	r.POST("/x", rateLimitMiddleware.IntervalRate(consts.ConfigRateLimitPasswordResetIntervalSeconds), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
 
@@ -115,6 +131,11 @@ func TestIntervalRateMiddleware_BlocksSecondRequest(t *testing.T) {
 func TestIntervalRateMiddleware_WithAnotherConfigKey_BlocksSecondRequest(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
+	rateLimitMiddleware := NewRateLimitMiddleware(
+		testService,
+		ratelimit.NewTokenBucketLimiter(nil),
+		ratelimit.NewIntervalLimiter(nil),
+	)
 
 	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigEnableSensitiveRateLimit, Value: "true"}).Error
 	_ = testGormDB.Save(&model.Setting{
@@ -124,7 +145,7 @@ func TestIntervalRateMiddleware_WithAnotherConfigKey_BlocksSecondRequest(t *test
 	testService.ClearCache()
 
 	r := gin.New()
-	r.POST("/x", IntervalRateMiddleware(testService, consts.ConfigRateLimitUsernameUpdateIntervalSeconds, nil), func(c *gin.Context) {
+	r.POST("/x", rateLimitMiddleware.IntervalRate(consts.ConfigRateLimitUsernameUpdateIntervalSeconds), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
 
@@ -147,11 +168,11 @@ func TestIntervalRateMiddleware_WithAnotherConfigKey_BlocksSecondRequest(t *test
 
 // 测试内容：验证禁用参数下 Redis 限流直接放行。
 func TestAllowByRedisRateLimit_DisabledReturnsOK(t *testing.T) {
-	ok, err := allowByRedisRateLimit(nil, "rate", "rps", "burst", "1.2.3.4", 0, 1)
+	ok, err := ratelimit.AllowByRedisRateLimit(nil, "rate", "rps", "burst", "1.2.3.4", 0, 1)
 	if err != nil || !ok {
 		t.Fatalf("期望 ok when disabled，实际为 ok=%v err=%v", ok, err)
 	}
-	ok, err = allowByRedisRateLimit(nil, "rate", "rps", "burst", "1.2.3.4", 1, 0)
+	ok, err = ratelimit.AllowByRedisRateLimit(nil, "rate", "rps", "burst", "1.2.3.4", 1, 0)
 	if err != nil || !ok {
 		t.Fatalf("期望 ok when disabled，实际为 ok=%v err=%v", ok, err)
 	}
@@ -165,7 +186,7 @@ func TestAllowByRedisRateLimit_UnavailableRedisReturnsError(t *testing.T) {
 	})
 	defer func() { _ = client.Close() }()
 
-	ok, err := allowByRedisRateLimit(client, "rate", "rps", "burst", "1.2.3.4", 1, 1)
+	ok, err := ratelimit.AllowByRedisRateLimit(client, "rate", "rps", "burst", "1.2.3.4", 1, 1)
 	if err == nil || ok {
 		t.Fatalf("期望 redis 错误，实际为 ok=%v err=%v", ok, err)
 	}
@@ -179,7 +200,7 @@ func TestAllowByRedisInterval_UnavailableRedisReturnsError(t *testing.T) {
 	})
 	defer func() { _ = client.Close() }()
 
-	ok, err := allowByRedisInterval(client, "interval", "1.2.3.4", 2*time.Second)
+	ok, err := ratelimit.AllowByRedisInterval(client, "interval", "1.2.3.4", 2*time.Second)
 	if err == nil || ok {
 		t.Fatalf("期望 redis 错误，实际为 ok=%v err=%v", ok, err)
 	}

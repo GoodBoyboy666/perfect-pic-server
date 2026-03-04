@@ -1,7 +1,6 @@
 package router
 
 import (
-	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/handler"
 	"perfect-pic-server/internal/middleware"
 
@@ -16,7 +15,6 @@ func registerAdminRoutes(
 	imageHandler *handler.ImageHandler,
 	authMiddleware *middleware.AuthMiddleware,
 	bodyLimitMiddleware *middleware.BodyLimitMiddleware,
-	dbConfig *config.DBConfig,
 ) {
 	adminGroup := api.Group("/admin")
 	adminGroup.Use(authMiddleware.JWTAuth())

@@ -67,7 +67,7 @@ func main() {
 	gin.SetMode(app.StaticConfig.Server.Mode)
 
 	r := gin.Default()
-	applyTrustedProxies(r,app.StaticConfig.Server.TrustedProxies)
+	applyTrustedProxies(r, app.StaticConfig.Server.TrustedProxies)
 	app.Router.Init(r)
 
 	uploadURLPrefix := app.StaticConfig.Upload.URLPrefix
@@ -89,7 +89,7 @@ func main() {
 	// 打印启动欢迎语
 	printWelcomeMessage(app.StaticConfig.Server.Port)
 
-	startServer(r,app.StaticConfig.Server.Port)
+	startServer(r, app.StaticConfig.Server.Port)
 }
 
 func ensureDirectories(staticConfig *config.Config) (string, string) {
@@ -161,7 +161,7 @@ func getNoRouteHandler(distFS fs.FS, indexData []byte, uploadURLPrefix string, a
 	}
 }
 
-func startServer(r *gin.Engine,port string) {
+func startServer(r *gin.Engine, port string) {
 	// 停机配置
 	srv := &http.Server{
 		Addr:    ":" + port,
@@ -170,7 +170,7 @@ func startServer(r *gin.Engine,port string) {
 
 	go func() {
 		// 服务连接
-		log.Printf("🚀 服务启动成功，运行在 :%s\n",port)
+		log.Printf("🚀 服务启动成功，运行在 :%s\n", port)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("❌ 服务启动失败: %s\n", err)
 		}
@@ -286,7 +286,7 @@ func checkSecurePath(path string) {
 	}
 }
 
-func applyTrustedProxies(r *gin.Engine,trustedProxies string) {
+func applyTrustedProxies(r *gin.Engine, trustedProxies string) {
 	raw := strings.TrimSpace(trustedProxies)
 	if raw == "" {
 		if err := r.SetTrustedProxies(nil); err != nil {

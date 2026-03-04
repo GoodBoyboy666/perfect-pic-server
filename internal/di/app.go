@@ -10,21 +10,21 @@ import (
 )
 
 type Application struct {
-	Router   *router.Router
-	DbConfig *config.DBConfig
-	GormDB   *gorm.DB
-	RedisDB  *redis.Client
-	StaticConfig *config.Config
+	Router                *router.Router
+	DbConfig              *config.DBConfig
+	GormDB                *gorm.DB
+	RedisDB               *redis.Client
+	StaticConfig          *config.Config
 	StaticCacheMiddleware *middleware.StaticCacheMiddleware
 }
 
-func NewApplication(r *router.Router, dbConfig *config.DBConfig, gormDB *gorm.DB, redisDB *redis.Client,staticConfig *config.Config ,staticCacheMiddleware *middleware.StaticCacheMiddleware) *Application {
+func NewApplication(r *router.Router, dbConfig *config.DBConfig, gormDB *gorm.DB, redisDB *redis.Client, staticConfig *config.Config, staticCacheMiddleware *middleware.StaticCacheMiddleware) *Application {
 	return &Application{
-		Router:   r,
-		DbConfig: dbConfig,
-		GormDB:   gormDB,
-		RedisDB:  redisDB,
-		StaticConfig: staticConfig,
+		Router:                r,
+		DbConfig:              dbConfig,
+		GormDB:                gormDB,
+		RedisDB:               redisDB,
+		StaticConfig:          staticConfig,
 		StaticCacheMiddleware: staticCacheMiddleware,
 	}
 }

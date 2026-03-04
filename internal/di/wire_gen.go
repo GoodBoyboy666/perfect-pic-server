@@ -14,6 +14,7 @@ import (
 	"perfect-pic-server/internal/pkg/database"
 	"perfect-pic-server/internal/pkg/email"
 	"perfect-pic-server/internal/pkg/jwt"
+	"perfect-pic-server/internal/pkg/ratelimit"
 	"perfect-pic-server/internal/pkg/redis"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
@@ -42,6 +43,9 @@ func InitializeApplication() (*Application, error) {
 	store := cache.NewStore(client, cacheConfig)
 	userService := service.NewUserService(userStore, dbConfig, store, jwtJWT)
 	authMiddleware := middleware.NewAuthMiddleware(jwtJWT, userService)
+	tokenBucketLimiter := ratelimit.NewTokenBucketLimiter(client)
+	intervalLimiter := ratelimit.NewIntervalLimiter(client)
+	rateLimitMiddleware := middleware.NewRateLimitMiddleware(dbConfig, tokenBucketLimiter, intervalLimiter)
 	bodyLimitMiddleware := middleware.NewBodyLimitConfig(dbConfig)
 	securityHeadersMiddleware := middleware.NewSecurityHeadersMiddleware(dbConfig)
 	authService := service.NewAuthService(dbConfig, configConfig)
@@ -67,7 +71,7 @@ func InitializeApplication() (*Application, error) {
 	imageUseCase := app.NewImageUseCase(imageService, userService, userStore, configConfig, dbConfig)
 	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase)
 	imageHandler := handler.NewImageHandler(imageService, imageUseCase)
-	routerRouter := router.NewRouter(authMiddleware, bodyLimitMiddleware, securityHeadersMiddleware, authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig, db, client)
+	routerRouter := router.NewRouter(authMiddleware, rateLimitMiddleware, bodyLimitMiddleware, securityHeadersMiddleware, authHandler, systemHandler, settingsHandler, userHandler, imageHandler)
 	staticCacheMiddleware := middleware.NewStaticCacheMiddleware(dbConfig)
 	application := NewApplication(routerRouter, dbConfig, db, client, configConfig, staticCacheMiddleware)
 	return application, nil

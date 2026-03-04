@@ -11,6 +11,7 @@ import (
 	"perfect-pic-server/internal/pkg/database"
 	pkgmail "perfect-pic-server/internal/pkg/email"
 	jwtpkg "perfect-pic-server/internal/pkg/jwt"
+	"perfect-pic-server/internal/pkg/ratelimit"
 	"perfect-pic-server/internal/pkg/redis"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
@@ -32,6 +33,8 @@ func InitializeApplication() (*Application, error) {
 		redis.NewRedisClient,
 		jwtpkg.NewJWT,
 		cache.NewStore,
+		ratelimit.NewTokenBucketLimiter,
+		ratelimit.NewIntervalLimiter,
 		repository.NewUserRepository,
 		repository.NewImageRepository,
 		repository.NewSettingRepository,
@@ -55,6 +58,7 @@ func InitializeApplication() (*Application, error) {
 		app.NewImageUseCase,
 		app.NewPasskeyUseCase,
 		middleware.NewAuthMiddleware,
+		middleware.NewRateLimitMiddleware,
 		middleware.NewBodyLimitConfig,
 		middleware.NewSecurityHeadersMiddleware,
 		middleware.NewStaticCacheMiddleware,
