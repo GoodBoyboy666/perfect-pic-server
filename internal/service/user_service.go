@@ -18,6 +18,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const userStatusCacheTTL = 1 * time.Minute
+
 // GenerateForgetPasswordToken 生成忘记密码 Token，有效期 15 分钟
 func (s *UserService) GenerateForgetPasswordToken(userID uint) (string, error) {
 	// 使用 crypto/rand 生成 32 字节的高熵随机字符串 (64字符Hex)
@@ -160,6 +162,39 @@ func (s *UserService) VerifyEmailChangeToken(token string) (*moduledto.EmailChan
 		OldEmail: payload.OldEmail,
 		NewEmail: payload.NewEmail,
 	}, true
+}
+
+// GetUserStatus 获取用户状态，优先从缓存读取，未命中时回源数据库并回写缓存。
+func (s *UserService) GetUserStatus(userID uint) (int, error) {
+	statusKey := ""
+	if s.cache != nil {
+		statusKey = s.cache.RedisKey("auth", "user_status", strconv.FormatUint(uint64(userID), 10))
+		if cachedStatus, ok := s.cache.Get(statusKey); ok {
+			if parsedStatus, err := strconv.Atoi(cachedStatus); err == nil {
+				return parsedStatus, nil
+			}
+			s.cache.Delete(statusKey)
+		}
+	}
+
+	user, err := s.userStore.FindByID(userID)
+	if err != nil {
+		return 0, err
+	}
+
+	if s.cache != nil {
+		s.cache.Set(statusKey, strconv.Itoa(user.Status), userStatusCacheTTL)
+	}
+
+	return user.Status, nil
+}
+
+// ClearUserStatusCache 清除指定用户的状态缓存。
+func (s *UserService) ClearUserStatusCache(userID uint) {
+	if s.cache == nil {
+		return
+	}
+	s.cache.Delete(s.cache.RedisKey("auth", "user_status", strconv.FormatUint(uint64(userID), 10)))
 }
 
 // GetSystemDefaultStorageQuota 获取系统默认存储配额

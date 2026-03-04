@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"perfect-pic-server/internal/common/httpx"
 	moduledto "perfect-pic-server/internal/dto"
-	"perfect-pic-server/internal/middleware"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -110,7 +109,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 			return
 		}
 		// 清除用户状态缓存
-		middleware.ClearUserStatusCache(h.userStatusCache, uint(id))
+		h.userService.ClearUserStatusCache(uint(id))
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
@@ -195,7 +194,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 	}
 
 	// 清除用户状态缓存
-	middleware.ClearUserStatusCache(h.userStatusCache, uint(id))
+	h.userService.ClearUserStatusCache(uint(id))
 
 	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 }

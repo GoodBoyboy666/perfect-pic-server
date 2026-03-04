@@ -51,7 +51,7 @@ func TestInitRouter_RegistersCoreRoutes(t *testing.T) {
 	authHandler := handler.NewAuthHandler(authService, captchaService, authUseCase, initService, dbConfig, passkeyUseCase)
 	systemHandler := handler.NewSystemHandler(initService, statUseCase, dbConfig, userService)
 	settingsHandler := handler.NewSettingsHandler(settingsService, settingsUseCase)
-	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase, nil)
+	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase)
 	imageHandler := handler.NewImageHandler(imageService, imageUseCase)
 	rt := NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig, gdb, nil, nil, nil)
 

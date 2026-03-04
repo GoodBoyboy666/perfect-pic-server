@@ -2,7 +2,6 @@ package handler
 
 import (
 	"perfect-pic-server/internal/config"
-	"perfect-pic-server/internal/pkg/cache"
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/usecase/admin"
 	"perfect-pic-server/internal/usecase/app"
@@ -26,7 +25,6 @@ type UserHandler struct {
 	authService       *service.AuthService
 	passkeyService    *service.PasskeyService
 	passkeyUseCase    *app.PasskeyUseCase
-	userStatusCache   *cache.Store
 }
 
 type ImageHandler struct {
@@ -35,11 +33,11 @@ type ImageHandler struct {
 }
 
 type SystemHandler struct {
-	initService *service.InitService
-	statUseCase *admin.StatUseCase
-	dbConfig    *config.DBConfig
+	initService  *service.InitService
+	statUseCase  *admin.StatUseCase
+	dbConfig     *config.DBConfig
 	staticConfig *config.Config
-	userService *service.UserService
+	userService  *service.UserService
 }
 
 type SettingsHandler struct {
@@ -74,7 +72,6 @@ func NewUserHandler(
 	authService *service.AuthService,
 	passkeyService *service.PasskeyService,
 	passkeyUseCase *app.PasskeyUseCase,
-	userStatusCache *cache.Store,
 ) *UserHandler {
 	return &UserHandler{
 		userService:       userService,
@@ -85,7 +82,6 @@ func NewUserHandler(
 		authService:       authService,
 		passkeyService:    passkeyService,
 		passkeyUseCase:    passkeyUseCase,
-		userStatusCache:   userStatusCache,
 	}
 }
 
@@ -100,11 +96,11 @@ func NewSystemHandler(
 	staticConfig *config.Config,
 	userService *service.UserService) *SystemHandler {
 	return &SystemHandler{
-		initService: initService,
-		statUseCase: statUseCase,
-		dbConfig:    dbConfig,
+		initService:  initService,
+		statUseCase:  statUseCase,
+		dbConfig:     dbConfig,
 		staticConfig: staticConfig,
-		userService: userService,
+		userService:  userService,
 	}
 }
 

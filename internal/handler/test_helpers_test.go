@@ -68,7 +68,7 @@ func setupTestDB(t *testing.T) {
 
 	testHandler = &compositeHandler{
 		AuthHandler:     NewAuthHandler(authService, captchaService, authUseCase, initService, dbConfig, passkeyUseCase),
-		UserHandler:     NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase, nil),
+		UserHandler:     NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase),
 		ImageHandler:    NewImageHandler(imageService, imageUseCase),
 		SystemHandler:   NewSystemHandler(initService, statUseCase, dbConfig, userService),
 		SettingsHandler: NewSettingsHandler(settingsService, settingsUseCase),

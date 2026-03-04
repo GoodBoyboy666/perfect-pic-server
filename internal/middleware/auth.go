@@ -2,39 +2,23 @@ package middleware
 
 import (
 	"net/http"
-	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/pkg/cache"
 	"perfect-pic-server/internal/pkg/jwt"
-	"strconv"
+	"perfect-pic-server/internal/service"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
-const statusCacheTTL = 1 * time.Minute
-
 type AuthMiddleware struct {
-	jwt *jwt.JWT
-	gormDB *gorm.DB
-	statusCache *cache.Store
+	jwt         *jwt.JWT
+	userService *service.UserService
 }
 
-func NewAuthMiddleware(jwt *jwt.JWT, gormDB *gorm.DB, statusCache *cache.Store) *AuthMiddleware {
+func NewAuthMiddleware(jwt *jwt.JWT, userService *service.UserService) *AuthMiddleware {
 	return &AuthMiddleware{
-		jwt: jwt,
-		gormDB: gormDB,
-		statusCache: statusCache,
+		jwt:         jwt,
+		userService: userService,
 	}
-}
-
-// ClearUserStatusCache 清除指定用户的状态缓存
-func (m *AuthMiddleware) ClearUserStatusCache(userID uint) {
-	if m.statusCache == nil {
-		return
-	}
-	m.statusCache.Delete(m.statusCache.RedisKey("auth", "user_status", strconv.FormatUint(uint64(userID), 10)))
 }
 
 func (m *AuthMiddleware) JWTAuth() gin.HandlerFunc {
@@ -81,8 +65,8 @@ func (m *AuthMiddleware) JWTAuth() gin.HandlerFunc {
 //nolint:gocyclo
 func (m *AuthMiddleware) UserStatusCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if m.gormDB == nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库未初始化"})
+		if m.userService == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "用户服务未初始化"})
 			c.Abort()
 			return
 		}
@@ -102,37 +86,11 @@ func (m *AuthMiddleware) UserStatusCheck() gin.HandlerFunc {
 			return
 		}
 
-		var (
-			currentStatus int
-			statusFound   bool
-		)
-		var statusKey string
-
-		if m.statusCache != nil {
-			statusKey = m.statusCache.RedisKey("auth", "user_status", strconv.FormatUint(uint64(uid), 10))
-			if cachedStatusStr, ok := m.statusCache.Get(statusKey); ok {
-				if parsedStatus, parseErr := strconv.Atoi(cachedStatusStr); parseErr == nil {
-					currentStatus = parsedStatus
-					statusFound = true
-				} else {
-					m.statusCache.Delete(statusKey)
-				}
-			}
-		}
-
-		// 如果缓存未命中或过期，查询数据库
-		if !statusFound {
-			var user model.User
-			if err := m.gormDB.Select("status").First(&user, uid).Error; err != nil {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
-				c.Abort()
-				return
-			}
-			currentStatus = user.Status
-
-			if m.statusCache != nil {
-				m.statusCache.Set(statusKey, strconv.Itoa(currentStatus), statusCacheTTL)
-			}
+		currentStatus, err := m.userService.GetUserStatus(uid)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
+			c.Abort()
+			return
 		}
 
 		if currentStatus == 2 {
