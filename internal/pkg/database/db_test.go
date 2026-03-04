@@ -1,29 +1,21 @@
 package database
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
-	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/model"
 )
 
 // 测试内容：验证使用 sqlite 临时文件初始化数据库并创建核心表。
 func TestNewGormDB_SQLiteTempFile(t *testing.T) {
 	tmp := t.TempDir()
-	cfgDir := filepath.Join(tmp, "cfg")
-	if err := os.MkdirAll(cfgDir, 0755); err != nil {
-		t.Fatalf("创建配置目录失败: %v", err)
-	}
-
 	dbFile := filepath.Join(tmp, "db", "test.db")
-	t.Setenv("PERFECT_PIC_SERVER_MODE", "debug")
-	t.Setenv("PERFECT_PIC_DATABASE_TYPE", "sqlite")
-	t.Setenv("PERFECT_PIC_DATABASE_FILENAME", dbFile)
 
-	config.InitConfig(cfgDir)
-	gdb, err := NewGormDB()
+	gdb, err := NewGormDB(&DbConnectionConfig{
+		Type:     "sqlite",
+		Filename: dbFile,
+	})
 	if err != nil {
 		t.Fatalf("NewGormDB failed: %v", err)
 	}

@@ -52,8 +52,11 @@ type CaptchaService struct {
 	dbConfig *config.DBConfig
 }
 
-func NewAuthService(dbConfig *config.DBConfig, staticConfig *config.Config) *AuthService {
-	return &AuthService{dbConfig: dbConfig}
+func NewAuthService(dbConfig *config.DBConfig, jwt *jwt.JWT) *AuthService {
+	return &AuthService{
+		dbConfig: dbConfig,
+		jwt:      jwt,
+	}
 }
 
 func NewUserService(userStore repo.UserStore, dbConfig *config.DBConfig, cache *cache.Store, jwt *jwt.JWT) *UserService {
@@ -69,8 +72,12 @@ func NewImageService(imageStore repo.ImageStore, dbConfig *config.DBConfig, stat
 	return &ImageService{imageStore: imageStore, dbConfig: dbConfig, staticConfig: staticConfig}
 }
 
-func NewEmailService(dbConfig *config.DBConfig, mailer *email.Mailer) *EmailService {
-	return &EmailService{dbConfig: dbConfig, mailer: mailer}
+func NewEmailService(dbConfig *config.DBConfig, mailer *email.Mailer, staticConfig *config.Config) *EmailService {
+	return &EmailService{
+		dbConfig:     dbConfig,
+		staticConfig: staticConfig,
+		mailer:       mailer,
+	}
 }
 
 func NewInitService(systemStore repo.SystemStore, dbConfig *config.DBConfig) *InitService {

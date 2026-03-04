@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	"perfect-pic-server/internal/config"
+	"perfect-pic-server/internal/pkg/cache"
 	pkgmail "perfect-pic-server/internal/pkg/email"
+	jwtpkg "perfect-pic-server/internal/pkg/jwt"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/testutils"
@@ -42,18 +44,22 @@ func setupTestDB(t *testing.T) {
 	passkeyStore := repository.NewPasskeyRepository(gdb)
 
 	dbConfig := config.NewDBConfig(settingStore)
-	authService := service.NewAuthService(dbConfig)
-	userService := service.NewUserService(userStore, dbConfig, nil)
-	imageService := service.NewImageService(imageStore, dbConfig)
-	emailService := service.NewEmailService(dbConfig, pkgmail.NewMailer())
+	staticConfig := config.NewStaticConfig()
+	tokenService := jwtpkg.NewJWT(config.NewJWTConfig(staticConfig))
+	cacheStore := cache.NewStore(nil, config.NewCacheConfig(staticConfig))
+
+	authService := service.NewAuthService(dbConfig, tokenService)
+	userService := service.NewUserService(userStore, dbConfig, cacheStore, tokenService)
+	imageService := service.NewImageService(imageStore, dbConfig, staticConfig)
+	emailService := service.NewEmailService(dbConfig, pkgmail.NewMailer(), staticConfig)
 	captchaService := service.NewCaptchaService(dbConfig)
 	initService := service.NewInitService(systemStore, dbConfig)
-	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, nil)
+	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, cacheStore)
 	settingsService := service.NewSettingsService(settingStore, dbConfig)
 
 	authUseCase := appuc.NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
 	userUseCase := appuc.NewUserUseCase(userService, userStore, emailService, dbConfig)
-	imageUseCase := appuc.NewImageUseCase(imageService, userService, userStore, dbConfig)
+	imageUseCase := appuc.NewImageUseCase(imageService, userService, userStore, staticConfig, dbConfig)
 	passkeyUseCase := appuc.NewPasskeyUseCase(passkeyService, passkeyStore, authService, userStore)
 	userManageUseCase := adminuc.NewUserManageUseCase(userService, imageService, passkeyService)
 	settingsUseCase := adminuc.NewSettingsUseCase(emailService)
@@ -70,7 +76,7 @@ func setupTestDB(t *testing.T) {
 		AuthHandler:     NewAuthHandler(authService, captchaService, authUseCase, initService, dbConfig, passkeyUseCase),
 		UserHandler:     NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase),
 		ImageHandler:    NewImageHandler(imageService, imageUseCase),
-		SystemHandler:   NewSystemHandler(initService, statUseCase, dbConfig, userService),
+		SystemHandler:   NewSystemHandler(initService, statUseCase, dbConfig, staticConfig, userService),
 		SettingsHandler: NewSettingsHandler(settingsService, settingsUseCase),
 	}
 }

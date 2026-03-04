@@ -20,9 +20,10 @@ func TestStaticCacheMiddleware_SetsCacheControl(t *testing.T) {
 		t.Fatalf("设置配置项失败: %v", err)
 	}
 	testService.ClearCache()
+	staticCache := NewStaticCacheMiddleware(testService)
 
 	r := gin.New()
-	r.Use(StaticCacheMiddleware(testService))
+	r.Use(staticCache.StaticCacheMiddleware())
 	r.GET("/x", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	w := httptest.NewRecorder()

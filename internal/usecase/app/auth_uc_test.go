@@ -2,6 +2,7 @@ package app
 
 import (
 	"perfect-pic-server/internal/common/httpx"
+	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/pkg/jwt"
@@ -115,7 +116,8 @@ func TestAuthUseCase_LoginUser_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoginUser failed: %v", err)
 	}
-	claims, err := jwt.ParseLoginToken(token)
+	jwtService := jwt.NewJWT(config.NewJWTConfig(config.NewStaticConfig()))
+	claims, err := jwtService.ParseLoginToken(token)
 	if err != nil {
 		t.Fatalf("ParseLoginToken failed: %v", err)
 	}

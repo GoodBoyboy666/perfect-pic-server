@@ -10,8 +10,9 @@ import (
 	"perfect-pic-server/internal/config"
 	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/model"
+	"perfect-pic-server/internal/pkg/cache"
 	pkgmail "perfect-pic-server/internal/pkg/email"
-	redis2 "perfect-pic-server/internal/pkg/redis"
+	jwtpkg "perfect-pic-server/internal/pkg/jwt"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/testutils"
 
@@ -47,14 +48,17 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	systemStore := repository.NewSystemRepository(gdb)
 	passkeyStore := repository.NewPasskeyRepository(gdb)
 	dbConfig := config.NewDBConfig(settingStore)
+	staticConfig := config.NewStaticConfig()
+	tokenService := jwtpkg.NewJWT(config.NewJWTConfig(staticConfig))
+	cacheStore := cache.NewStore(nil, config.NewCacheConfig(staticConfig))
 
-	authService := NewAuthService(dbConfig)
-	userService := NewUserService(userStore, dbConfig, nil)
-	imageService := NewImageService(imageStore, dbConfig)
-	emailService := NewEmailService(dbConfig, pkgmail.NewMailer())
+	authService := NewAuthService(dbConfig, tokenService)
+	userService := NewUserService(userStore, dbConfig, cacheStore, tokenService)
+	imageService := NewImageService(imageStore, dbConfig, staticConfig)
+	emailService := NewEmailService(dbConfig, pkgmail.NewMailer(), staticConfig)
 	captchaService := NewCaptchaService(dbConfig)
 	initService := NewInitService(systemStore, dbConfig)
-	passkeyService := NewPasskeyService(passkeyStore, dbConfig, nil)
+	passkeyService := NewPasskeyService(passkeyStore, dbConfig, cacheStore)
 
 	testService = &Service{
 		dbConfig:       dbConfig,
@@ -256,13 +260,10 @@ func (s *UserService) resetTokenCachesForTest() {
 	if s.cache != nil {
 		s.cache.ClearLocal()
 	}
-	if s.emailChangeCache != nil {
-		s.emailChangeCache.ClearLocal()
-	}
 }
 
 func (s *UserService) putEmailChangeTokenLocalForTest(token moduledto.EmailChangeToken) {
-	if s.emailChangeCache == nil {
+	if s.cache == nil {
 		return
 	}
 
@@ -275,9 +276,9 @@ func (s *UserService) putEmailChangeTokenLocalForTest(token moduledto.EmailChang
 		return
 	}
 
-	s.emailChangeCache.SetIndexed(
-		redis2.RedisKey("email_change", "user", strconv.FormatUint(uint64(token.UserID), 10)),
-		redis2.RedisKey("email_change", "token", token.Token),
+	s.cache.SetIndexed(
+		s.cache.RedisKey("email_change", "user", strconv.FormatUint(uint64(token.UserID), 10)),
+		s.cache.RedisKey("email_change", "token", token.Token),
 		string(payload),
 		ttlForLocalToken(token.ExpiresAt),
 	)

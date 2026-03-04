@@ -31,7 +31,7 @@ func NewRedisClientConfig(cfg *Config) *redispkg.Config {
 func NewJWTConfig(cfg *Config) *jwtpkg.Config {
 	return &jwtpkg.Config{
 		JWTSecret: []byte(cfg.JWT.Secret),
-		Duration:  time.Duration(cfg.JWT.ExpirationHours),
+		Duration:  time.Duration(cfg.JWT.ExpirationHours) * time.Hour,
 	}
 }
 

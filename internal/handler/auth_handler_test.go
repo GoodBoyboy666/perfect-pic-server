@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/pkg/jwt"
 	"testing"
 
@@ -45,7 +46,8 @@ func TestLoginHandler_SuccessAndUnauthorized(t *testing.T) {
 	if okResp.Token == "" {
 		t.Fatalf("期望得到 token")
 	}
-	if _, err := jwt.ParseLoginToken(okResp.Token); err != nil {
+	jwtService := jwt.NewJWT(config.NewJWTConfig(config.NewStaticConfig()))
+	if _, err := jwtService.ParseLoginToken(okResp.Token); err != nil {
 		t.Fatalf("令牌解析失败: %v", err)
 	}
 

@@ -12,6 +12,7 @@ import (
 	"testing/fstest"
 
 	"perfect-pic-server/internal/config"
+	"perfect-pic-server/internal/middleware"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/testutils"
 
@@ -103,7 +104,7 @@ func TestGetNoRouteHandler(t *testing.T) {
 	indexData := []byte("<html>index</html>")
 
 	r := gin.New()
-	r.NoRoute(getNoRouteHandler(dist, indexData))
+	r.NoRoute(getNoRouteHandler(dist, indexData, "/imgs/", "/avatars/"))
 
 	// API 未找到
 	w1 := httptest.NewRecorder()
@@ -148,7 +149,7 @@ func TestEnsureDirectories_CreatesUploadAndAvatarDirs(t *testing.T) {
 	_ = os.Chdir(tmp)
 	defer func() { _ = os.Chdir(oldwd) }()
 
-	uploadPath, avatarPath := ensureDirectories()
+	uploadPath, avatarPath := ensureDirectories(buildStaticConfigForMain("uploads/imgs", "uploads/avatars"))
 	if _, err := os.Stat(uploadPath); err != nil {
 		t.Fatalf("期望 upload dir exists: %v", err)
 	}
@@ -177,31 +178,23 @@ func TestApplyTrustedProxies_UsesStaticConfigValue(t *testing.T) {
 
 	remoteAddr := "10.0.0.1:1234"
 	xff := "203.0.113.10, 10.0.0.1"
-	configDir := config.GetConfigDir()
-
 	// 空值会禁用信任，ClientIP 应为 RemoteAddr。
-	t.Setenv("PERFECT_PIC_SERVER_TRUSTED_PROXIES", "")
-	config.InitConfig(configDir)
 	r := gin.New()
-	applyTrustedProxies(r)
+	applyTrustedProxies(r, "")
 	if got := getClientIP(r, remoteAddr, xff); got != "10.0.0.1" {
 		t.Fatalf("禁用可信代理时 ClientIP 应为 RemoteAddr，实际为 %q", got)
 	}
 
 	// 有效的代理列表应启用信任，ClientIP 应取 X-Forwarded-For。
-	t.Setenv("PERFECT_PIC_SERVER_TRUSTED_PROXIES", "127.0.0.1,10.0.0.0/8")
-	config.InitConfig(configDir)
 	r2 := gin.New()
-	applyTrustedProxies(r2)
+	applyTrustedProxies(r2, "127.0.0.1,10.0.0.0/8")
 	if got := getClientIP(r2, remoteAddr, xff); got != "203.0.113.10" {
 		t.Fatalf("启用可信代理时 ClientIP 应取 X-Forwarded-For，实际为 %q", got)
 	}
 
 	// 无效的代理列表应回退为禁用，ClientIP 仍为 RemoteAddr。
-	t.Setenv("PERFECT_PIC_SERVER_TRUSTED_PROXIES", "not-a-cidr")
-	config.InitConfig(configDir)
 	r3 := gin.New()
-	applyTrustedProxies(r3)
+	applyTrustedProxies(r3, "not-a-cidr")
 	if got := getClientIP(r3, remoteAddr, xff); got != "10.0.0.1" {
 		t.Fatalf("无效可信代理时 ClientIP 应为 RemoteAddr，实际为 %q", got)
 	}
@@ -212,7 +205,7 @@ func TestGetNoRouteHandler_DistFSNil(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	r := gin.New()
-	r.NoRoute(getNoRouteHandler(nil, nil))
+	r.NoRoute(getNoRouteHandler(nil, nil, "/imgs/", "/avatars/"))
 
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/any", nil))
@@ -223,7 +216,7 @@ func TestGetNoRouteHandler_DistFSNil(t *testing.T) {
 
 // 测试内容：验证欢迎信息打印函数在测试配置下可执行。
 func TestPrintWelcomeMessage(t *testing.T) {
-	printWelcomeMessage()
+	printWelcomeMessage("8080")
 }
 
 // 测试内容：验证静态文件挂载后上传与头像文件可被访问。
@@ -236,12 +229,19 @@ func TestSetupStaticFiles_ServesUploadsAndAvatars(t *testing.T) {
 	_ = os.Chdir(tmp)
 	defer func() { _ = os.Chdir(oldwd) }()
 
-	uploadPath, avatarPath := ensureDirectories()
+	uploadPath, avatarPath := ensureDirectories(buildStaticConfigForMain("uploads/imgs", "uploads/avatars"))
 	_ = os.WriteFile(filepath.Join(uploadPath, "a.txt"), []byte("u"), 0644)
 	_ = os.WriteFile(filepath.Join(avatarPath, "b.txt"), []byte("a"), 0644)
 
 	r := gin.New()
-	setupStaticFiles(r, buildTestDBConfigForMain(), uploadPath, avatarPath)
+	setupStaticFiles(
+		r,
+		uploadPath,
+		avatarPath,
+		buildTestStaticCacheMiddlewareForMain(),
+		"/imgs/",
+		"/avatars/",
+	)
 
 	w1 := httptest.NewRecorder()
 	r.ServeHTTP(w1, httptest.NewRequest(http.MethodGet, "/imgs/a.txt", nil))
@@ -268,4 +268,19 @@ var _ fs.FS = fstest.MapFS{}
 func buildTestDBConfigForMain() *config.DBConfig {
 	settingStore := repository.NewSettingRepository(testGormDB)
 	return config.NewDBConfig(settingStore)
+}
+
+func buildTestStaticCacheMiddlewareForMain() *middleware.StaticCacheMiddleware {
+	return middleware.NewStaticCacheMiddleware(buildTestDBConfigForMain())
+}
+
+func buildStaticConfigForMain(uploadPath, avatarPath string) *config.Config {
+	return &config.Config{
+		Upload: config.UploadConfig{
+			Path:            uploadPath,
+			AvatarPath:      avatarPath,
+			URLPrefix:       "/imgs/",
+			AvatarURLPrefix: "/avatars/",
+		},
+	}
 }

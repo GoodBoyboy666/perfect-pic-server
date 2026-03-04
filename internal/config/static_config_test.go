@@ -15,7 +15,7 @@ func TestInitConfig_SetsDefaults(t *testing.T) {
 
 	InitConfig(dir)
 
-	cfg := Get()
+	cfg := get()
 	if cfg.Server.Port == "" {
 		t.Fatalf("期望 default server.port to be set")
 	}

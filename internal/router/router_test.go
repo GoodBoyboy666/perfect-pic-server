@@ -5,7 +5,11 @@ import (
 
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/handler"
+	"perfect-pic-server/internal/middleware"
+	"perfect-pic-server/internal/pkg/cache"
 	pkgmail "perfect-pic-server/internal/pkg/email"
+	jwtpkg "perfect-pic-server/internal/pkg/jwt"
+	"perfect-pic-server/internal/pkg/ratelimit"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/testutils"
@@ -26,34 +30,55 @@ func TestInitRouter_RegistersCoreRoutes(t *testing.T) {
 	passkeyStore := repository.NewPasskeyRepository(gdb)
 
 	dbConfig := config.NewDBConfig(settingStore)
+	staticConfig := config.NewStaticConfig()
+	tokenService := jwtpkg.NewJWT(config.NewJWTConfig(staticConfig))
+	cacheStore := cache.NewStore(nil, config.NewCacheConfig(staticConfig))
 	if err := dbConfig.InitializeSettings(); err != nil {
 		t.Fatalf("InitializeSettings failed: %v", err)
 	}
 	dbConfig.ClearCache()
 
-	authService := service.NewAuthService(dbConfig)
+	authService := service.NewAuthService(dbConfig, tokenService)
 	captchaService := service.NewCaptchaService(dbConfig)
-	userService := service.NewUserService(userStore, dbConfig, nil)
-	imageService := service.NewImageService(imageStore, dbConfig)
-	emailService := service.NewEmailService(dbConfig, pkgmail.NewMailer())
+	userService := service.NewUserService(userStore, dbConfig, cacheStore, tokenService)
+	imageService := service.NewImageService(imageStore, dbConfig, staticConfig)
+	emailService := service.NewEmailService(dbConfig, pkgmail.NewMailer(), staticConfig)
 	initService := service.NewInitService(systemStore, dbConfig)
-	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, nil)
+	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, cacheStore)
 	settingsService := service.NewSettingsService(settingStore, dbConfig)
 
 	authUseCase := appuc.NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
 	userUseCase := appuc.NewUserUseCase(userService, userStore, emailService, dbConfig)
-	imageUseCase := appuc.NewImageUseCase(imageService, userService, userStore, dbConfig)
+	imageUseCase := appuc.NewImageUseCase(imageService, userService, userStore, staticConfig, dbConfig)
 	passkeyUseCase := appuc.NewPasskeyUseCase(passkeyService, passkeyStore, authService, userStore)
 	userManageUseCase := adminuc.NewUserManageUseCase(userService, imageService, passkeyService)
 	settingsUseCase := adminuc.NewSettingsUseCase(emailService)
 	statUseCase := adminuc.NewStatUseCase(imageStore, userStore)
 
 	authHandler := handler.NewAuthHandler(authService, captchaService, authUseCase, initService, dbConfig, passkeyUseCase)
-	systemHandler := handler.NewSystemHandler(initService, statUseCase, dbConfig, userService)
+	systemHandler := handler.NewSystemHandler(initService, statUseCase, dbConfig, staticConfig, userService)
 	settingsHandler := handler.NewSettingsHandler(settingsService, settingsUseCase)
 	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase)
 	imageHandler := handler.NewImageHandler(imageService, imageUseCase)
-	rt := NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig, gdb, nil, nil, nil)
+	authMiddleware := middleware.NewAuthMiddleware(tokenService, userService)
+	rateLimitMiddleware := middleware.NewRateLimitMiddleware(
+		dbConfig,
+		ratelimit.NewTokenBucketLimiter(nil),
+		ratelimit.NewIntervalLimiter(nil),
+	)
+	bodyLimitMiddleware := middleware.NewBodyLimitConfig(dbConfig)
+	securityHeadersMiddleware := middleware.NewSecurityHeadersMiddleware(dbConfig)
+	rt := NewRouter(
+		authMiddleware,
+		rateLimitMiddleware,
+		bodyLimitMiddleware,
+		securityHeadersMiddleware,
+		authHandler,
+		systemHandler,
+		settingsHandler,
+		userHandler,
+		imageHandler,
+	)
 
 	r := gin.New()
 	rt.Init(r)

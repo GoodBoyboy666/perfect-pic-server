@@ -9,7 +9,9 @@ import (
 	"perfect-pic-server/internal/common/httpx"
 	"perfect-pic-server/internal/config"
 	moduledto "perfect-pic-server/internal/dto"
+	"perfect-pic-server/internal/pkg/cache"
 	pkgmail "perfect-pic-server/internal/pkg/email"
+	jwtpkg "perfect-pic-server/internal/pkg/jwt"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/testutils"
@@ -51,22 +53,25 @@ func setupAppFixture(t *testing.T) *appFixture {
 	passkeyStore := repository.NewPasskeyRepository(gdb)
 
 	dbConfig := config.NewDBConfig(settingStore)
+	staticConfig := config.NewStaticConfig()
+	tokenService := jwtpkg.NewJWT(config.NewJWTConfig(staticConfig))
+	cacheStore := cache.NewStore(nil, config.NewCacheConfig(staticConfig))
 	if err := dbConfig.InitializeSettings(); err != nil {
 		t.Fatalf("InitializeSettings failed: %v", err)
 	}
 	dbConfig.ClearCache()
 
-	authService := service.NewAuthService(dbConfig)
-	userService := service.NewUserService(userStore, dbConfig, nil)
-	imageService := service.NewImageService(imageStore, dbConfig)
-	emailService := service.NewEmailService(dbConfig, pkgmail.NewMailer())
+	authService := service.NewAuthService(dbConfig, tokenService)
+	userService := service.NewUserService(userStore, dbConfig, cacheStore, tokenService)
+	imageService := service.NewImageService(imageStore, dbConfig, staticConfig)
+	emailService := service.NewEmailService(dbConfig, pkgmail.NewMailer(), staticConfig)
 	captchaService := service.NewCaptchaService(dbConfig)
 	initService := service.NewInitService(systemStore, dbConfig)
-	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, nil)
+	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, cacheStore)
 
 	authUC := NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
 	userUC := NewUserUseCase(userService, userStore, emailService, dbConfig)
-	imageUC := NewImageUseCase(imageService, userService, userStore, dbConfig)
+	imageUC := NewImageUseCase(imageService, userService, userStore, staticConfig, dbConfig)
 	passkeyUC := NewPasskeyUseCase(passkeyService, passkeyStore, authService, userStore)
 
 	return &appFixture{
