@@ -26,8 +26,5 @@ func setupTestDB(t *testing.T) *gorm.DB {
 }
 
 func resetStatusCache() {
-	statusCache.Range(func(key, value any) bool {
-		statusCache.Delete(key)
-		return true
-	})
+	// no-op: 状态缓存已改为依赖注入的 cache.Store，由测试自行创建与隔离。
 }

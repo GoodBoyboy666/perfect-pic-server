@@ -9,10 +9,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type BodyLimitMiddleware struct {
+	dbConfig *config.DBConfig
+}
+
+func NewBodyLimitConfig(dbConfig *config.DBConfig) *BodyLimitMiddleware {
+	return &BodyLimitMiddleware{dbConfig: dbConfig}
+}
+
 // BodyLimitMiddleware 限制请求体大小
-func BodyLimitMiddleware(dbConfig *config.DBConfig) gin.HandlerFunc {
+func (m *BodyLimitMiddleware) BodyLimitMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		maxSizeMB := dbConfig.GetInt(consts.ConfigMaxRequestBodySize)
+		maxSizeMB := m.dbConfig.GetInt(consts.ConfigMaxRequestBodySize)
 		if maxSizeMB <= 0 {
 			// 如果未设置或为0，默认 2MB
 			maxSizeMB = 2
@@ -29,9 +37,9 @@ func BodyLimitMiddleware(dbConfig *config.DBConfig) gin.HandlerFunc {
 }
 
 // UploadBodyLimitMiddleware 限制上传/头像接口的请求体大小
-func UploadBodyLimitMiddleware(dbConfig *config.DBConfig) gin.HandlerFunc {
+func (m *BodyLimitMiddleware) UploadBodyLimitMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		maxSizeMB := dbConfig.GetInt(consts.ConfigMaxUploadSize)
+		maxSizeMB := m.dbConfig.GetInt(consts.ConfigMaxUploadSize)
 		if maxSizeMB <= 0 {
 			maxSizeMB = 10
 		}

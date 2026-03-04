@@ -6,8 +6,6 @@ import (
 	"perfect-pic-server/internal/middleware"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
-	"gorm.io/gorm"
 )
 
 func registerAdminRoutes(
@@ -16,16 +14,16 @@ func registerAdminRoutes(
 	settingsHandler *handler.SettingsHandler,
 	userHandler *handler.UserHandler,
 	imageHandler *handler.ImageHandler,
+	authMiddleware *middleware.AuthMiddleware,
+	bodyLimitMiddleware *middleware.BodyLimitMiddleware,
 	dbConfig *config.DBConfig,
-	gormDB *gorm.DB,
-	redisDB *redis.Client,
 ) {
 	adminGroup := api.Group("/admin")
-	adminGroup.Use(middleware.JWTAuth())
-	adminGroup.Use(middleware.UserStatusCheck(gormDB, redisDB))
+	adminGroup.Use(authMiddleware.JWTAuth())
+	adminGroup.Use(authMiddleware.UserStatusCheck())
 	adminGroup.Use(middleware.AdminCheck())
-	bodyLimit := middleware.BodyLimitMiddleware(dbConfig)
-	uploadBodyLimit := middleware.UploadBodyLimitMiddleware(dbConfig)
+	bodyLimit := bodyLimitMiddleware.BodyLimitMiddleware()
+	uploadBodyLimit := bodyLimitMiddleware.UploadBodyLimitMiddleware()
 
 	adminGroup.GET("/stats", systemHandler.GetServerStats)
 

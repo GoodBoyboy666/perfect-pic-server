@@ -10,8 +10,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func registerAuthRoutes(api *gin.RouterGroup, authLimiter gin.HandlerFunc, h *handler.AuthHandler, dbConfig *config.DBConfig, redisDB *redis.Client) {
-	bodyLimit := middleware.BodyLimitMiddleware(dbConfig)
+func registerAuthRoutes(api *gin.RouterGroup, authLimiter gin.HandlerFunc, h *handler.AuthHandler, dbConfig *config.DBConfig, redisDB *redis.Client,bodyLimitMiddleware *middleware.BodyLimitMiddleware) {
+	bodyLimit := bodyLimitMiddleware.BodyLimitMiddleware()
 
 	api.POST("/login", bodyLimit, authLimiter, h.Login)
 	api.POST("/register", bodyLimit, authLimiter, h.Register)

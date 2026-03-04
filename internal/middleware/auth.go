@@ -1,49 +1,50 @@
 package middleware
 
 import (
-	"context"
-	"errors"
 	"net/http"
 	"perfect-pic-server/internal/model"
+	"perfect-pic-server/internal/pkg/cache"
 	"perfect-pic-server/internal/pkg/jwt"
-	redis2 "perfect-pic-server/internal/pkg/redis"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
-)
-
-var (
-	// statusCache缓存用户状态，减少数据库查询
-	// Key: userID (uint), Value: cachedStatus
-	statusCache sync.Map
 )
 
 const statusCacheTTL = 1 * time.Minute
 
-type cachedStatus struct {
-	Status    int
-	ExpiresAt time.Time
+type AuthMiddleware struct {
+	jwt *jwt.JWT
+	gormDB *gorm.DB
+	statusCache *cache.Store
 }
 
-// ClearUserStatusCache 清除指定用户的状态缓存
-func ClearUserStatusCache(redisClient *redis.Client, userID uint) {
-	statusCache.Delete(userID)
-
-	if redisClient != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		key := redis2.RedisKey("auth", "user_status", strconv.FormatUint(uint64(userID), 10))
-		_ = redisClient.Del(ctx, key).Err()
+func NewAuthMiddleware(jwt *jwt.JWT, gormDB *gorm.DB, statusCache *cache.Store) *AuthMiddleware {
+	return &AuthMiddleware{
+		jwt: jwt,
+		gormDB: gormDB,
+		statusCache: statusCache,
 	}
 }
 
-func JWTAuth() gin.HandlerFunc {
+// ClearUserStatusCache 清除指定用户的状态缓存
+func (m *AuthMiddleware) ClearUserStatusCache(userID uint) {
+	if m.statusCache == nil {
+		return
+	}
+	m.statusCache.Delete(m.statusCache.RedisKey("auth", "user_status", strconv.FormatUint(uint64(userID), 10)))
+}
+
+func (m *AuthMiddleware) JWTAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if m.jwt == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "认证组件未初始化"})
+			c.Abort()
+			return
+		}
+
 		// 获取请求头 Authorization
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -61,7 +62,7 @@ func JWTAuth() gin.HandlerFunc {
 		}
 
 		//解析 Token
-		claims, err := jwt.ParseLoginToken(parts[1])
+		claims, err := m.jwt.ParseLoginToken(parts[1])
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token 无效或已过期"})
 			c.Abort()
@@ -78,9 +79,9 @@ func JWTAuth() gin.HandlerFunc {
 // UserStatusCheck 检查用户状态是否被封禁
 //
 //nolint:gocyclo
-func UserStatusCheck(gormDB *gorm.DB, redisClient *redis.Client) gin.HandlerFunc {
+func (m *AuthMiddleware) UserStatusCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if gormDB == nil {
+		if m.gormDB == nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库未初始化"})
 			c.Abort()
 			return
@@ -105,44 +106,16 @@ func UserStatusCheck(gormDB *gorm.DB, redisClient *redis.Client) gin.HandlerFunc
 			currentStatus int
 			statusFound   bool
 		)
+		var statusKey string
 
-		// 优先从 Redis 读取
-		if redisClient != nil {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-			defer cancel()
-
-			key := redis2.RedisKey("auth", "user_status", strconv.FormatUint(uint64(uid), 10))
-			cachedStatusStr, err := redisClient.Get(ctx, key).Result()
-			if err == nil {
+		if m.statusCache != nil {
+			statusKey = m.statusCache.RedisKey("auth", "user_status", strconv.FormatUint(uint64(uid), 10))
+			if cachedStatusStr, ok := m.statusCache.Get(statusKey); ok {
 				if parsedStatus, parseErr := strconv.Atoi(cachedStatusStr); parseErr == nil {
 					currentStatus = parsedStatus
 					statusFound = true
-					statusCache.Store(uid, cachedStatus{
-						Status:    currentStatus,
-						ExpiresAt: time.Now().Add(statusCacheTTL),
-					})
-					logRedisFallbackRecoveredWithTarget("用户状态缓存", "Redis 缓存")
 				} else {
-					logRedisFallbackDegradedWithTarget("用户状态缓存", "本地缓存", parseErr)
-				}
-			} else if errors.Is(err, redis.Nil) {
-				logRedisFallbackRecoveredWithTarget("用户状态缓存", "Redis 缓存")
-			} else {
-				logRedisFallbackDegradedWithTarget("用户状态缓存", "本地缓存", err)
-			}
-		}
-
-		// Redis 未命中或不可用时，回退本地内存缓存
-		if !statusFound {
-			if val, ok := statusCache.Load(uid); ok {
-				cached, typeOk := val.(cachedStatus)
-				if typeOk {
-					if time.Now().Before(cached.ExpiresAt) {
-						currentStatus = cached.Status
-						statusFound = true
-					} else {
-						statusCache.Delete(uid)
-					}
+					m.statusCache.Delete(statusKey)
 				}
 			}
 		}
@@ -150,25 +123,15 @@ func UserStatusCheck(gormDB *gorm.DB, redisClient *redis.Client) gin.HandlerFunc
 		// 如果缓存未命中或过期，查询数据库
 		if !statusFound {
 			var user model.User
-			if err := gormDB.Select("status").First(&user, uid).Error; err != nil {
+			if err := m.gormDB.Select("status").First(&user, uid).Error; err != nil {
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
 				c.Abort()
 				return
 			}
 			currentStatus = user.Status
 
-			// 写入缓存
-			statusCache.Store(uid, cachedStatus{
-				Status:    currentStatus,
-				ExpiresAt: time.Now().Add(statusCacheTTL),
-			})
-
-			if redisClient != nil {
-				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-				defer cancel()
-
-				key := redis2.RedisKey("auth", "user_status", strconv.FormatUint(uint64(uid), 10))
-				_ = redisClient.Set(ctx, key, strconv.Itoa(currentStatus), statusCacheTTL).Err()
+			if m.statusCache != nil {
+				m.statusCache.Set(statusKey, strconv.Itoa(currentStatus), statusCacheTTL)
 			}
 		}
 

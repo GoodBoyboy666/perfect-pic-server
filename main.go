@@ -62,20 +62,23 @@ func main() {
 		log.Fatal("❌ 初始化默认系统设置失败: ", err)
 	}
 
-	uploadPath, avatarPath := ensureDirectories()
+	uploadPath, avatarPath := ensureDirectories(app.StaticConfig)
 
-	gin.SetMode(config.Get().Server.Mode)
+	gin.SetMode(app.StaticConfig.Server.Mode)
 
 	r := gin.Default()
-	applyTrustedProxies(r)
+	applyTrustedProxies(r,app.StaticConfig.Server.TrustedProxies)
 	app.Router.Init(r)
 
-	setupStaticFiles(r, app.DbConfig, uploadPath, avatarPath)
+	uploadURLPrefix := app.StaticConfig.Upload.URLPrefix
+	avatarURLPrefix := app.StaticConfig.Upload.AvatarURLPrefix
+
+	setupStaticFiles(r, uploadPath, avatarPath, app.StaticCacheMiddleware, uploadURLPrefix, avatarURLPrefix)
 
 	distFS := GetFrontendAssets()
 	indexData := setupFrontend(r, distFS)
 
-	r.NoRoute(getNoRouteHandler(distFS, indexData))
+	r.NoRoute(getNoRouteHandler(distFS, indexData, uploadURLPrefix, avatarURLPrefix))
 
 	// 导出模式
 	if *exportRoutes {
@@ -84,19 +87,19 @@ func main() {
 	}
 
 	// 打印启动欢迎语
-	printWelcomeMessage()
+	printWelcomeMessage(app.StaticConfig.Server.Port)
 
-	startServer(r)
+	startServer(r,app.StaticConfig.Server.Port)
 }
 
-func ensureDirectories() (string, string) {
-	uploadPath := config.Get().Upload.Path
+func ensureDirectories(staticConfig *config.Config) (string, string) {
+	uploadPath := staticConfig.Upload.Path
 	checkSecurePath(uploadPath)
 	if err := os.MkdirAll(uploadPath, 0755); err != nil {
 		log.Fatal("无法创建上传目录: ", err)
 	}
 
-	avatarPath := config.Get().Upload.AvatarPath
+	avatarPath := staticConfig.Upload.AvatarPath
 	checkSecurePath(avatarPath)
 	if err := os.MkdirAll(avatarPath, 0755); err != nil {
 		log.Fatal("无法创建头像目录: ", err)
@@ -104,27 +107,27 @@ func ensureDirectories() (string, string) {
 	return uploadPath, avatarPath
 }
 
-func setupStaticFiles(r *gin.Engine, dbConfig *config.DBConfig, uploadPath, avatarPath string) {
+func setupStaticFiles(r *gin.Engine, uploadPath, avatarPath string, staticMiddleware *middleware.StaticCacheMiddleware, uploadURLPrefix string, avatarURLPrefix string) {
 	// 使用带缓存控制的静态文件服务
-	r.Group(config.Get().Upload.URLPrefix, middleware.StaticCacheMiddleware(dbConfig)).
+	r.Group(uploadURLPrefix, staticMiddleware.StaticCacheMiddleware()).
 		StaticFS("", gin.Dir(uploadPath, false))
 
-	r.Group(config.Get().Upload.AvatarURLPrefix, middleware.StaticCacheMiddleware(dbConfig)).
+	r.Group(avatarURLPrefix, staticMiddleware.StaticCacheMiddleware()).
 		StaticFS("", gin.Dir(avatarPath, false))
 }
 
-func getNoRouteHandler(distFS fs.FS, indexData []byte) gin.HandlerFunc {
+func getNoRouteHandler(distFS fs.FS, indexData []byte, uploadURLPrefix string, avatarURLPrefix string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if strings.HasPrefix(c.Request.URL.Path, "/api") {
 			c.JSON(404, gin.H{"error": "API not found"})
 			return
 		}
-		if strings.HasPrefix(c.Request.URL.Path, config.Get().Upload.URLPrefix) {
+		if strings.HasPrefix(c.Request.URL.Path, uploadURLPrefix) {
 			c.JSON(404, gin.H{"error": "Upload not found"})
 			return
 		}
 
-		if strings.HasPrefix(c.Request.URL.Path, config.Get().Upload.AvatarURLPrefix) {
+		if strings.HasPrefix(c.Request.URL.Path, avatarURLPrefix) {
 			c.JSON(404, gin.H{"error": "Avatar not found"})
 			return
 		}
@@ -158,16 +161,16 @@ func getNoRouteHandler(distFS fs.FS, indexData []byte) gin.HandlerFunc {
 	}
 }
 
-func startServer(r *gin.Engine) {
+func startServer(r *gin.Engine,port string) {
 	// 停机配置
 	srv := &http.Server{
-		Addr:    ":" + config.Get().Server.Port,
+		Addr:    ":" + port,
 		Handler: r,
 	}
 
 	go func() {
 		// 服务连接
-		log.Printf("🚀 服务启动成功，运行在 :%s\n", config.Get().Server.Port)
+		log.Printf("🚀 服务启动成功，运行在 :%s\n",port)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("❌ 服务启动失败: %s\n", err)
 		}
@@ -187,7 +190,7 @@ func startServer(r *gin.Engine) {
 	log.Println("✅ 服务已退出")
 }
 
-func printWelcomeMessage() {
+func printWelcomeMessage(port string) {
 
 	fmt.Println()
 	fmt.Println(" ┌───────────────────────────────────────────────────────┐")
@@ -197,7 +200,7 @@ func printWelcomeMessage() {
 	fmt.Printf(" │   💻  前端构建 : %s\n", FrontendVer)
 	fmt.Printf(" │   🔧  Git 提交 : %s\n", GitCommit)
 	fmt.Printf(" │   🕒  构建时间 : %s\n", BuildTime)
-	fmt.Printf(" │   🔥  服务端口 : %s\n", config.Get().Server.Port)
+	fmt.Printf(" │   🔥  服务端口 : %s\n", port)
 	fmt.Println(" └───────────────────────────────────────────────────────┘")
 	fmt.Println()
 }
@@ -283,8 +286,8 @@ func checkSecurePath(path string) {
 	}
 }
 
-func applyTrustedProxies(r *gin.Engine) {
-	raw := strings.TrimSpace(config.Get().Server.TrustedProxies)
+func applyTrustedProxies(r *gin.Engine,trustedProxies string) {
+	raw := strings.TrimSpace(trustedProxies)
 	if raw == "" {
 		if err := r.SetTrustedProxies(nil); err != nil {
 			log.Printf("⚠️ 设置可信代理失败: %v", err)

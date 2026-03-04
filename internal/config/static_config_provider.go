@@ -3,8 +3,8 @@ package config
 import (
 	"perfect-pic-server/internal/pkg/cache"
 	"perfect-pic-server/internal/pkg/database"
-	redispkg "perfect-pic-server/internal/pkg/redis"
 	jwtpkg "perfect-pic-server/internal/pkg/jwt"
+	redispkg "perfect-pic-server/internal/pkg/redis"
 	"time"
 )
 
@@ -30,8 +30,8 @@ func NewRedisClientConfig(cfg *Config) *redispkg.Config {
 
 func NewJWTConfig(cfg *Config) *jwtpkg.Config {
 	return &jwtpkg.Config{
-		JWTSecret:       []byte(cfg.JWT.Secret),
-		Duration:        time.Duration(cfg.JWT.ExpirationHours),
+		JWTSecret: []byte(cfg.JWT.Secret),
+		Duration:  time.Duration(cfg.JWT.ExpirationHours),
 	}
 }
 

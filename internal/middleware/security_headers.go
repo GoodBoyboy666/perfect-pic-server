@@ -8,8 +8,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type SecurityHeadersMiddleware struct {
+	dbConfig *config.DBConfig
+}
+
+func NewSecurityHeadersMiddleware(dbConfig *config.DBConfig) *SecurityHeadersMiddleware {
+	return &SecurityHeadersMiddleware{dbConfig: dbConfig}
+}
+
 // SecurityHeaders 添加安全相关的 HTTP 响应头
-func SecurityHeaders(dbConfig *config.DBConfig) gin.HandlerFunc {
+func (m *SecurityHeadersMiddleware) SecurityHeaders() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 防止浏览器猜测内容类型
 		c.Header("X-Content-Type-Options", "nosniff")
@@ -27,7 +35,7 @@ func SecurityHeaders(dbConfig *config.DBConfig) gin.HandlerFunc {
 			frameSrc   = []string{"'self'"}
 		)
 
-		provider := strings.ToLower(dbConfig.GetString(consts.ConfigCaptchaProvider))
+		provider := strings.ToLower(m.dbConfig.GetString(consts.ConfigCaptchaProvider))
 
 		switch provider {
 		case consts.CaptchaProviderGeetest:

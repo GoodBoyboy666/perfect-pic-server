@@ -110,7 +110,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 			return
 		}
 		// 清除用户状态缓存
-		middleware.ClearUserStatusCache(h.redisDB, uint(id))
+		middleware.ClearUserStatusCache(h.userStatusCache, uint(id))
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
@@ -195,7 +195,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 	}
 
 	// 清除用户状态缓存
-	middleware.ClearUserStatusCache(h.redisDB, uint(id))
+	middleware.ClearUserStatusCache(h.userStatusCache, uint(id))
 
 	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 }

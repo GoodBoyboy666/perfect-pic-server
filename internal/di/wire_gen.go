@@ -9,6 +9,7 @@ package di
 import (
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/handler"
+	"perfect-pic-server/internal/middleware"
 	"perfect-pic-server/internal/pkg/cache"
 	"perfect-pic-server/internal/pkg/database"
 	"perfect-pic-server/internal/pkg/email"
@@ -25,22 +26,25 @@ import (
 
 func InitializeApplication() (*Application, error) {
 	configConfig := config.NewStaticConfig()
+	jwtConfig := config.NewJWTConfig(configConfig)
+	jwtJWT := jwt.NewJWT(jwtConfig)
 	dbConnectionConfig := config.NewDBConnectionConfig(configConfig)
 	db, err := database.NewGormDB(dbConnectionConfig)
 	if err != nil {
 		return nil, err
 	}
-	settingStore := repository.NewSettingRepository(db)
-	dbConfig := config.NewDBConfig(settingStore)
-	authService := service.NewAuthService(dbConfig, configConfig)
-	captchaService := service.NewCaptchaService(dbConfig)
-	userStore := repository.NewUserRepository(db)
 	redisConfig := config.NewRedisClientConfig(configConfig)
 	client := redis.NewRedisClient(redisConfig)
 	cacheConfig := config.NewCacheConfig(configConfig)
 	store := cache.NewStore(client, cacheConfig)
-	jwtConfig := config.NewJWTConfig(configConfig)
-	jwtJWT := jwt.NewJWT(jwtConfig)
+	authMiddleware := middleware.NewAuthMiddleware(jwtJWT, db, store)
+	settingStore := repository.NewSettingRepository(db)
+	dbConfig := config.NewDBConfig(settingStore)
+	bodyLimitMiddleware := middleware.NewBodyLimitConfig(dbConfig)
+	securityHeadersMiddleware := middleware.NewSecurityHeadersMiddleware(dbConfig)
+	authService := service.NewAuthService(dbConfig, configConfig)
+	captchaService := service.NewCaptchaService(dbConfig)
+	userStore := repository.NewUserRepository(db)
 	userService := service.NewUserService(userStore, dbConfig, store, jwtJWT)
 	mailer := email.NewMailer()
 	emailService := service.NewEmailService(dbConfig, mailer)
@@ -61,9 +65,10 @@ func InitializeApplication() (*Application, error) {
 	imageService := service.NewImageService(imageStore, dbConfig, configConfig)
 	userManageUseCase := admin.NewUserManageUseCase(userService, imageService, passkeyService)
 	imageUseCase := app.NewImageUseCase(imageService, userService, userStore, configConfig, dbConfig)
-	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase, client)
+	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase, store)
 	imageHandler := handler.NewImageHandler(imageService, imageUseCase)
-	routerRouter := router.NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig, db, client)
-	application := NewApplication(routerRouter, dbConfig, db, client)
+	routerRouter := router.NewRouter(authMiddleware, bodyLimitMiddleware, securityHeadersMiddleware, authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig, db, client, jwtJWT, store)
+	staticCacheMiddleware := middleware.NewStaticCacheMiddleware(dbConfig)
+	application := NewApplication(routerRouter, dbConfig, db, client, configConfig, staticCacheMiddleware)
 	return application, nil
 }

@@ -81,7 +81,7 @@ func NewImageUseCase(
 		imageService: imageService,
 		userService:  userService,
 		userStore:    userStore,
-		staticConfig:   staticConfig,
+		staticConfig: staticConfig,
 		dbConfig:     dbConfig,
 	}
 }

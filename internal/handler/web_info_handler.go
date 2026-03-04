@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
 	moduledto "perfect-pic-server/internal/dto"
 
@@ -30,14 +29,14 @@ func (h *SystemHandler) GetWebInfo(c *gin.Context) {
 }
 
 func (h *SystemHandler) GetImagePrefix(c *gin.Context) {
-	cfg := config.Get()
+	cfg := h.staticConfig
 	c.JSON(http.StatusOK, gin.H{
 		"image_prefix": cfg.Upload.URLPrefix,
 	})
 }
 
 func (h *SystemHandler) GetAvatarPrefix(c *gin.Context) {
-	cfg := config.Get()
+	cfg := h.staticConfig
 	c.JSON(http.StatusOK, gin.H{
 		"avatar_prefix": cfg.Upload.AvatarURLPrefix,
 	})

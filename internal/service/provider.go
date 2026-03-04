@@ -58,10 +58,10 @@ func NewAuthService(dbConfig *config.DBConfig, staticConfig *config.Config) *Aut
 
 func NewUserService(userStore repo.UserStore, dbConfig *config.DBConfig, cache *cache.Store, jwt *jwt.JWT) *UserService {
 	return &UserService{
-		userStore:        userStore,
-		dbConfig:         dbConfig,
-		jwt:              jwt,
-		cache:            cache,
+		userStore: userStore,
+		dbConfig:  dbConfig,
+		jwt:       jwt,
+		cache:     cache,
 	}
 }
 

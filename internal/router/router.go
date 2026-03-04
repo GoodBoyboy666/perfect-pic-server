@@ -12,6 +12,9 @@ import (
 )
 
 type Router struct {
+	authMiddleware  *middleware.AuthMiddleware
+	bodyLimitMiddleware *middleware.BodyLimitMiddleware
+	securityHeadersMiddleware *middleware.SecurityHeadersMiddleware
 	authHandler     *handler.AuthHandler
 	systemHandler   *handler.SystemHandler
 	settingsHandler *handler.SettingsHandler
@@ -23,6 +26,9 @@ type Router struct {
 }
 
 func NewRouter(
+	authMiddleware *middleware.AuthMiddleware,
+	bodyLimitMiddleware *middleware.BodyLimitMiddleware,
+	securityHeadersMiddleware *middleware.SecurityHeadersMiddleware,
 	authHandler *handler.AuthHandler,
 	systemHandler *handler.SystemHandler,
 	settingsHandler *handler.SettingsHandler,
@@ -33,6 +39,9 @@ func NewRouter(
 	redisDB *redis.Client,
 ) *Router {
 	return &Router{
+		authMiddleware:  authMiddleware,
+		bodyLimitMiddleware: bodyLimitMiddleware,
+		securityHeadersMiddleware: securityHeadersMiddleware,
 		authHandler:     authHandler,
 		systemHandler:   systemHandler,
 		settingsHandler: settingsHandler,
@@ -46,7 +55,7 @@ func NewRouter(
 
 func (rt *Router) Init(r *gin.Engine) {
 	// 注册全局安全标头中间件
-	r.Use(middleware.SecurityHeaders(rt.dbConfig))
+	r.Use(rt.securityHeadersMiddleware.SecurityHeaders())
 
 	api := r.Group("/api")
 
@@ -54,8 +63,8 @@ func (rt *Router) Init(r *gin.Engine) {
 	authLimiter := middleware.RateLimitMiddleware(rt.dbConfig, consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst, rt.redisDB)
 
 	registerPublicRoutes(api, rt.systemHandler)
-	registerSystemRoutes(api, authLimiter, rt.systemHandler, rt.dbConfig)
-	registerAuthRoutes(api, authLimiter, rt.authHandler, rt.dbConfig, rt.redisDB)
-	registerUserRoutes(api, rt.userHandler, rt.imageHandler, rt.dbConfig, rt.gormDB, rt.redisDB)
-	registerAdminRoutes(api, rt.systemHandler, rt.settingsHandler, rt.userHandler, rt.imageHandler, rt.dbConfig, rt.gormDB, rt.redisDB)
+	registerSystemRoutes(api, authLimiter, rt.systemHandler, rt.bodyLimitMiddleware)
+	registerAuthRoutes(api, authLimiter, rt.authHandler, rt.dbConfig, rt.redisDB,rt.bodyLimitMiddleware)
+	registerUserRoutes(api, rt.userHandler, rt.imageHandler, rt.dbConfig, rt.authMiddleware,rt.bodyLimitMiddleware, rt.redisDB,)
+	registerAdminRoutes(api, rt.systemHandler, rt.settingsHandler, rt.userHandler, rt.imageHandler, rt.authMiddleware,rt.bodyLimitMiddleware, rt.dbConfig)
 }

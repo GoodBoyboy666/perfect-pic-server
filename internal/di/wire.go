@@ -6,6 +6,7 @@ package di
 import (
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/handler"
+	"perfect-pic-server/internal/middleware"
 	"perfect-pic-server/internal/pkg/cache"
 	"perfect-pic-server/internal/pkg/database"
 	pkgmail "perfect-pic-server/internal/pkg/email"
@@ -53,6 +54,10 @@ func InitializeApplication() (*Application, error) {
 		app.NewUserUseCase,
 		app.NewImageUseCase,
 		app.NewPasskeyUseCase,
+		middleware.NewAuthMiddleware,
+		middleware.NewBodyLimitConfig,
+		middleware.NewSecurityHeadersMiddleware,
+		middleware.NewStaticCacheMiddleware,
 		handler.NewAuthHandler,
 		handler.NewSystemHandler,
 		handler.NewSettingsHandler,
