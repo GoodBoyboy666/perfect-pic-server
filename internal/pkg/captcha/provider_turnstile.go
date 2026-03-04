@@ -7,35 +7,23 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-
-	"perfect-pic-server/internal/consts"
-	moduledto "perfect-pic-server/internal/dto"
 )
 
-const defaultTurnstileVerifyURL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+const DefaultTurnstileVerifyURL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
-type turnstileConfig struct {
+type TurnstileConfig struct {
 	SiteKey          string
 	SecretKey        string
 	VerifyURL        string
 	ExpectedHostname string
 }
 
-func (s *Captcha) getTurnstileConfig() turnstileConfig {
-	verifyURL := strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaTurnstileVerifyURL))
-	if verifyURL == "" {
-		verifyURL = defaultTurnstileVerifyURL
-	}
-
-	return turnstileConfig{
-		SiteKey:          strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaTurnstileSiteKey)),
-		SecretKey:        strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaTurnstileSecretKey)),
-		VerifyURL:        verifyURL,
-		ExpectedHostname: strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaTurnstileExpectedHostname)),
-	}
+type TurnstileVerifyResponse struct {
+	Success  bool   `json:"success"`
+	Hostname string `json:"hostname"`
 }
 
-func verifyTurnstileCaptcha(cfg turnstileConfig, httpClient *http.Client, token, remoteIP string) (bool, string) {
+func VerifyTurnstileCaptcha(cfg TurnstileConfig, token, remoteIP string) (bool, string) {
 	if cfg.SiteKey == "" || cfg.SecretKey == "" {
 		return false, "验证码配置错误，请联系管理员"
 	}
@@ -55,7 +43,7 @@ func verifyTurnstileCaptcha(cfg turnstileConfig, httpClient *http.Client, token,
 	return true, ""
 }
 
-func verifyTurnstile(httpClient *http.Client, cfg turnstileConfig, token, remoteIP string) (bool, error) {
+func verifyTurnstile(httpClient *http.Client, cfg TurnstileConfig, token, remoteIP string) (bool, error) {
 	form := url.Values{}
 	form.Set("secret", cfg.SecretKey)
 	form.Set("response", strings.TrimSpace(token))
@@ -79,7 +67,7 @@ func verifyTurnstile(httpClient *http.Client, cfg turnstileConfig, token, remote
 		return false, fmt.Errorf("turnstile verify status code: %d", resp.StatusCode)
 	}
 
-	var result moduledto.TurnstileVerifyResponse
+	var result TurnstileVerifyResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return false, err
 	}

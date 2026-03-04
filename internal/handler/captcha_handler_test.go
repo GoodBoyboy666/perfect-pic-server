@@ -17,7 +17,7 @@ func TestGetCaptcha_DisabledProvider(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 
-	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: consts.CaptchaProviderDisabled}).Error
 	testService.ClearCache()
 
 	r := gin.New()
@@ -105,7 +105,7 @@ func TestGetCaptchaImage_NonImageProviderReturns400(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 
-	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: consts.CaptchaProviderDisabled}).Error
 	testService.ClearCache()
 
 	r := gin.New()

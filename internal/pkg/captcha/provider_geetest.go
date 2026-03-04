@@ -11,34 +11,30 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-
-	"perfect-pic-server/internal/consts"
-	moduledto "perfect-pic-server/internal/dto"
 )
 
-const defaultGeetestVerifyURL = "https://gcaptcha4.geetest.com/validate"
+const DefaultGeetestVerifyURL = "https://gcaptcha4.geetest.com/validate"
 
-type geetestConfig struct {
+type GeetestConfig struct {
 	CaptchaID  string
 	CaptchaKey string
 	VerifyURL  string
 }
 
-func (s *Captcha) getGeetestConfig() geetestConfig {
-	verifyURL := strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaGeetestVerifyURL))
-	if verifyURL == "" {
-		verifyURL = defaultGeetestVerifyURL
-	}
-
-	return geetestConfig{
-		CaptchaID:  strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaGeetestCaptchaID)),
-		CaptchaKey: strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaGeetestCaptchaKey)),
-		VerifyURL:  verifyURL,
-	}
+type GeetestVerifyTokenPayload struct {
+	LotNumber     string `json:"lot_number"`
+	CaptchaOutput string `json:"captcha_output"`
+	PassToken     string `json:"pass_token"`
+	GenTime       string `json:"gen_time"`
 }
 
-// GeeTest 模式下，captcha_token 是 base64 编码的 JSON 字符串。
-func verifyGeetestCaptcha(cfg geetestConfig, httpClient *http.Client, token string) (bool, string) {
+type GeetestVerifyResponse struct {
+	Result string `json:"result"`
+	Reason string `json:"reason"`
+}
+
+// VerifyGeetestCaptcha GeeTest 模式下，captcha_token 是 base64 编码的 JSON 字符串。
+func VerifyGeetestCaptcha(cfg GeetestConfig, token string) (bool, string) {
 	if cfg.CaptchaID == "" || cfg.CaptchaKey == "" {
 		return false, "验证码配置错误，请联系管理员"
 	}
@@ -51,7 +47,7 @@ func verifyGeetestCaptcha(cfg geetestConfig, httpClient *http.Client, token stri
 		return false, "验证码参数格式错误"
 	}
 
-	var payload moduledto.GeetestVerifyTokenPayload
+	var payload GeetestVerifyTokenPayload
 	if err := json.Unmarshal(tokenBytes, &payload); err != nil {
 		return false, "验证码参数格式错误"
 	}
@@ -72,7 +68,7 @@ func verifyGeetestCaptcha(cfg geetestConfig, httpClient *http.Client, token stri
 	return true, ""
 }
 
-func verifyGeetest(httpClient *http.Client, cfg geetestConfig, payload moduledto.GeetestVerifyTokenPayload) (bool, error) {
+func verifyGeetest(httpClient *http.Client, cfg GeetestConfig, payload GeetestVerifyTokenPayload) (bool, error) {
 	form := url.Values{}
 	form.Set("captcha_id", cfg.CaptchaID)
 	form.Set("lot_number", payload.LotNumber)
@@ -97,7 +93,7 @@ func verifyGeetest(httpClient *http.Client, cfg geetestConfig, payload moduledto
 		return false, fmt.Errorf("geetest verify status code: %d", resp.StatusCode)
 	}
 
-	var result moduledto.GeetestVerifyResponse
+	var result GeetestVerifyResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return false, err
 	}

@@ -9,7 +9,6 @@ import (
 	"perfect-pic-server/internal/common/httpx"
 	"perfect-pic-server/internal/config"
 	moduledto "perfect-pic-server/internal/dto"
-	pkgcaptcha "perfect-pic-server/internal/pkg/captcha"
 	pkgmail "perfect-pic-server/internal/pkg/email"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/service"
@@ -28,7 +27,7 @@ type appFixture struct {
 	userService    *service.UserService
 	imageService   *service.ImageService
 	emailService   *service.EmailService
-	captchaService *pkgcaptcha.Captcha
+	captchaService *service.CaptchaService
 	initService    *service.InitService
 	passkeyService *service.PasskeyService
 	authUC         *AuthUseCase
@@ -61,7 +60,7 @@ func setupAppFixture(t *testing.T) *appFixture {
 	userService := service.NewUserService(userStore, dbConfig, nil)
 	imageService := service.NewImageService(imageStore, dbConfig)
 	emailService := service.NewEmailService(dbConfig, pkgmail.NewMailer())
-	captchaService := pkgcaptcha.NewCaptcha(dbConfig)
+	captchaService := service.NewCaptchaService(dbConfig)
 	initService := service.NewInitService(systemStore, dbConfig)
 	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, nil)
 

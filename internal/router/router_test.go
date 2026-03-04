@@ -5,7 +5,6 @@ import (
 
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/handler"
-	pkgcaptcha "perfect-pic-server/internal/pkg/captcha"
 	pkgmail "perfect-pic-server/internal/pkg/email"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/service"
@@ -33,7 +32,7 @@ func TestInitRouter_RegistersCoreRoutes(t *testing.T) {
 	dbConfig.ClearCache()
 
 	authService := service.NewAuthService(dbConfig)
-	captchaService := pkgcaptcha.NewCaptcha(dbConfig)
+	captchaService := service.NewCaptchaService(dbConfig)
 	userService := service.NewUserService(userStore, dbConfig, nil)
 	imageService := service.NewImageService(imageStore, dbConfig)
 	emailService := service.NewEmailService(dbConfig, pkgmail.NewMailer())

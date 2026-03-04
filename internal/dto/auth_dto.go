@@ -57,34 +57,3 @@ type UserPasskeyResponse struct {
 	Name         string `json:"name"`
 	CreatedAt    int64  `json:"created_at"`
 }
-
-type TurnstileVerifyResponse struct {
-	Success  bool   `json:"success"`
-	Hostname string `json:"hostname"`
-}
-
-type RecaptchaVerifyResponse struct {
-	Success    bool     `json:"success"`
-	Hostname   string   `json:"hostname"`
-	Action     string   `json:"action"`
-	Score      float64  `json:"score"`
-	ErrorCodes []string `json:"error-codes"`
-}
-
-type HcaptchaVerifyResponse struct {
-	Success    bool     `json:"success"`
-	Hostname   string   `json:"hostname"`
-	ErrorCodes []string `json:"error-codes"`
-}
-
-type GeetestVerifyTokenPayload struct {
-	LotNumber     string `json:"lot_number"`
-	CaptchaOutput string `json:"captcha_output"`
-	PassToken     string `json:"pass_token"`
-	GenTime       string `json:"gen_time"`
-}
-
-type GeetestVerifyResponse struct {
-	Result string `json:"result"`
-	Reason string `json:"reason"`
-}

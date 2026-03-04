@@ -27,8 +27,8 @@ func VerifyCaptcha(id string, answer string) bool {
 	return store.Verify(id, answer, true)
 }
 
-// verifyImageCaptcha 校验图形验证码。
-func verifyImageCaptcha(captchaID, captchaAnswer string) (bool, string) {
+// VerifyImageCaptcha 校验图形验证码。
+func VerifyImageCaptcha(captchaID, captchaAnswer string) (bool, string) {
 	if strings.TrimSpace(captchaID) == "" || strings.TrimSpace(captchaAnswer) == "" {
 		return false, "验证码不能为空"
 	}

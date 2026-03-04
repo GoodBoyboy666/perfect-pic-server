@@ -50,6 +50,10 @@ type SettingsService struct {
 	dbConfig     *config.DBConfig
 }
 
+type CaptchaService struct {
+	dbConfig *config.DBConfig
+}
+
 func NewAuthService(dbConfig *config.DBConfig) *AuthService {
 	return &AuthService{dbConfig: dbConfig}
 }
@@ -76,4 +80,8 @@ func NewPasskeyService(passkeyStore repo.PasskeyStore, dbConfig *config.DBConfig
 
 func NewSettingsService(settingStore repo.SettingStore, dbConfig *config.DBConfig) *SettingsService {
 	return &SettingsService{settingStore: settingStore, dbConfig: dbConfig}
+}
+
+func NewCaptchaService(dbConfig *config.DBConfig) *CaptchaService {
+	return &CaptchaService{dbConfig: dbConfig}
 }

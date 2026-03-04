@@ -7,35 +7,26 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-
-	"perfect-pic-server/internal/consts"
-	moduledto "perfect-pic-server/internal/dto"
 )
 
-const defaultRecaptchaVerifyURL = "https://www.google.com/recaptcha/api/siteverify"
+const DefaultRecaptchaVerifyURL = "https://www.google.com/recaptcha/api/siteverify"
 
-type recaptchaConfig struct {
+type RecaptchaConfig struct {
 	SiteKey          string
 	SecretKey        string
 	VerifyURL        string
 	ExpectedHostname string
 }
 
-func (s *Captcha) getRecaptchaConfig() recaptchaConfig {
-	verifyURL := strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaRecaptchaVerifyURL))
-	if verifyURL == "" {
-		verifyURL = defaultRecaptchaVerifyURL
-	}
-
-	return recaptchaConfig{
-		SiteKey:          strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaRecaptchaSiteKey)),
-		SecretKey:        strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaRecaptchaSecretKey)),
-		VerifyURL:        verifyURL,
-		ExpectedHostname: strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaRecaptchaExpectedHostname)),
-	}
+type RecaptchaVerifyResponse struct {
+	Success    bool     `json:"success"`
+	Hostname   string   `json:"hostname"`
+	Action     string   `json:"action"`
+	Score      float64  `json:"score"`
+	ErrorCodes []string `json:"error-codes"`
 }
 
-func verifyRecaptchaCaptcha(cfg recaptchaConfig, httpClient *http.Client, token, remoteIP string) (bool, string) {
+func VerifyRecaptchaCaptcha(cfg RecaptchaConfig, token, remoteIP string) (bool, string) {
 	if cfg.SiteKey == "" || cfg.SecretKey == "" {
 		return false, "验证码配置错误，请联系管理员"
 	}
@@ -55,7 +46,7 @@ func verifyRecaptchaCaptcha(cfg recaptchaConfig, httpClient *http.Client, token,
 	return true, ""
 }
 
-func verifyRecaptcha(httpClient *http.Client, cfg recaptchaConfig, token, remoteIP string) (bool, error) {
+func verifyRecaptcha(httpClient *http.Client, cfg RecaptchaConfig, token, remoteIP string) (bool, error) {
 	form := url.Values{}
 	form.Set("secret", cfg.SecretKey)
 	form.Set("response", strings.TrimSpace(token))
@@ -79,7 +70,7 @@ func verifyRecaptcha(httpClient *http.Client, cfg recaptchaConfig, token, remote
 		return false, fmt.Errorf("recaptcha verify status code: %d", resp.StatusCode)
 	}
 
-	var result moduledto.RecaptchaVerifyResponse
+	var result RecaptchaVerifyResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return false, err
 	}

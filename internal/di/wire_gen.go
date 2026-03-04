@@ -9,7 +9,6 @@ package di
 import (
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/handler"
-	"perfect-pic-server/internal/pkg/captcha"
 	"perfect-pic-server/internal/pkg/database"
 	"perfect-pic-server/internal/pkg/email"
 	"perfect-pic-server/internal/pkg/redis"
@@ -30,7 +29,7 @@ func InitializeApplication() (*Application, error) {
 	settingStore := repository.NewSettingRepository(db)
 	dbConfig := config.NewDBConfig(settingStore)
 	authService := service.NewAuthService(dbConfig)
-	captchaCaptcha := captcha.NewCaptcha(dbConfig)
+	captchaService := service.NewCaptchaService(dbConfig)
 	userStore := repository.NewUserRepository(db)
 	client := redis.NewRedisClient()
 	userService := service.NewUserService(userStore, dbConfig, client)
@@ -42,7 +41,7 @@ func InitializeApplication() (*Application, error) {
 	passkeyStore := repository.NewPasskeyRepository(db)
 	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, client)
 	passkeyUseCase := app.NewPasskeyUseCase(passkeyService, passkeyStore, authService, userStore)
-	authHandler := handler.NewAuthHandler(authService, captchaCaptcha, authUseCase, initService, dbConfig, passkeyUseCase)
+	authHandler := handler.NewAuthHandler(authService, captchaService, authUseCase, initService, dbConfig, passkeyUseCase)
 	imageStore := repository.NewImageRepository(db)
 	statUseCase := admin.NewStatUseCase(imageStore, userStore)
 	systemHandler := handler.NewSystemHandler(initService, statUseCase, dbConfig, userService)

@@ -7,35 +7,24 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-
-	"perfect-pic-server/internal/consts"
-	moduledto "perfect-pic-server/internal/dto"
 )
 
-const defaultHcaptchaVerifyURL = "https://hcaptcha.com/siteverify"
+const DefaultHcaptchaVerifyURL = "https://hcaptcha.com/siteverify"
 
-type hcaptchaConfig struct {
+type HcaptchaConfig struct {
 	SiteKey          string
 	SecretKey        string
 	VerifyURL        string
 	ExpectedHostname string
 }
 
-func (s *Captcha) getHcaptchaConfig() hcaptchaConfig {
-	verifyURL := strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaHcaptchaVerifyURL))
-	if verifyURL == "" {
-		verifyURL = defaultHcaptchaVerifyURL
-	}
-
-	return hcaptchaConfig{
-		SiteKey:          strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaHcaptchaSiteKey)),
-		SecretKey:        strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaHcaptchaSecretKey)),
-		VerifyURL:        verifyURL,
-		ExpectedHostname: strings.TrimSpace(s.dbConfig.GetString(consts.ConfigCaptchaHcaptchaExpectedHostname)),
-	}
+type HcaptchaVerifyResponse struct {
+	Success    bool     `json:"success"`
+	Hostname   string   `json:"hostname"`
+	ErrorCodes []string `json:"error-codes"`
 }
 
-func verifyHcaptchaCaptcha(cfg hcaptchaConfig, httpClient *http.Client, token, remoteIP string) (bool, string) {
+func VerifyHcaptchaCaptcha(cfg HcaptchaConfig, token, remoteIP string) (bool, string) {
 	if cfg.SiteKey == "" || cfg.SecretKey == "" {
 		return false, "验证码配置错误，请联系管理员"
 	}
@@ -55,7 +44,7 @@ func verifyHcaptchaCaptcha(cfg hcaptchaConfig, httpClient *http.Client, token, r
 	return true, ""
 }
 
-func verifyHcaptcha(httpClient *http.Client, cfg hcaptchaConfig, token, remoteIP string) (bool, error) {
+func verifyHcaptcha(httpClient *http.Client, cfg HcaptchaConfig, token, remoteIP string) (bool, error) {
 	form := url.Values{}
 	form.Set("secret", cfg.SecretKey)
 	form.Set("response", strings.TrimSpace(token))
@@ -79,7 +68,7 @@ func verifyHcaptcha(httpClient *http.Client, cfg hcaptchaConfig, token, remoteIP
 		return false, fmt.Errorf("hcaptcha verify status code: %d", resp.StatusCode)
 	}
 
-	var result moduledto.HcaptchaVerifyResponse
+	var result HcaptchaVerifyResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return false, err
 	}
