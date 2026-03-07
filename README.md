@@ -1,11 +1,11 @@
-# Perfect Pic Server
+# Perfect Pic
 
 ![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)
 ![Gin](https://img.shields.io/badge/Framework-Gin-00ADD8?style=flat)
 ![SQLite](https://img.shields.io/badge/Database-SQLite-003B57?style=flat&logo=sqlite)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat)
 
-**Perfect Pic Server** 是一个基于 Go (Gin) 开发的高性能、轻量级且功能完备的图床（图片托管）后端服务。采用**前后端分离架构**，使用AI辅助开发，专为个人或小型团队设计，提供安全可靠的图片存储、管理和分发功能。
+**Perfect Pic** 是一个基于 Go (Gin) 开发的高性能、轻量级且功能完备的图床（图片托管）服务。采用**前后端分离架构**，使用AI辅助开发，专为个人或小型团队设计，提供安全可靠的图片存储、管理和分发功能。
 
 📘 [项目文档](https://perfect-pic.goodboyboy.top/)
 
