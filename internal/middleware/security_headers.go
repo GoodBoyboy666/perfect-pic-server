@@ -12,10 +12,6 @@ type SecurityHeadersMiddleware struct {
 	dbConfig *config.DBConfig
 }
 
-func NewSecurityHeadersMiddleware(dbConfig *config.DBConfig) *SecurityHeadersMiddleware {
-	return &SecurityHeadersMiddleware{dbConfig: dbConfig}
-}
-
 // SecurityHeaders 添加安全相关的 HTTP 响应头
 func (m *SecurityHeadersMiddleware) SecurityHeaders() gin.HandlerFunc {
 	return func(c *gin.Context) {

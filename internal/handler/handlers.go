@@ -5,6 +5,8 @@ import (
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/usecase/admin"
 	"perfect-pic-server/internal/usecase/app"
+
+	"github.com/google/wire"
 )
 
 type AuthHandler struct {
@@ -113,3 +115,11 @@ func NewSettingsHandler(
 		settingsUseCase: settingsUseCase,
 	}
 }
+
+var HandlerSet = wire.NewSet(
+	NewAuthHandler,
+	NewUserHandler,
+	NewImageHandler,
+	NewSystemHandler,
+	NewSettingsHandler,
+)

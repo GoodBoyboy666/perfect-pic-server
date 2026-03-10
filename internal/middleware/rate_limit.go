@@ -21,18 +21,6 @@ type RateLimitMiddleware struct {
 	intervalLimiter    *ratelimit.IntervalLimiter
 }
 
-func NewRateLimitMiddleware(
-	dbConfig *config.DBConfig,
-	tokenBucketLimiter *ratelimit.TokenBucketLimiter,
-	intervalLimiter *ratelimit.IntervalLimiter,
-) *RateLimitMiddleware {
-	return &RateLimitMiddleware{
-		dbConfig:           dbConfig,
-		tokenBucketLimiter: tokenBucketLimiter,
-		intervalLimiter:    intervalLimiter,
-	}
-}
-
 // RateLimit 按“每秒速率 + 突发容量”进行限流（令牌桶）。
 // rpsKey/burstKey 分别对应配置中的 RPS 和 Burst。
 func (m *RateLimitMiddleware) RateLimit(rpsKey string, burstKey string) gin.HandlerFunc {

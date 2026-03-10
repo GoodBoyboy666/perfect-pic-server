@@ -1,6 +1,9 @@
 package repository
 
-import "gorm.io/gorm"
+import (
+	"github.com/google/wire"
+	"gorm.io/gorm"
+)
 
 func NewUserRepository(db *gorm.DB) UserStore {
 	return &UserRepository{db: db}
@@ -21,3 +24,11 @@ func NewSystemRepository(db *gorm.DB) SystemStore {
 func NewPasskeyRepository(db *gorm.DB) PasskeyStore {
 	return &PasskeyRepository{db: db}
 }
+
+var RepoSet = wire.NewSet(
+	NewUserRepository,
+	NewImageRepository,
+	NewSettingRepository,
+	NewSystemRepository,
+	NewPasskeyRepository,
+)

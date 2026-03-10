@@ -3,6 +3,8 @@ package admin
 import (
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/service"
+
+	"github.com/google/wire"
 )
 
 type UserManageUseCase struct {
@@ -39,3 +41,9 @@ func NewSettingsUseCase(emailService *service.EmailService) *SettingsUseCase {
 func NewStatUseCase(imageStore repository.ImageStore, userStore repository.UserStore) *StatUseCase {
 	return &StatUseCase{imageStore: imageStore, userStore: userStore}
 }
+
+var AdminUseCaseSet = wire.NewSet(
+	NewUserManageUseCase,
+	NewSettingsUseCase,
+	NewStatUseCase,
+)

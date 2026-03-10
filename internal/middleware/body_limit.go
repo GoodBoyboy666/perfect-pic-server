@@ -13,10 +13,6 @@ type BodyLimitMiddleware struct {
 	dbConfig *config.DBConfig
 }
 
-func NewBodyLimitConfig(dbConfig *config.DBConfig) *BodyLimitMiddleware {
-	return &BodyLimitMiddleware{dbConfig: dbConfig}
-}
-
 // BodyLimitMiddleware 限制请求体大小
 func (m *BodyLimitMiddleware) BodyLimitMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {

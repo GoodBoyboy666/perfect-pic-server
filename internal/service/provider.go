@@ -6,6 +6,8 @@ import (
 	"perfect-pic-server/internal/pkg/email"
 	"perfect-pic-server/internal/pkg/jwt"
 	repo "perfect-pic-server/internal/repository"
+
+	"github.com/google/wire"
 )
 
 type AuthService struct {
@@ -99,3 +101,13 @@ func NewSettingsService(settingStore repo.SettingStore, dbConfig *config.DBConfi
 func NewCaptchaService(dbConfig *config.DBConfig) *CaptchaService {
 	return &CaptchaService{dbConfig: dbConfig}
 }
+
+var ServiceSet = wire.NewSet(
+	NewAuthService,
+	NewUserService,
+	NewImageService,
+	NewEmailService,
+	NewInitService,
+	NewPasskeyService,
+	NewSettingsService,
+	NewCaptchaService)

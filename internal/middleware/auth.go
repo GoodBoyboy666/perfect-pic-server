@@ -14,13 +14,6 @@ type AuthMiddleware struct {
 	userService *service.UserService
 }
 
-func NewAuthMiddleware(jwt *jwt.JWT, userService *service.UserService) *AuthMiddleware {
-	return &AuthMiddleware{
-		jwt:         jwt,
-		userService: userService,
-	}
-}
-
 func (m *AuthMiddleware) JWTAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if m.jwt == nil {

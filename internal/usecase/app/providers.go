@@ -4,6 +4,8 @@ import (
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/service"
+
+	"github.com/google/wire"
 )
 
 type AuthUseCase struct {
@@ -97,3 +99,10 @@ func NewPasskeyUseCase(
 		userStore:      userStore,
 	}
 }
+
+var UseCaseSet = wire.NewSet(
+	NewAuthUseCase,
+	NewUserUseCase,
+	NewImageUseCase,
+	NewPasskeyUseCase,
+)

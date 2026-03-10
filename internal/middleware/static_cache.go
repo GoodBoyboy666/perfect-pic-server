@@ -11,10 +11,6 @@ type StaticCacheMiddleware struct {
 	dbConfig *config.DBConfig
 }
 
-func NewStaticCacheMiddleware(dbConfig *config.DBConfig) *StaticCacheMiddleware {
-	return &StaticCacheMiddleware{dbConfig: dbConfig}
-}
-
 // StaticCacheMiddleware 为静态资源添加 Cache-Control 头
 // 缓存策略由 ConfigStaticCacheControl 配置决定
 func (m *StaticCacheMiddleware) StaticCacheMiddleware() gin.HandlerFunc {

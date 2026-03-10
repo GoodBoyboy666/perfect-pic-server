@@ -7,6 +7,8 @@ import (
 	"perfect-pic-server/internal/pkg/ratelimit"
 	redispkg "perfect-pic-server/internal/pkg/redis"
 	"time"
+
+	"github.com/google/wire"
 )
 
 // NewStaticConfig 提供静态配置快照给 DI。
@@ -55,3 +57,12 @@ func NewRateLimiterConfig(cfg *Config) *ratelimit.Config {
 		RedisPrefix: cfg.Redis.Prefix,
 	}
 }
+
+var StaticConfigSet = wire.NewSet(
+	NewStaticConfig,
+	NewCacheConfig,
+	NewRedisClientConfig,
+	NewJWTConfig,
+	NewDBConnectionConfig,
+	NewRateLimiterConfig,
+)
