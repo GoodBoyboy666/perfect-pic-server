@@ -2,6 +2,7 @@ package handler
 
 import (
 	"log"
+	"math"
 	"net/http"
 	"perfect-pic-server/internal/common/httpx"
 	moduledto "perfect-pic-server/internal/dto"
@@ -50,8 +51,8 @@ func (h *UserHandler) GetUserList(c *gin.Context) {
 // GetUserDetail 获取指定用户信息
 func (h *UserHandler) GetUserDetail(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id > math.MaxUint {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
 		return
 	}
@@ -85,8 +86,8 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 // UpdateUser 修改用户信息
 func (h *UserHandler) UpdateUser(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id > math.MaxUint {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
 		return
 	}
@@ -110,8 +111,8 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 // UpdateUserAvatar 更新用户头像
 func (h *UserHandler) UpdateUserAvatar(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id > math.MaxUint {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
 		return
 	}
@@ -148,8 +149,8 @@ func (h *UserHandler) UpdateUserAvatar(c *gin.Context) {
 // RemoveUserAvatar 移除用户头像
 func (h *UserHandler) RemoveUserAvatar(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id > math.MaxUint {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
 		return
 	}
@@ -172,9 +173,24 @@ func (h *UserHandler) RemoveUserAvatar(c *gin.Context) {
 // DeleteUser 删除用户
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id > math.MaxUint {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
+		return
+	}
+
+	actorIDRaw, exists := c.Get("id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
+		return
+	}
+	actorID, ok := actorIDRaw.(uint)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
+		return
+	}
+	if actorID == uint(id) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "不能删除自身"})
 		return
 	}
 
