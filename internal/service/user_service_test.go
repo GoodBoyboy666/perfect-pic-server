@@ -597,3 +597,64 @@ func TestUpdateUser_CommonFlow_RejectsReservedUsername(t *testing.T) {
 		t.Fatalf("期望用户名未被更新，实际为 %+v", got)
 	}
 }
+
+// 测试内容：验证 UpdateUser 成功后会清理用户认证缓存（状态缓存）。
+func TestUpdateUser_ClearsAuthCache_Status(t *testing.T) {
+	setupTestDB(t)
+
+	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
+	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
+	if err := testGormDB.Create(&u).Error; err != nil {
+		t.Fatalf("create user failed: %v", err)
+	}
+
+	status, err := testService.userService.GetUserStatus(u.ID)
+	if err != nil || status != 1 {
+		t.Fatalf("warm status cache failed: status=%d err=%v", status, err)
+	}
+
+	if err := testGormDB.Model(&model.User{}).Where("id = ?", u.ID).Update("status", 2).Error; err != nil {
+		t.Fatalf("direct update status failed: %v", err)
+	}
+
+	newName := "alice_new"
+	if err := testService.UpdateUser(u.ID, moduledto.UpdateUserRequest{Username: &newName}, true); err != nil {
+		t.Fatalf("UpdateUser failed: %v", err)
+	}
+
+	status2, err := testService.userService.GetUserStatus(u.ID)
+	if err != nil {
+		t.Fatalf("GetUserStatus after update failed: %v", err)
+	}
+	if status2 != 2 {
+		t.Fatalf("期望状态缓存已清理并回源数据库得到 2，实际为 %d", status2)
+	}
+}
+
+// 测试内容：验证 SaveUser 成功后会清理管理员缓存。
+func TestSaveUser_ClearsAuthCache_Admin(t *testing.T) {
+	setupTestDB(t)
+
+	u := model.User{Username: "bob", Password: "x", Status: 1, Email: "b@example.com", Admin: false}
+	if err := testGormDB.Create(&u).Error; err != nil {
+		t.Fatalf("create user failed: %v", err)
+	}
+
+	isAdmin, err := testService.userService.GetUserAdmin(u.ID)
+	if err != nil || isAdmin {
+		t.Fatalf("warm admin cache failed: isAdmin=%v err=%v", isAdmin, err)
+	}
+
+	u.Admin = true
+	if err := testService.userService.SaveUser(&u); err != nil {
+		t.Fatalf("SaveUser failed: %v", err)
+	}
+
+	isAdmin2, err := testService.userService.GetUserAdmin(u.ID)
+	if err != nil {
+		t.Fatalf("GetUserAdmin after SaveUser failed: %v", err)
+	}
+	if !isAdmin2 {
+		t.Fatalf("期望管理员缓存已清理并回源数据库得到 true")
+	}
+}

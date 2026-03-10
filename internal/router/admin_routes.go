@@ -19,7 +19,7 @@ func registerAdminRoutes(
 	adminGroup := api.Group("/admin")
 	adminGroup.Use(authMiddleware.JWTAuth())
 	adminGroup.Use(authMiddleware.UserStatusCheck())
-	adminGroup.Use(middleware.AdminCheck())
+	adminGroup.Use(authMiddleware.AdminCheck())
 	bodyLimit := bodyLimitMiddleware.BodyLimitMiddleware()
 	uploadBodyLimit := bodyLimitMiddleware.UploadBodyLimitMiddleware()
 

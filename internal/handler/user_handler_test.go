@@ -46,7 +46,7 @@ func TestUpdateSelfUsername_ValidAndInvalid(t *testing.T) {
 	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
-	r.PATCH("/username", func(c *gin.Context) { c.Set("id", u.ID); c.Set("admin", true); c.Next() }, testHandler.UpdateSelfUsername)
+	r.PATCH("/username", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.UpdateSelfUsername)
 
 	bodyBad, _ := json.Marshal(gin.H{"username": "ab"})
 	w1 := httptest.NewRecorder()

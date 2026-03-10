@@ -5,21 +5,42 @@ import (
 )
 
 func (s *UserService) SaveUser(user *model.User) error {
-	return s.userStore.Save(user)
+	if err := s.userStore.Save(user); err != nil {
+		return err
+	}
+	s.ClearUserAuthCache(user.ID)
+	s.ClearUserStatusCache(user.ID)
+	return nil
 }
 
 func (s *UserService) UpdateAvatar(user *model.User, newAvatar string) error {
-	return s.userStore.UpdateAvatar(user, newAvatar)
+	if err := s.userStore.UpdateAvatar(user, newAvatar); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *UserService) ClearAvatar(user *model.User) error {
-	return s.userStore.ClearAvatar(user)
+	if err := s.userStore.ClearAvatar(user); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *UserService) HardDeleteUserWithImages(userID uint) error {
-	return s.userStore.HardDeleteUserWithImages(userID)
+	if err := s.userStore.HardDeleteUserWithImages(userID); err != nil {
+		return err
+	}
+	s.ClearUserAuthCache(userID)
+	s.ClearUserStatusCache(userID)
+	return nil
 }
 
 func (s *UserService) SoftDeleteUser(userID uint, timestamp int64) error {
-	return s.userStore.SoftDeleteUser(userID, timestamp)
+	if err := s.userStore.SoftDeleteUser(userID, timestamp); err != nil {
+		return err
+	}
+	s.ClearUserAuthCache(userID)
+	s.ClearUserStatusCache(userID)
+	return nil
 }
