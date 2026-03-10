@@ -3,6 +3,11 @@ package service
 import (
 	"errors"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
+	"io"
 	"log"
 	"mime/multipart"
 	"os"
@@ -13,8 +18,13 @@ import (
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/pkg/pathpkg"
 	"perfect-pic-server/internal/pkg/validator"
+	repo "perfect-pic-server/internal/repository"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
+	_ "golang.org/x/image/bmp"
+	_ "golang.org/x/image/webp"
 	"gorm.io/gorm"
 )
 
@@ -155,17 +165,20 @@ func (s *ImageService) BatchDeleteImages(images []model.Image) error {
 	return nil
 }
 
-// ListUserImages 分页查询用户自己的图片列表。
-func (s *ImageService) ListUserImages(params moduledto.UserImageListRequest) ([]model.Image, int64, int, int, error) {
+// ListImages 分页查询图片列表；查询范围与过滤条件由上层传参决定。
+func (s *ImageService) ListImages(params moduledto.ListImagesRequest) ([]model.Image, int64, int, int, error) {
 	page, pageSize := normalizePagination(params.Page, params.PageSize)
+	offset := (page - 1) * pageSize
 
-	images, total, err := s.imageStore.ListUserImages(
-		params.UserID,
-		params.Filename,
-		params.ID,
-		(page-1)*pageSize,
-		pageSize,
-	)
+	images, total, err := s.imageStore.ListImages(repo.ListImagesParams{
+		UserID:      params.UserID,
+		Username:    params.Username,
+		Filename:    params.Filename,
+		ID:          params.ID,
+		Offset:      offset,
+		Limit:       pageSize,
+		PreloadUser: params.PreloadUser,
+	})
 	if err != nil {
 		return nil, 0, page, pageSize, commonpkg.NewInternalError("获取图片列表失败")
 	}
@@ -182,21 +195,37 @@ func (s *ImageService) GetUserImageCount(userID uint) (int64, error) {
 	return count, nil
 }
 
-// GetUserOwnedImage 获取用户名下的指定图片，用于鉴权后的删除/查看。
-func (s *ImageService) GetUserOwnedImage(imageID uint, userID uint) (*model.Image, error) {
-	image, err := s.imageStore.FindByIDAndUserID(imageID, userID)
+// GetImageByID 获取指定图片；当 userID 非空时只在该用户范围内查询。
+func (s *ImageService) GetImageByID(imageID uint, userID *uint) (*model.Image, error) {
+	var (
+		image *model.Image
+		err   error
+	)
+	if userID != nil {
+		image, err = s.imageStore.FindByIDAndUserID(imageID, *userID)
+	} else {
+		image, err = s.imageStore.FindByID(imageID)
+	}
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, commonpkg.NewNotFoundError("图片不存在或无权删除")
+			return nil, commonpkg.NewNotFoundError("图片不存在或无权访问")
 		}
 		return nil, commonpkg.NewInternalError("查找图片失败")
 	}
 	return image, nil
 }
 
-// GetImagesByIDsForUser 按 ID 列表获取用户名下图片（批量场景）。
-func (s *ImageService) GetImagesByIDsForUser(ids []uint, userID uint) ([]model.Image, error) {
-	images, err := s.imageStore.FindByIDsAndUserID(ids, userID)
+// GetImagesByIDs 按 ID 列表获取图片；当 userID 非空时只在该用户范围内查询。
+func (s *ImageService) GetImagesByIDs(ids []uint, userID *uint) ([]model.Image, error) {
+	var (
+		images []model.Image
+		err    error
+	)
+	if userID != nil {
+		images, err = s.imageStore.FindByIDsAndUserID(ids, *userID)
+	} else {
+		images, err = s.imageStore.FindByIDs(ids)
+	}
 	if err != nil {
 		return nil, commonpkg.NewInternalError("查找图片失败")
 	}
@@ -276,4 +305,102 @@ func (s *ImageService) DeleteUserFiles(userID uint) error {
 	}
 
 	return nil
+}
+
+// ProcessImageUpload 处理图片上传核心业务：校验、配额检查、入库。
+//
+//nolint:gocyclo
+func (s *ImageService) ProcessImageUpload(file *multipart.FileHeader, uid uint, usedSize int64, quota int64) (*model.Image, string, error) {
+	valid, ext, err := s.ValidateImageFile(file)
+	if !valid {
+		return nil, "", err
+	}
+
+	if usedSize+file.Size > quota {
+		return nil, "", commonpkg.NewForbiddenError(fmt.Sprintf("存储空间不足，上传失败。当前已用: %d B, 剩余: %d B", usedSize, quota-usedSize))
+	}
+
+	now := time.Now()
+	datePath := filepath.Join(now.Format("2006"), now.Format("01"), now.Format("02"))
+
+	cfg := s.staticConfig
+	uploadRoot := cfg.Upload.Path
+	if uploadRoot == "" {
+		uploadRoot = "uploads/imgs"
+	}
+	uploadRootAbs, err := filepath.Abs(uploadRoot)
+	if err != nil {
+		return nil, "", commonpkg.NewInternalError("系统错误: 上传目录解析失败")
+	}
+	if err := pathpkg.EnsurePathNotSymlink(uploadRootAbs); err != nil {
+		log.Printf("Upload root security check failed: %v\n", err)
+		return nil, "", commonpkg.NewInternalError("系统错误: 上传目录存在符号链接风险")
+	}
+	fullDir, err := pathpkg.SecureJoin(uploadRootAbs, datePath)
+	if err != nil {
+		log.Printf("SecureJoin dir error: %v\n", err)
+		return nil, "", commonpkg.NewInternalError("系统错误: 非法存储目录")
+	}
+
+	if err := os.MkdirAll(fullDir, 0755); err != nil {
+		log.Printf("MkdirAll error: %v\n", err)
+		return nil, "", commonpkg.NewInternalError("系统错误: 无法创建存储目录")
+	}
+	if err := pathpkg.EnsureNoSymlinkBetween(uploadRootAbs, fullDir); err != nil {
+		log.Printf("Upload dir security check failed: %v\n", err)
+		return nil, "", commonpkg.NewInternalError("系统错误: 存储目录存在符号链接风险")
+	}
+
+	newFilename := uuid.New().String() + ext
+	dst, err := pathpkg.SecureJoin(fullDir, newFilename)
+	if err != nil {
+		log.Printf("SecureJoin dst error: %v\n", err)
+		return nil, "", commonpkg.NewInternalError("系统错误: 非法文件路径")
+	}
+
+	src, err := file.Open()
+	if err != nil {
+		return nil, "", commonpkg.NewInternalError("无法读取上传文件")
+	}
+	defer func() { _ = src.Close() }()
+
+	imgCfg, _, err := image.DecodeConfig(src)
+	if err != nil {
+		return nil, "", commonpkg.NewValidationError("无法解析图片尺寸，请上传有效图片")
+	}
+	if _, err := src.Seek(0, io.SeekStart); err != nil {
+		return nil, "", commonpkg.NewInternalError("系统错误: 无法重置文件读取位置")
+	}
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return nil, "", commonpkg.NewInternalError("系统错误: 无法创建文件")
+	}
+	defer func() { _ = out.Close() }()
+
+	if _, err = io.Copy(out, src); err != nil {
+		return nil, "", commonpkg.NewInternalError("文件保存失败")
+	}
+
+	relativePath := filepath.ToSlash(filepath.Join(
+		now.Format("2006"), now.Format("01"), now.Format("02"), newFilename))
+
+	imageRecord := model.Image{
+		Filename:   newFilename,
+		Path:       relativePath,
+		Size:       file.Size,
+		Width:      imgCfg.Width,
+		Height:     imgCfg.Height,
+		UserID:     uid,
+		UploadedAt: now.Unix(),
+		MimeType:   ext,
+	}
+
+	if err := s.imageStore.CreateAndIncreaseUserStorage(&imageRecord, uid, file.Size); err != nil {
+		_ = os.Remove(dst)
+		log.Printf("Process upload DB error: %v\n", err)
+		return nil, "", commonpkg.NewInternalError("系统错误: 数据库记录失败")
+	}
+
+	return &imageRecord, cfg.Upload.URLPrefix + relativePath, nil
 }

@@ -28,14 +28,20 @@ func resolveAdminUserSortOrder(order string) string {
 	return "id desc"
 }
 
-// validateAdminCreateUserInput 校验管理员创建用户输入是否合法。
-func (s *UserService) validateAdminCreateUserInput(input moduledto.AdminCreateUserRequest) error {
+// validateCreateUserInput 校验通用创建用户输入是否合法。
+func (s *UserService) validateCreateUserInput(input moduledto.CreateUserRequest, allowReservedUsername bool) error {
 	if ok, msg := validator.ValidatePassword(input.Password); !ok {
 		return commonpkg.NewValidationError(msg)
 	}
-	// 管理员后台创建用户允许使用保留用户名（与后台修改用户名规则一致）。
-	if ok, msg := validator.ValidateUsernameAllowReserved(input.Username); !ok {
-		return commonpkg.NewValidationError(msg)
+
+	if allowReservedUsername {
+		if ok, msg := validator.ValidateUsernameAllowReserved(input.Username); !ok {
+			return commonpkg.NewValidationError(msg)
+		}
+	} else {
+		if ok, msg := validator.ValidateUsername(input.Username); !ok {
+			return commonpkg.NewValidationError(msg)
+		}
 	}
 
 	usernameTaken, err := s.IsUsernameTaken(input.Username, nil, true)
@@ -71,8 +77,8 @@ func hashPassword(password string) (string, error) {
 	return string(hashedPassword), nil
 }
 
-// applyAdminCreateUserOptionals 将管理员创建用户的可选字段应用到模型。
-func (s *UserService) applyAdminCreateUserOptionals(user *model.User, input moduledto.AdminCreateUserRequest) error {
+// applyCreateUserOptionals 将通用创建用户的可选字段应用到模型。
+func (s *UserService) applyCreateUserOptionals(user *model.User, input moduledto.CreateUserRequest) error {
 	if input.Email != nil {
 		user.Email = *input.Email
 	}
@@ -103,13 +109,19 @@ func (s *UserService) applyAdminCreateUserOptionals(user *model.User, input modu
 	return nil
 }
 
-// prepareAdminUsernameUpdate 校验并准备用户名更新字段。
-func (s *UserService) prepareAdminUsernameUpdate(userID uint, username *string, updates map[string]interface{}) error {
+// prepareUsernameUpdate 校验并准备用户名更新字段。
+func (s *UserService) prepareUsernameUpdate(userID uint, username *string, allowReservedUsername bool, updates map[string]interface{}) error {
 	if username == nil || *username == "" {
 		return nil
 	}
-	if ok, msg := validator.ValidateUsernameAllowReserved(*username); !ok {
-		return commonpkg.NewValidationError(msg)
+	if allowReservedUsername {
+		if ok, msg := validator.ValidateUsernameAllowReserved(*username); !ok {
+			return commonpkg.NewValidationError(msg)
+		}
+	} else {
+		if ok, msg := validator.ValidateUsername(*username); !ok {
+			return commonpkg.NewValidationError(msg)
+		}
 	}
 
 	excludeID := userID
@@ -125,8 +137,8 @@ func (s *UserService) prepareAdminUsernameUpdate(userID uint, username *string, 
 	return nil
 }
 
-// prepareAdminPasswordUpdate 校验并准备密码更新字段。
-func (s *UserService) prepareAdminPasswordUpdate(password *string, updates map[string]interface{}) error {
+// preparePasswordUpdate 校验并准备密码更新字段。
+func (s *UserService) preparePasswordUpdate(password *string, updates map[string]interface{}) error {
 	if password == nil || *password == "" {
 		return nil
 	}
@@ -143,8 +155,8 @@ func (s *UserService) prepareAdminPasswordUpdate(password *string, updates map[s
 	return nil
 }
 
-// prepareAdminEmailUpdate 校验并准备邮箱更新字段。
-func (s *UserService) prepareAdminEmailUpdate(userID uint, email *string, updates map[string]interface{}) error {
+// prepareEmailUpdate 校验并准备邮箱更新字段。
+func (s *UserService) prepareEmailUpdate(userID uint, email *string, updates map[string]interface{}) error {
 	if email == nil || *email == "" {
 		return nil
 	}
@@ -165,15 +177,15 @@ func (s *UserService) prepareAdminEmailUpdate(userID uint, email *string, update
 	return nil
 }
 
-// prepareAdminEmailVerifiedUpdate 准备邮箱验证状态更新字段。
-func (s *UserService) prepareAdminEmailVerifiedUpdate(emailVerified *bool, updates map[string]interface{}) {
+// prepareEmailVerifiedUpdate 准备邮箱验证状态更新字段。
+func (s *UserService) prepareEmailVerifiedUpdate(emailVerified *bool, updates map[string]interface{}) {
 	if emailVerified != nil {
 		updates["email_verified"] = *emailVerified
 	}
 }
 
-// prepareAdminStorageQuotaUpdate 校验并准备存储配额更新字段。
-func (s *UserService) prepareAdminStorageQuotaUpdate(storageQuota *int64, updates map[string]interface{}) error {
+// prepareStorageQuotaUpdate 校验并准备存储配额更新字段。
+func (s *UserService) prepareStorageQuotaUpdate(storageQuota *int64, updates map[string]interface{}) error {
 	if storageQuota == nil {
 		return nil
 	}
@@ -188,8 +200,8 @@ func (s *UserService) prepareAdminStorageQuotaUpdate(storageQuota *int64, update
 	return commonpkg.NewValidationError("存储配额不能为负数（-1除外）")
 }
 
-// prepareAdminStatusUpdate 校验并准备用户状态更新字段。
-func (s *UserService) prepareAdminStatusUpdate(status *int, updates map[string]interface{}) error {
+// prepareStatusUpdate 校验并准备用户状态更新字段。
+func (s *UserService) prepareStatusUpdate(status *int, updates map[string]interface{}) error {
 	if status == nil {
 		return nil
 	}

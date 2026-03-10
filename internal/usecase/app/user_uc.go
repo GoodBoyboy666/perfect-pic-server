@@ -4,6 +4,7 @@ import (
 	"fmt"
 	commonpkg "perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/consts"
+	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/pkg/validator"
 
 	"golang.org/x/crypto/bcrypt"
@@ -57,4 +58,21 @@ func (c *UserUseCase) RequestEmailChange(userID uint, password, newEmail string)
 	}
 
 	return nil
+}
+
+// UpdateUsernameAndGenerateToken 修改用户名并签发新登录令牌。
+func (c *UserUseCase) UpdateUsernameAndGenerateToken(userID uint, username string) (string, error) {
+	if err := c.userService.UpdateUser(userID, moduledto.UpdateUserRequest{Username: &username}, false); err != nil {
+		return "", err
+	}
+	user, err := c.userStore.FindByID(userID)
+	if err != nil {
+		return "", commonpkg.NewInternalError("更新失败")
+	}
+	return c.authService.IssueLoginToken(user)
+}
+
+// UpdatePasswordByOldPassword 使用旧密码校验后更新密码。
+func (c *UserUseCase) UpdatePasswordByOldPassword(userID uint, oldPassword, newPassword string) error {
+	return c.userService.UpdatePasswordByOldPassword(userID, oldPassword, newPassword)
 }

@@ -3,9 +3,10 @@ package app
 import (
 	"errors"
 	"fmt"
+	commonpkg "perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/common/httpx"
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/model"
+	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/pkg/validator"
 
 	"golang.org/x/crypto/bcrypt"
@@ -35,54 +36,18 @@ func (c *AuthUseCase) RegisterUser(username, password, email string) error {
 		return httpx.NewAuthError(httpx.AuthErrorForbidden, "系统尚未初始化，请先完成初始化")
 	}
 
-	if ok, msg := validator.ValidatePassword(password); !ok {
-		return httpx.NewAuthError(httpx.AuthErrorValidation, msg)
-	}
-
-	if ok, msg := validator.ValidateUsername(username); !ok {
-		return httpx.NewAuthError(httpx.AuthErrorValidation, msg)
-	}
-
-	if ok, msg := validator.ValidateEmail(email); !ok {
-		return httpx.NewAuthError(httpx.AuthErrorValidation, msg)
-	}
-
 	if !c.dbConfig.GetBool(consts.ConfigAllowRegister) {
 		return httpx.NewAuthError(httpx.AuthErrorForbidden, "注册功能已关闭")
 	}
 
-	usernameTaken, err := c.userService.IsUsernameTaken(username, nil, true)
+	newEmail := email
+	newUser, err := c.userService.CreateUser(moduledto.CreateUserRequest{
+		Username: username,
+		Password: password,
+		Email:    &newEmail,
+	}, false)
 	if err != nil {
-		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
-	}
-	if usernameTaken {
-		return httpx.NewAuthError(httpx.AuthErrorConflict, "用户名已存在")
-	}
-
-	emailTaken, err := c.userService.IsEmailTaken(email, nil, true)
-	if err != nil {
-		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
-	}
-	if emailTaken {
-		return httpx.NewAuthError(httpx.AuthErrorConflict, "邮箱已被注册")
-	}
-
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return httpx.NewAuthError(httpx.AuthErrorInternal, "密码加密失败")
-	}
-
-	newUser := model.User{
-		Username:      username,
-		Password:      string(hashedPassword),
-		Email:         email,
-		EmailVerified: false,
-		Admin:         false,
-		Avatar:        "",
-	}
-
-	if err := c.userService.CreateUser(&newUser); err != nil {
-		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
+		return toRegisterAuthError(err)
 	}
 
 	verifyToken, err := c.userService.GenerateEmailVerificationToken(newUser.ID, newUser.Email)
@@ -106,6 +71,22 @@ func (c *AuthUseCase) RegisterUser(username, password, email string) error {
 	}
 
 	return nil
+}
+
+func toRegisterAuthError(err error) error {
+	serviceErr, ok := commonpkg.AsServiceError(err)
+	if !ok {
+		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
+	}
+
+	switch serviceErr.Code {
+	case commonpkg.ErrorCodeValidation:
+		return httpx.NewAuthError(httpx.AuthErrorValidation, serviceErr.Message)
+	case commonpkg.ErrorCodeConflict:
+		return httpx.NewAuthError(httpx.AuthErrorConflict, serviceErr.Message)
+	default:
+		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
+	}
 }
 
 // VerifyEmail 验证邮箱激活令牌。

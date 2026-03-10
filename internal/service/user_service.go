@@ -215,8 +215,18 @@ func (s *UserService) IsEmailTaken(email string, excludeUserID *uint, includeDel
 }
 
 // GetUserByID 按用户 ID 获取用户模型。
-func (s *UserService) GetUserByID(userID uint) (*model.User, error) {
-	user, err := s.userStore.FindByID(userID)
+func (s *UserService) GetUserByID(userID uint, includeDeleted bool) (*model.User, error) {
+	var (
+		user *model.User
+		err  error
+	)
+
+	if includeDeleted {
+		user, err = s.userStore.FindUnscopedByID(userID)
+	} else {
+		user, err = s.userStore.FindByID(userID)
+	}
+
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, commonpkg.NewNotFoundError("用户不存在")
@@ -228,7 +238,7 @@ func (s *UserService) GetUserByID(userID uint) (*model.User, error) {
 
 // GetUserProfile 获取用户个人资料。
 func (s *UserService) GetUserProfile(userID uint) (*moduledto.UserProfileResponse, error) {
-	user, err := s.GetUserByID(userID)
+	user, err := s.GetUserByID(userID, false)
 	if err != nil {
 		return nil, commonpkg.NewNotFoundError("用户不存在")
 	}
@@ -242,34 +252,6 @@ func (s *UserService) GetUserProfile(userID uint) (*moduledto.UserProfileRespons
 		StorageQuota: user.StorageQuota,
 		StorageUsed:  user.StorageUsed,
 	}, nil
-}
-
-// UpdateUsernameAndGenerateToken 更新用户名并签发新登录令牌。
-func (s *UserService) UpdateUsernameAndGenerateToken(userID uint, newUsername string, isAdmin bool) (string, error) {
-	// Profile 路径统一禁止保留用户名；管理员后台修改用户名走 AdminPrepareUserUpdates（允许保留词）。
-	if ok, msg := validator.ValidateUsername(newUsername); !ok {
-		return "", commonpkg.NewValidationError(msg)
-	}
-
-	excludeID := userID
-	usernameTaken, err := s.IsUsernameTaken(newUsername, &excludeID, true)
-	if err != nil {
-		return "", commonpkg.NewInternalError("更新失败")
-	}
-	if usernameTaken {
-		return "", commonpkg.NewConflictError("用户名已存在")
-	}
-
-	if err := s.userStore.UpdateUsernameByID(userID, newUsername); err != nil {
-		return "", commonpkg.NewInternalError("更新失败")
-	}
-
-	token, err := s.jwt.GenerateLoginToken(userID, newUsername, isAdmin)
-	if err != nil {
-		return "", commonpkg.NewInternalError("更新失败")
-	}
-
-	return token, nil
 }
 
 // UpdatePasswordByOldPassword 使用旧密码校验后更新新密码。
@@ -297,4 +279,83 @@ func (s *UserService) UpdatePasswordByOldPassword(userID uint, oldPassword, newP
 	}
 
 	return nil
+}
+
+// ListUsers 按分页与筛选条件查询用户列表。
+func (s *UserService) ListUsers(params moduledto.UserListRequest) ([]model.User, int64, error) {
+	page, pageSize := normalizeAdminPagination(params.Page, params.PageSize)
+	sortOrder := resolveAdminUserSortOrder(params.Order)
+	users, total, err := s.userStore.ListUsers(
+		params.Keyword,
+		params.ShowDeleted,
+		sortOrder,
+		(page-1)*pageSize,
+		pageSize,
+	)
+	if err != nil {
+		return nil, 0, commonpkg.NewInternalError("获取用户列表失败")
+	}
+	return users, total, nil
+}
+
+// UpdateUser 校验并更新指定用户。
+func (s *UserService) UpdateUser(userID uint, req moduledto.UpdateUserRequest, allowReservedUsername bool) error {
+	updates := make(map[string]interface{})
+
+	if err := s.prepareUsernameUpdate(userID, req.Username, allowReservedUsername, updates); err != nil {
+		return err
+	}
+	if err := s.preparePasswordUpdate(req.Password, updates); err != nil {
+		return err
+	}
+	if err := s.prepareEmailUpdate(userID, req.Email, updates); err != nil {
+		return err
+	}
+	s.prepareEmailVerifiedUpdate(req.EmailVerified, updates)
+	if err := s.prepareStorageQuotaUpdate(req.StorageQuota, updates); err != nil {
+		return err
+	}
+	if err := s.prepareStatusUpdate(req.Status, updates); err != nil {
+		return err
+	}
+
+	if len(updates) == 0 {
+		return nil
+	}
+	if err := s.userStore.UpdateByID(userID, updates); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return commonpkg.NewNotFoundError("用户不存在")
+		}
+		return commonpkg.NewInternalError("更新用户失败")
+	}
+	return nil
+}
+
+// CreateUser 按统一流程创建用户，allowReservedUsername 控制是否允许保留用户名。
+func (s *UserService) CreateUser(input moduledto.CreateUserRequest, allowReservedUsername bool) (*model.User, error) {
+	if err := s.validateCreateUserInput(input, allowReservedUsername); err != nil {
+		return nil, err
+	}
+
+	hashedPassword, err := hashPassword(input.Password)
+	if err != nil {
+		return nil, commonpkg.NewInternalError("创建用户失败")
+	}
+
+	user := model.User{
+		Username: input.Username,
+		Password: hashedPassword,
+		Admin:    false,
+		Status:   1,
+	}
+
+	if err := s.applyCreateUserOptionals(&user, input); err != nil {
+		return nil, err
+	}
+
+	if err := s.userStore.Create(&user); err != nil {
+		return nil, commonpkg.NewInternalError("创建用户失败")
+	}
+
+	return &user, nil
 }

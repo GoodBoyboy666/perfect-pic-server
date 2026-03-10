@@ -9,7 +9,7 @@ import (
 )
 
 func (h *SettingsHandler) GetSettings(c *gin.Context) {
-	settings, err := h.settingsService.AdminListSettings()
+	settings, err := h.settingsService.ListSettings()
 	if err != nil {
 		httpx.WriteServiceError(c, err, "获取配置失败")
 		return
@@ -30,7 +30,7 @@ func (h *SettingsHandler) UpdateSettings(c *gin.Context) {
 		items = append(items, moduledto.UpdateSettingRequest{Key: item.Key, Value: item.Value})
 	}
 
-	err := h.settingsService.AdminUpdateSettings(items)
+	err := h.settingsService.UpdateSettings(items)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "更新失败")
 		return

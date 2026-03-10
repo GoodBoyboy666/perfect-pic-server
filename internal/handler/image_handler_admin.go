@@ -50,12 +50,13 @@ func (h *ImageHandler) GetImageList(c *gin.Context) {
 		imageID = &id
 	}
 
-	images, total, page, pageSize, err := h.imageService.AdminListImages(moduledto.AdminImageListRequest{
+	images, total, page, pageSize, err := h.imageService.ListImages(moduledto.ListImagesRequest{
 		PaginationRequest: moduledto.PaginationRequest{Page: page, PageSize: pageSize},
 		Username:          username,
 		Filename:          filename,
 		UserID:            userID,
 		ID:                imageID,
+		PreloadUser:       true,
 	})
 	if err != nil {
 		httpx.WriteServiceError(c, err, "获取图片列表失败")
@@ -88,7 +89,7 @@ func (h *ImageHandler) DeleteImage(c *gin.Context) {
 		return
 	}
 
-	image, err := h.imageService.AdminGetImageByID(uint(id))
+	image, err := h.imageService.GetImageByID(uint(id), nil)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "图片不存在")
 		return
@@ -120,7 +121,7 @@ func (h *ImageHandler) BatchDeleteImages(c *gin.Context) {
 		return
 	}
 
-	images, err := h.imageService.AdminGetImagesByIDs(req.IDs)
+	images, err := h.imageService.GetImagesByIDs(req.IDs, nil)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "查找图片失败")
 		return

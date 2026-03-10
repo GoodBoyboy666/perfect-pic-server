@@ -7,21 +7,6 @@ type PaginationRequest struct {
 	PageSize int
 }
 
-type UserImageListRequest struct {
-	PaginationRequest
-	UserID   uint
-	Filename string
-	ID       *uint
-}
-
-type AdminImageListRequest struct {
-	PaginationRequest
-	Username string
-	Filename string
-	UserID   *uint
-	ID       *uint
-}
-
 type ImageResponse struct {
 	model.Image
 	Username string `json:"username"`
@@ -29,4 +14,13 @@ type ImageResponse struct {
 
 type BatchDeleteImagesRequest struct {
 	IDs []uint `json:"ids" binding:"required"`
+}
+
+type ListImagesRequest struct {
+	PaginationRequest
+	UserID      *uint
+	Username    string
+	Filename    string
+	ID          *uint
+	PreloadUser bool
 }

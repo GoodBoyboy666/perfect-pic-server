@@ -10,8 +10,8 @@ import (
 	"strings"
 )
 
-// AdminListSettings 获取全部系统设置。
-func (s *SettingsService) AdminListSettings() ([]model.Setting, error) {
+// ListSettings 获取全部系统设置。
+func (s *SettingsService) ListSettings() ([]model.Setting, error) {
 	settings, err := s.settingStore.FindAll()
 	if err != nil {
 		return nil, commonpkg.NewInternalError("获取配置失败")
@@ -22,8 +22,8 @@ func (s *SettingsService) AdminListSettings() ([]model.Setting, error) {
 	return settings, nil
 }
 
-// AdminUpdateSettings 批量更新系统设置，并在成功后清理配置缓存。
-func (s *SettingsService) AdminUpdateSettings(items []moduledto.UpdateSettingRequest) error {
+// UpdateSettings 批量更新系统设置，并在成功后清理配置缓存。
+func (s *SettingsService) UpdateSettings(items []moduledto.UpdateSettingRequest) error {
 	for _, item := range items {
 		if err := validateSettingUpdate(item); err != nil {
 			return err

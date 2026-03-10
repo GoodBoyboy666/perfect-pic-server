@@ -70,7 +70,7 @@ func setupAppFixture(t *testing.T) *appFixture {
 	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, cacheStore)
 
 	authUC := NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
-	userUC := NewUserUseCase(userService, userStore, emailService, dbConfig)
+	userUC := NewUserUseCase(authService, userService, userStore, emailService, dbConfig)
 	imageUC := NewImageUseCase(imageService, userService, userStore, staticConfig, dbConfig)
 	passkeyUC := NewPasskeyUseCase(passkeyService, passkeyStore, authService, userStore)
 

@@ -3,10 +3,16 @@ package admin
 import (
 	"errors"
 	commonpkg "perfect-pic-server/internal/common"
+	moduledto "perfect-pic-server/internal/dto"
 	"time"
 
 	"gorm.io/gorm"
 )
+
+// UpdateUser 更新用户信息。
+func (c *UserManageUseCase) UpdateUser(userID uint, req moduledto.UpdateUserRequest) error {
+	return c.userService.UpdateUser(userID, req, true)
+}
 
 // AdminDeleteUser 删除用户。
 // hardDelete=true 时执行彻底删除；否则执行软删除并清理唯一字段占用。

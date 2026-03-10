@@ -58,7 +58,7 @@ func setupTestDB(t *testing.T) {
 	settingsService := service.NewSettingsService(settingStore, dbConfig)
 
 	authUseCase := appuc.NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
-	userUseCase := appuc.NewUserUseCase(userService, userStore, emailService, dbConfig)
+	userUseCase := appuc.NewUserUseCase(authService, userService, userStore, emailService, dbConfig)
 	imageUseCase := appuc.NewImageUseCase(imageService, userService, userStore, staticConfig, dbConfig)
 	passkeyUseCase := appuc.NewPasskeyUseCase(passkeyService, passkeyStore, authService, userStore)
 	userManageUseCase := adminuc.NewUserManageUseCase(userService, imageService, passkeyService)

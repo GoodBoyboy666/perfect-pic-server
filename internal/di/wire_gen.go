@@ -67,7 +67,7 @@ func InitializeApplication() (*Application, error) {
 	settingsService := service.NewSettingsService(settingStore, dbConfig)
 	settingsUseCase := admin.NewSettingsUseCase(emailService)
 	settingsHandler := handler.NewSettingsHandler(settingsService, settingsUseCase)
-	userUseCase := app.NewUserUseCase(userService, userStore, emailService, dbConfig)
+	userUseCase := app.NewUserUseCase(authService, userService, userStore, emailService, dbConfig)
 	imageService := service.NewImageService(imageStore, dbConfig, configConfig)
 	userManageUseCase := admin.NewUserManageUseCase(userService, imageService, passkeyService)
 	imageUseCase := app.NewImageUseCase(imageService, userService, userStore, configConfig, dbConfig)

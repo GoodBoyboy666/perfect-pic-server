@@ -1,10 +1,8 @@
 package service
 
-import "perfect-pic-server/internal/model"
-
-func (s *UserService) CreateUser(user *model.User) error {
-	return s.userStore.Create(user)
-}
+import (
+	"perfect-pic-server/internal/model"
+)
 
 func (s *UserService) SaveUser(user *model.User) error {
 	return s.userStore.Save(user)

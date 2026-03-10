@@ -81,9 +81,9 @@ func (h *ImageHandler) GetMyImages(c *gin.Context) {
 		imageID = &id
 	}
 
-	images, total, page, pageSize, err := h.imageService.ListUserImages(moduledto.UserImageListRequest{
+	images, total, page, pageSize, err := h.imageService.ListImages(moduledto.ListImagesRequest{
 		PaginationRequest: moduledto.PaginationRequest{Page: page, PageSize: pageSize},
-		UserID:            uid,
+		UserID:            &uid,
 		Filename:          filename,
 		ID:                imageID,
 	})
@@ -116,7 +116,7 @@ func (h *ImageHandler) DeleteMyImage(c *gin.Context) {
 		return
 	}
 
-	image, err := h.imageService.GetUserOwnedImage(uint(id), uid)
+	image, err := h.imageService.GetImageByID(uint(id), &uid)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "图片不存在或无权删除"})
 		return
@@ -155,7 +155,7 @@ func (h *ImageHandler) BatchDeleteMyImages(c *gin.Context) {
 		return
 	}
 
-	images, err := h.imageService.GetImagesByIDsForUser(req.IDs, uid)
+	images, err := h.imageService.GetImagesByIDs(req.IDs, &uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查找图片失败"})
 		return

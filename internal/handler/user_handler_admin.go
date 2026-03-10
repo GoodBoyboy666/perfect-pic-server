@@ -27,7 +27,7 @@ func (h *UserHandler) GetUserList(c *gin.Context) {
 		pageSize = 10
 	}
 
-	users, total, err := h.userService.AdminListUsers(moduledto.AdminUserListRequest{
+	users, total, err := h.userService.ListUsers(moduledto.UserListRequest{
 		Page:        page,
 		PageSize:    pageSize,
 		Keyword:     keyword,
@@ -56,7 +56,7 @@ func (h *UserHandler) GetUserDetail(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userService.AdminGetUserDetail(uint(id))
+	user, err := h.userService.GetUserByID(uint(id), true)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "获取用户失败")
 		return
@@ -73,7 +73,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userService.AdminCreateUser(moduledto.AdminCreateUserRequest(req))
+	user, err := h.userService.CreateUser(req, true)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "创建用户失败")
 		return
@@ -97,20 +97,12 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	updates, err := h.userService.AdminPrepareUserUpdates(uint(id), moduledto.AdminUserUpdateRequest(req))
-	if err != nil {
+	if err := h.userManageUseCase.UpdateUser(uint(id), req); err != nil {
 		httpx.WriteServiceError(c, err, "更新用户失败")
 		return
 	}
-
-	if len(updates) > 0 {
-		if err := h.userService.AdminApplyUserUpdates(uint(id), updates); err != nil {
-			httpx.WriteServiceError(c, err, "更新用户失败")
-			return
-		}
-		// 清除用户状态缓存
-		h.userService.ClearUserStatusCache(uint(id))
-	}
+	// 清除用户状态缓存
+	h.userService.ClearUserStatusCache(uint(id))
 
 	c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
 }
@@ -137,7 +129,7 @@ func (h *UserHandler) UpdateUserAvatar(c *gin.Context) {
 	}
 	_ = ext
 
-	user, err := h.userService.AdminGetUserDetail(uint(id))
+	user, err := h.userService.GetUserByID(uint(id), true)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "获取用户失败")
 		return
@@ -162,7 +154,7 @@ func (h *UserHandler) RemoveUserAvatar(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userService.AdminGetUserDetail(uint(id))
+	user, err := h.userService.GetUserByID(uint(id), true)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "获取用户失败")
 		return

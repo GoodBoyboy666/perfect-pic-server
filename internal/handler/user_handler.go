@@ -54,14 +54,7 @@ func (h *UserHandler) UpdateSelfUsername(c *gin.Context) {
 		return
 	}
 
-	// 获取管理员权限状态
-	adminVal, _ := c.Get("admin")
-	isAdmin := false
-	if val, ok := adminVal.(bool); ok {
-		isAdmin = val
-	}
-
-	token, err := h.userService.UpdateUsernameAndGenerateToken(uid, req.Username, isAdmin)
+	token, err := h.userUseCase.UpdateUsernameAndGenerateToken(uid, req.Username)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "更新失败")
 		return
@@ -93,7 +86,7 @@ func (h *UserHandler) UpdateSelfPassword(c *gin.Context) {
 		return
 	}
 
-	err := h.userService.UpdatePasswordByOldPassword(uid, req.OldPassword, req.NewPassword)
+	err := h.userUseCase.UpdatePasswordByOldPassword(uid, req.OldPassword, req.NewPassword)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "更新失败")
 		return
@@ -155,7 +148,7 @@ func (h *UserHandler) UpdateSelfAvatar(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userService.GetUserByID(uid)
+	user, err := h.userService.GetUserByID(uid, false)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "获取用户失败")
 		return

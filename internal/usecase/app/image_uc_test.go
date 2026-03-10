@@ -56,8 +56,19 @@ func TestImageUseCase_ProcessImageUpload_Success(t *testing.T) {
 	if img == nil || img.ID == 0 {
 		t.Fatalf("expected created image record")
 	}
+	if img.Width != 1 || img.Height != 1 {
+		t.Fatalf("expected 1x1 image dimensions, got %dx%d", img.Width, img.Height)
+	}
 	if !strings.HasPrefix(url, "/imgs/") {
 		t.Fatalf("expected /imgs prefix, got: %q", url)
+	}
+
+	var stored model.Image
+	if err := testGormDB.First(&stored, img.ID).Error; err != nil {
+		t.Fatalf("reload image failed: %v", err)
+	}
+	if stored.Width != 1 || stored.Height != 1 {
+		t.Fatalf("expected persisted 1x1 dimensions, got %dx%d", stored.Width, stored.Height)
 	}
 
 	full := filepath.Join("uploads", "imgs", filepath.FromSlash(img.Path))

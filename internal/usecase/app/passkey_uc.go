@@ -142,7 +142,7 @@ func (c *PasskeyUseCase) FinishPasskeyRegistration(userID uint, sessionID string
 		return commonpkg.NewInternalError("保存 Passkey 失败")
 	}
 
-	if err := c.passkeyService.CreatePasskeyCredential(&model.PasskeyCredential{
+	if err := c.passkeyStore.CreatePasskeyCredential(&model.PasskeyCredential{
 		UserID:       userID,
 		CredentialID: credentialID,
 		Name:         c.passkeyService.BuildDefaultPasskeyName(credentialID),
@@ -246,7 +246,7 @@ func (c *PasskeyUseCase) FinishPasskeyLogin(sessionID string, credentialJSON []b
 		return "", commonpkg.NewInternalError("Passkey 登录失败")
 	}
 
-	if err := c.passkeyService.UpdatePasskeyCredentialData(
+	if err := c.passkeyStore.UpdatePasskeyCredentialData(
 		passkeyUser.userID,
 		c.passkeyService.EncodePasskeyCredentialID(validatedCredential.ID),
 		serialized,

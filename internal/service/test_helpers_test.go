@@ -130,32 +130,20 @@ func (s *Service) BatchDeleteImages(images []model.Image) error {
 	return s.imageService.BatchDeleteImages(images)
 }
 
-func (s *Service) ListUserImages(params moduledto.UserImageListRequest) ([]model.Image, int64, int, int, error) {
-	return s.imageService.ListUserImages(params)
+func (s *Service) ListImages(params moduledto.ListImagesRequest) ([]model.Image, int64, int, int, error) {
+	return s.imageService.ListImages(params)
 }
 
 func (s *Service) GetUserImageCount(userID uint) (int64, error) {
 	return s.imageService.GetUserImageCount(userID)
 }
 
-func (s *Service) GetUserOwnedImage(imageID uint, userID uint) (*model.Image, error) {
-	return s.imageService.GetUserOwnedImage(imageID, userID)
+func (s *Service) GetImageByID(imageID uint, userID *uint) (*model.Image, error) {
+	return s.imageService.GetImageByID(imageID, userID)
 }
 
-func (s *Service) GetImagesByIDsForUser(ids []uint, userID uint) ([]model.Image, error) {
-	return s.imageService.GetImagesByIDsForUser(ids, userID)
-}
-
-func (s *Service) AdminGetImageByID(id uint) (*model.Image, error) {
-	return s.imageService.AdminGetImageByID(id)
-}
-
-func (s *Service) AdminGetImagesByIDs(ids []uint) ([]model.Image, error) {
-	return s.imageService.AdminGetImagesByIDs(ids)
-}
-
-func (s *Service) AdminListImages(params moduledto.AdminImageListRequest) ([]model.Image, int64, int, int, error) {
-	return s.imageService.AdminListImages(params)
+func (s *Service) GetImagesByIDs(ids []uint, userID *uint) ([]model.Image, error) {
+	return s.imageService.GetImagesByIDs(ids, userID)
 }
 
 func (s *Service) DeleteUserFiles(userID uint) error {
@@ -194,24 +182,24 @@ func (s *Service) GetSystemDefaultStorageQuota() int64 {
 	return s.userService.GetSystemDefaultStorageQuota()
 }
 
+func (s *Service) GetUserByID(id uint, includeDeleted bool) (*model.User, error) {
+	return s.userService.GetUserByID(id, includeDeleted)
+}
+
 func (s *Service) AdminGetUserDetail(id uint) (*model.User, error) {
-	return s.userService.AdminGetUserDetail(id)
+	return s.userService.GetUserByID(id, true)
 }
 
-func (s *Service) AdminListUsers(params moduledto.AdminUserListRequest) ([]model.User, int64, error) {
-	return s.userService.AdminListUsers(params)
+func (s *Service) AdminListUsers(params moduledto.UserListRequest) ([]model.User, int64, error) {
+	return s.userService.ListUsers(params)
 }
 
-func (s *Service) AdminCreateUser(input moduledto.AdminCreateUserRequest) (*model.User, error) {
-	return s.userService.AdminCreateUser(input)
+func (s *Service) CreateUser(input moduledto.CreateUserRequest, allowReservedUsername bool) (*model.User, error) {
+	return s.userService.CreateUser(input, allowReservedUsername)
 }
 
-func (s *Service) AdminPrepareUserUpdates(userID uint, req moduledto.AdminUserUpdateRequest) (map[string]interface{}, error) {
-	return s.userService.AdminPrepareUserUpdates(userID, req)
-}
-
-func (s *Service) AdminApplyUserUpdates(userID uint, updates map[string]interface{}) error {
-	return s.userService.AdminApplyUserUpdates(userID, updates)
+func (s *Service) UpdateUser(userID uint, req moduledto.UpdateUserRequest, allowReservedUsername bool) error {
+	return s.userService.UpdateUser(userID, req, allowReservedUsername)
 }
 
 func (s *Service) IsUsernameTaken(username string, excludeUserID *uint, includeDeleted bool) (bool, error) {
@@ -224,10 +212,6 @@ func (s *Service) IsEmailTaken(email string, excludeUserID *uint, includeDeleted
 
 func (s *Service) GetUserProfile(userID uint) (*moduledto.UserProfileResponse, error) {
 	return s.userService.GetUserProfile(userID)
-}
-
-func (s *Service) UpdateUsernameAndGenerateToken(userID uint, newUsername string, isAdmin bool) (string, error) {
-	return s.userService.UpdateUsernameAndGenerateToken(userID, newUsername, isAdmin)
 }
 
 func (s *Service) UpdatePasswordByOldPassword(userID uint, oldPassword, newPassword string) error {

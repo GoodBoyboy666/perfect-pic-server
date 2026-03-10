@@ -18,6 +18,7 @@ type AuthUseCase struct {
 }
 
 type UserUseCase struct {
+	authService  *service.AuthService
 	userService  *service.UserService
 	userStore    repository.UserStore
 	emailService *service.EmailService
@@ -57,12 +58,14 @@ func NewAuthUseCase(
 }
 
 func NewUserUseCase(
+	authService *service.AuthService,
 	userService *service.UserService,
 	userStore repository.UserStore,
 	emailService *service.EmailService,
 	dbConfig *config.DBConfig,
 ) *UserUseCase {
 	return &UserUseCase{
+		authService:  authService,
 		userService:  userService,
 		userStore:    userStore,
 		emailService: emailService,

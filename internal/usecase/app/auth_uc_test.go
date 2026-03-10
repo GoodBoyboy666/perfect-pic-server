@@ -333,3 +333,11 @@ func TestAuthUseCase_VerifyEmail_EmailMismatchValidation(t *testing.T) {
 	_, err = f.authUC.VerifyEmail(token)
 	assertAuthErrorCode(t, err, httpx.AuthErrorValidation)
 }
+
+func TestAuthUseCase_RegisterUser_ReservedUsernameValidation(t *testing.T) {
+	f := setupAppFixture(t)
+	f.initializeSystem(t)
+
+	err := f.authUC.RegisterUser("admin", "abc12345", "alice@example.com")
+	assertAuthErrorCode(t, err, httpx.AuthErrorValidation)
+}

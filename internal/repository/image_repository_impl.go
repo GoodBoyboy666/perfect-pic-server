@@ -89,22 +89,6 @@ func (r *ImageRepository) ListImages(params ListImagesParams) ([]model.Image, in
 	return images, total, nil
 }
 
-func (r *ImageRepository) ListUserImages(
-	userID uint,
-	filename string,
-	id *uint,
-	offset int,
-	limit int,
-) ([]model.Image, int64, error) {
-	return r.ListImages(ListImagesParams{
-		UserID:   &userID,
-		Filename: filename,
-		ID:       id,
-		Offset:   offset,
-		Limit:    limit,
-	})
-}
-
 func (r *ImageRepository) CountByUserID(userID uint) (int64, error) {
 	var count int64
 	if err := r.db.Model(&model.Image{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
@@ -127,25 +111,6 @@ func (r *ImageRepository) FindByIDsAndUserID(ids []uint, userID uint) ([]model.I
 		return nil, err
 	}
 	return images, nil
-}
-
-func (r *ImageRepository) AdminListImages(
-	username string,
-	filename string,
-	userID *uint,
-	id *uint,
-	offset int,
-	limit int,
-) ([]model.Image, int64, error) {
-	return r.ListImages(ListImagesParams{
-		UserID:      userID,
-		Username:    username,
-		Filename:    filename,
-		ID:          id,
-		Offset:      offset,
-		Limit:       limit,
-		PreloadUser: true,
-	})
 }
 
 func (r *ImageRepository) FindByID(id uint) (*model.Image, error) {
