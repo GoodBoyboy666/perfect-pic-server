@@ -178,6 +178,21 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
+	actorIDRaw, exists := c.Get("id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
+		return
+	}
+	actorID, ok := actorIDRaw.(uint)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
+		return
+	}
+	if actorID == uint(id) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "不能删除自身"})
+		return
+	}
+
 	hardDelete := c.DefaultQuery("hard_delete", "false")
 
 	if err := h.userManageUseCase.AdminDeleteUser(uint(id), hardDelete == "true"); err != nil {

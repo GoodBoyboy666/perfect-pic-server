@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"testing"
 
 	"perfect-pic-server/internal/model"
@@ -30,6 +31,10 @@ func TestUserManageHandlers_CRUD(t *testing.T) {
 	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("id", uint(999))
+		c.Next()
+	})
 	r.GET("/users", testHandler.GetUserList)
 	r.GET("/users/:id", testHandler.GetUserDetail)
 	r.POST("/users", testHandler.CreateUser)
@@ -103,6 +108,10 @@ func TestUserManageHandlers_ErrorBranches(t *testing.T) {
 	setupTestDB(t)
 
 	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("id", uint(999))
+		c.Next()
+	})
 	r.GET("/users/:id", testHandler.GetUserDetail)
 	r.POST("/users", testHandler.CreateUser)
 	r.PATCH("/users/:id", testHandler.UpdateUser)
@@ -164,5 +173,30 @@ func TestUserManageHandlers_ErrorBranches(t *testing.T) {
 	r.ServeHTTP(w8, httptest.NewRequest(http.MethodDelete, "/users/999/avatar", nil))
 	if w8.Code != http.StatusNotFound {
 		t.Fatalf("期望 404，实际为 %d", w8.Code)
+	}
+}
+
+// 测试内容：验证管理员删除用户时不能删除自身。
+func TestUserManageHandlers_DeleteUser_RejectSelfDelete(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupTestDB(t)
+
+	u := model.User{Username: "self", Password: "x", Status: 1, Email: "self@example.com"}
+	if err := testGormDB.Create(&u).Error; err != nil {
+		t.Fatalf("create user failed: %v", err)
+	}
+
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("id", u.ID)
+		c.Next()
+	})
+	r.DELETE("/users/:id", testHandler.DeleteUser)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, "/users/"+strconv.FormatUint(uint64(u.ID), 10)+"?hard_delete=false", nil)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("self delete 期望 403，实际为 %d body=%s", w.Code, w.Body.String())
 	}
 }
