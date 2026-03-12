@@ -63,7 +63,7 @@ func (s *EmailService) EmailEnabled() bool {
 }
 
 func (s *EmailService) ShouldSendRegistrationVerificationEmail() bool {
-	return s.dbConfig.GetBool(consts.ConfigSendRegistrationVerificationEmail)
+	return s.EmailEnabled() && s.dbConfig.GetBool(consts.ConfigSendRegistrationVerificationEmail)
 }
 
 // SendVerificationEmail 发送验证邮件
