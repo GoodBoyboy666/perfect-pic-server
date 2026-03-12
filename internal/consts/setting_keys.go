@@ -29,8 +29,8 @@ const (
 	// ConfigBlockUnverifiedUsers 是否阻止未验证邮箱用户登录 (true/false)
 	ConfigBlockUnverifiedUsers = "block_unverified_users"
 
-	// ConfigRequireEmailVerification 注册是否强制要求验证邮箱 (true/false)
-	ConfigRequireEmailVerification = "require_email_verification"
+	// ConfigSendRegistrationVerificationEmail 注册发送验证邮件 (true/false)
+	ConfigSendRegistrationVerificationEmail = "send_registration_verification_email"
 
 	// ConfigMaxUploadSize 图片最大上传限制 (MB)
 	ConfigMaxUploadSize = "max_upload_size"

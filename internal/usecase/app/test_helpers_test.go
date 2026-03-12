@@ -8,6 +8,7 @@ import (
 	"perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/common/httpx"
 	"perfect-pic-server/internal/config"
+	"perfect-pic-server/internal/consts"
 	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/pkg/cache"
 	pkgmail "perfect-pic-server/internal/pkg/email"
@@ -42,6 +43,7 @@ var testGormDB *gorm.DB
 
 func setupAppFixture(t *testing.T) *appFixture {
 	t.Helper()
+	t.Setenv("PERFECT_PIC_SMTP_HOST", "127.0.0.1")
 	config.InitConfig("")
 
 	gdb := testutils.SetupDB(t)
@@ -58,6 +60,12 @@ func setupAppFixture(t *testing.T) *appFixture {
 	cacheStore := cache.NewStore(nil, config.NewCacheConfig(staticConfig))
 	if err := dbConfig.InitializeSettings(); err != nil {
 		t.Fatalf("InitializeSettings failed: %v", err)
+	}
+	if err := settingStore.UpdateSettings([]repository.UpdateSettingItem{{
+		Key:   consts.ConfigEnableSMTP,
+		Value: "true",
+	}}, ""); err != nil {
+		t.Fatalf("enable smtp for tests failed: %v", err)
 	}
 	dbConfig.ClearCache()
 

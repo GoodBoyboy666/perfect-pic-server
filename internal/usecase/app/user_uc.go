@@ -12,6 +12,9 @@ import (
 
 // RequestEmailChange 发起邮箱修改流程并异步发送验证邮件。
 func (c *UserUseCase) RequestEmailChange(userID uint, password, newEmail string) error {
+	if !c.emailService.EmailEnabled() {
+		return commonpkg.NewInternalError("系统未开启邮件服务，无法修改邮箱")
+	}
 	if ok, msg := validator.ValidateEmail(newEmail); !ok {
 		return commonpkg.NewValidationError(msg)
 	}
@@ -51,11 +54,9 @@ func (c *UserUseCase) RequestEmailChange(userID uint, password, newEmail string)
 	}
 	verifyURL := fmt.Sprintf("%s/auth/email-change-verify?token=%s", baseURL, token)
 
-	if c.emailService.ShouldSendEmail() {
-		go func() {
-			_ = c.emailService.SendEmailChangeVerification(newEmail, user.Username, user.Email, newEmail, verifyURL)
-		}()
-	}
+	go func() {
+		_ = c.emailService.SendEmailChangeVerification(newEmail, user.Username, user.Email, newEmail, verifyURL)
+	}()
 
 	return nil
 }

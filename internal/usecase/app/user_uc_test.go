@@ -2,6 +2,7 @@ package app
 
 import (
 	"perfect-pic-server/internal/common"
+	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
 	"testing"
 
@@ -49,4 +50,27 @@ func TestUserUseCase_RequestEmailChange_Success(t *testing.T) {
 	if err := f.userUC.RequestEmailChange(u.ID, "abc12345", "new@example.com"); err != nil {
 		t.Fatalf("RequestEmailChange failed: %v", err)
 	}
+}
+
+func TestUserUseCase_RequestEmailChange_EmailDisabled(t *testing.T) {
+	f := setupAppFixture(t)
+
+	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
+	u := model.User{
+		Username: "alice",
+		Password: string(hashed),
+		Status:   1,
+		Email:    "alice@example.com",
+	}
+	if err := testGormDB.Create(&u).Error; err != nil {
+		t.Fatalf("create user failed: %v", err)
+	}
+
+	if err := testGormDB.Save(&model.Setting{Key: consts.ConfigEnableSMTP, Value: "false"}).Error; err != nil {
+		t.Fatalf("disable smtp failed: %v", err)
+	}
+	f.dbConfig.ClearCache()
+
+	err := f.userUC.RequestEmailChange(u.ID, "abc12345", "new@example.com")
+	assertServiceErrorCode(t, err, common.ErrorCodeInternal)
 }

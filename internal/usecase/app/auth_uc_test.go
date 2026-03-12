@@ -269,6 +269,18 @@ func TestAuthUseCase_RequestPasswordReset_Branches(t *testing.T) {
 	}
 }
 
+func TestAuthUseCase_RequestPasswordReset_EmailDisabled(t *testing.T) {
+	f := setupAppFixture(t)
+
+	if err := testGormDB.Save(&model.Setting{Key: consts.ConfigEnableSMTP, Value: "false"}).Error; err != nil {
+		t.Fatalf("disable smtp failed: %v", err)
+	}
+	f.dbConfig.ClearCache()
+
+	err := f.authUC.RequestPasswordReset("unknown@example.com")
+	assertAuthErrorCode(t, err, httpx.AuthErrorInternal)
+}
+
 func TestAuthUseCase_ResetPassword_SuccessAndValidation(t *testing.T) {
 	f := setupAppFixture(t)
 

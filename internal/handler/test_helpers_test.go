@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"perfect-pic-server/internal/consts"
 	"testing"
 
 	"perfect-pic-server/internal/config"
@@ -33,6 +34,7 @@ var (
 
 func setupTestDB(t *testing.T) {
 	t.Helper()
+	t.Setenv("PERFECT_PIC_SMTP_HOST", "127.0.0.1")
 	config.InitConfig("")
 
 	gdb := testutils.SetupDB(t)
@@ -69,6 +71,12 @@ func setupTestDB(t *testing.T) {
 	testUserSvc = userService
 	if err := testService.InitializeSettings(); err != nil {
 		t.Fatalf("InitializeSettings failed: %v", err)
+	}
+	if err := settingStore.UpdateSettings([]repository.UpdateSettingItem{{
+		Key:   consts.ConfigEnableSMTP,
+		Value: "true",
+	}}, ""); err != nil {
+		t.Fatalf("enable smtp for tests failed: %v", err)
 	}
 	testService.ClearCache()
 
