@@ -44,6 +44,7 @@ var testGormDB *gorm.DB
 func setupAppFixture(t *testing.T) *appFixture {
 	t.Helper()
 	t.Setenv("PERFECT_PIC_SMTP_HOST", "127.0.0.1")
+	t.Setenv("PERFECT_PIC_SMTP_FROM", "noreply@example.com")
 	config.InitConfig("")
 
 	gdb := testutils.SetupDB(t)

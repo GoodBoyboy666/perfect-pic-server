@@ -35,6 +35,7 @@ var (
 func setupTestDB(t *testing.T) {
 	t.Helper()
 	t.Setenv("PERFECT_PIC_SMTP_HOST", "127.0.0.1")
+	t.Setenv("PERFECT_PIC_SMTP_FROM", "noreply@example.com")
 	config.InitConfig("")
 
 	gdb := testutils.SetupDB(t)
