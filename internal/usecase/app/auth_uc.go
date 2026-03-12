@@ -40,6 +40,13 @@ func (c *AuthUseCase) RegisterUser(username, password, email string) error {
 		return httpx.NewAuthError(httpx.AuthErrorForbidden, "注册功能已关闭")
 	}
 
+	enableEmail := c.emailService.EmailEnabled()
+	sendRegEmail := c.emailService.ShouldSendRegistrationVerificationEmail()
+
+	if !enableEmail && sendRegEmail {
+		return httpx.NewAuthError(httpx.AuthErrorInternal, "系统未开启邮件服务，无法发送验证邮件，请联系管理员")
+	}
+
 	newEmail := email
 	newUser, err := c.userService.CreateUser(moduledto.CreateUserRequest{
 		Username: username,
@@ -50,7 +57,7 @@ func (c *AuthUseCase) RegisterUser(username, password, email string) error {
 		return toRegisterAuthError(err)
 	}
 
-	if c.emailService.ShouldSendRegistrationVerificationEmail() {
+	if sendRegEmail {
 		verifyToken, err := c.userService.GenerateEmailVerificationToken(newUser.ID, newUser.Email)
 		if err != nil {
 			return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
@@ -65,9 +72,7 @@ func (c *AuthUseCase) RegisterUser(username, password, email string) error {
 		}
 
 		verifyURL := fmt.Sprintf("%s/auth/email-verify?token=%s", baseURL, verifyToken)
-		if !c.emailService.EmailEnabled() {
-			return httpx.NewAuthError(httpx.AuthErrorInternal, "系统未开启邮件服务，无法发送验证邮件，请联系管理员")
-		}
+
 		go func() {
 			_ = c.emailService.SendVerificationEmail(newUser.Email, newUser.Username, verifyURL)
 		}()
